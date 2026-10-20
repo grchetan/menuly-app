@@ -104,7 +104,7 @@ export function AppShell({
     }
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut().catch(() => {});
     navigate({ to: "/auth", replace: true });
   }
 

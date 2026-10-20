@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   ExternalLink,
@@ -25,10 +25,42 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
 import { myMenuQuery, uploadImage } from "@/lib/restaurant";
 import { slugify } from "@/lib/config";
 import { cn } from "@/lib/utils";
+
+function DashboardSkeleton() {
+  return (
+    <AppShell title="Dashboard & Analytics">
+      <div className="space-y-6 animate-pulse">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 rounded-2xl border border-border/70 bg-card p-4 space-y-3">
+              <div className="flex justify-between">
+                <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                <div className="size-6 rounded-lg bg-muted animate-pulse" />
+              </div>
+              <div className="h-7 w-24 rounded-lg bg-muted animate-pulse" />
+              <div className="h-3 w-32 rounded bg-muted/60 animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6 space-y-4">
+            <div className="h-5 w-48 rounded bg-muted animate-pulse" />
+            <div className="h-44 rounded-xl bg-muted/50 animate-pulse" />
+            <div className="h-32 rounded-xl bg-muted/30 animate-pulse" />
+          </div>
+          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6 space-y-4">
+            <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-24 rounded-xl bg-muted/50 animate-pulse" />
+            <div className="h-24 rounded-xl bg-muted/50 animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   ssr: false,
@@ -39,16 +71,16 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
       { property: "og:title", content: "Dashboard & Analytics — Menuly" },
     ],
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(myMenuQuery),
+  pendingComponent: DashboardSkeleton,
   component: Dashboard,
 });
 
 function Dashboard() {
-  const { data } = useSuspenseQuery(myMenuQuery);
+  const { data, isLoading } = useQuery(myMenuQuery);
   const qc = useQueryClient();
-  const r = data.restaurant;
+  const r = data?.restaurant;
 
-  const analytics = data.analytics ?? {
+  const analytics = data?.analytics ?? {
     totalScans: 0,
     scansToday: 0,
     tableScans: 0,
@@ -66,16 +98,34 @@ function Dashboard() {
   };
 
   const [form, setForm] = useState({
-    name: r.name,
-    slug: r.slug,
-    address: r.address ?? "",
-    phone: r.phone ?? "",
-    whatsapp: r.whatsapp ?? "",
-    hours: r.hours ?? "",
+    name: "",
+    slug: "",
+    address: "",
+    phone: "",
+    whatsapp: "",
+    hours: "",
   });
-  const [logo, setLogo] = useState(r.logo_url);
+  const [logo, setLogo] = useState<string | null>(null);
   const [logoSummary, setLogoSummary] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (r) {
+      setForm({
+        name: r.name || "",
+        slug: r.slug || "",
+        address: r.address ?? "",
+        phone: r.phone ?? "",
+        whatsapp: r.whatsapp ?? "",
+        hours: r.hours ?? "",
+      });
+      setLogo(r.logo_url || null);
+    }
+  }, [r]);
+
+  if (isLoading || !r) {
+    return <DashboardSkeleton />;
+  }
 
   const link = typeof window !== "undefined" ? `${window.location.origin}/menu/${r.slug}` : `/menu/${r.slug}`;
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>

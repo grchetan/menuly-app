@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -52,6 +52,27 @@ import {
 import { formatPrice } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
+function MyMenuSkeleton() {
+  return (
+    <AppShell title="Easy Menu Setup">
+      <div className="space-y-6 animate-pulse max-w-6xl mx-auto py-6">
+        <div className="h-32 rounded-2xl border border-border/70 bg-card p-5 space-y-3">
+          <div className="h-5 w-48 rounded bg-muted animate-pulse" />
+          <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6 space-y-4">
+            <div className="h-6 w-36 rounded bg-muted animate-pulse" />
+            <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
+            <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
+          </div>
+          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6" />
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
 export const Route = createFileRoute("/_authenticated/my-menu")({
   ssr: false,
   head: () => ({
@@ -60,7 +81,7 @@ export const Route = createFileRoute("/_authenticated/my-menu")({
       { name: "description", content: "Create and manage your digital restaurant QR menu." },
     ],
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(myMenuQuery),
+  pendingComponent: MyMenuSkeleton,
   component: MyMenu,
 });
 
@@ -76,9 +97,14 @@ type Draft = {
 };
 
 function MyMenu() {
-  const { data } = useSuspenseQuery(myMenuQuery);
+  const { data, isLoading } = useQuery(myMenuQuery);
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+
+  if (isLoading || !data?.restaurant) {
+    return <MyMenuSkeleton />;
+  }
+
   const rid = data.restaurant.id;
 
   // Quick Add State (Single line entry)

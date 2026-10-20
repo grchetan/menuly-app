@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -41,6 +41,23 @@ import {
   type RestaurantTable,
 } from "@/lib/api";
 
+function QrSkeleton() {
+  return (
+    <AppShell title="QR Studio & Print Templates">
+      <div className="space-y-6 animate-pulse max-w-6xl mx-auto py-6">
+        <div className="h-32 rounded-2xl border border-border/70 bg-card p-5 space-y-3">
+          <div className="h-5 w-48 rounded bg-muted animate-pulse" />
+          <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6" />
+          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6" />
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
 export const Route = createFileRoute("/_authenticated/qr")({
   ssr: false,
   head: () => ({
@@ -51,7 +68,7 @@ export const Route = createFileRoute("/_authenticated/qr")({
       { property: "og:description", content: "Customize and print your digital menu QR code." },
     ],
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(myMenuQuery),
+  pendingComponent: QrSkeleton,
   component: QrPage,
 });
 
@@ -101,20 +118,32 @@ const placementTips = [
 ];
 
 function QrPage() {
-  const { data } = useSuspenseQuery(myMenuQuery);
+  const { data, isLoading } = useQuery(myMenuQuery);
   const qc = useQueryClient();
-  const r = data.restaurant;
+  const r = data?.restaurant;
 
-  const [fg, setFg] = useState(r.qr_fg || "#1a1f1c");
-  const [bg, setBg] = useState(r.qr_bg || "#ffffff");
-  const [corner, setCorner] = useState<Corner>(
-    (r.qr_corner as Corner) in corners ? (r.qr_corner as Corner) : "rounded"
-  );
+  const [fg, setFg] = useState("#1a1f1c");
+  const [bg, setBg] = useState("#ffffff");
+  const [corner, setCorner] = useState<Corner>("rounded");
   const [showLogo, setShowLogo] = useState(true);
   const [pngSize, setPngSize] = useState<512 | 1024 | 2048>(1024);
   const [copied, setCopied] = useState(false);
   const [templateTab, setTemplateTab] = useState<"A5" | "A4">("A5");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (r) {
+      if (r.qr_fg) setFg(r.qr_fg);
+      if (r.qr_bg) setBg(r.qr_bg);
+      if (r.qr_corner && (r.qr_corner as Corner) in corners) {
+        setCorner(r.qr_corner as Corner);
+      }
+    }
+  }, [r]);
+
+  if (isLoading || !r) {
+    return <QrSkeleton />;
+  }
 
   // Multi-table QR state
   const [viewTab, setViewTab] = useState<"master" | "tables">("master");

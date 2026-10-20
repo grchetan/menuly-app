@@ -107,49 +107,23 @@ export async function getOrCreateUserRestaurant(userId: string, userEmail: strin
 }
 
 export async function getRestaurantAnalytics(restaurantId: string) {
-  // 1. Total Scans (Real count from database)
-  const totalScans = await prisma.qrScan.count({
-    where: { restaurantId },
-  });
-
-  // 2. Scans Today
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-
-  const scansToday = await prisma.qrScan.count({
-    where: {
-      restaurantId,
-      scannedAt: { gte: startOfToday },
-    },
-  });
-
-  // 3. Table Scans vs Direct Visits
-  const tableScans = await prisma.qrScan.count({
-    where: {
-      restaurantId,
-      tableNumber: { not: null },
-    },
-  });
-
-  const directVisits = await prisma.qrScan.count({
-    where: {
-      restaurantId,
-      tableNumber: null,
-    },
-  });
-
-  // 4. Scans for the last 7 days
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  const pastScans = await prisma.qrScan.findMany({
-    where: {
-      restaurantId,
-      scannedAt: { gte: sevenDaysAgo },
-    },
-    select: { scannedAt: true },
-  });
+  // Execute telemetry queries concurrently in parallel
+  const [totalScans, scansToday, tableScans, directVisits, pastScans] = await Promise.all([
+    prisma.qrScan.count({ where: { restaurantId } }),
+    prisma.qrScan.count({ where: { restaurantId, scannedAt: { gte: startOfToday } } }),
+    prisma.qrScan.count({ where: { restaurantId, tableNumber: { not: null } } }),
+    prisma.qrScan.count({ where: { restaurantId, tableNumber: null } }),
+    prisma.qrScan.findMany({
+      where: { restaurantId, scannedAt: { gte: sevenDaysAgo } },
+      select: { scannedAt: true },
+    }),
+  ]);
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const daysMap = new Map<string, number>();
