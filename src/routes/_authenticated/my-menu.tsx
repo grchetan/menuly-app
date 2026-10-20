@@ -39,7 +39,7 @@ import {
   myMenuQuery,
   uploadImage,
   STARTER_PRESETS,
-  applyStarterPreset,
+  applyPresetHelper,
   addCategoryHelper,
   renameCategoryHelper,
   deleteCategoryHelper,
@@ -156,25 +156,33 @@ function MyMenu() {
     }
   };
 
-  // 1-Click Starter Preset Apply
-  const handleApplyPreset = (presetId: string) => {
+  // 1-Click Starter Preset Apply (Saved directly to live PostgreSQL database)
+  const handleApplyPreset = async (presetId: string) => {
     if (data.items.length > 0) {
       setConfirmingPreset(presetId);
       return;
     }
-    applyStarterPreset(presetId);
-    toast.success("Starter menu loaded! You can now adjust names and prices.");
-    setShowPresets(false);
-    refresh();
+    try {
+      await applyPresetHelper(presetId);
+      toast.success("Starter menu pack loaded! You can now adjust names and prices.");
+      setShowPresets(false);
+      refresh();
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
-  const confirmApplyPreset = () => {
+  const confirmApplyPreset = async () => {
     if (!confirmingPreset) return;
-    applyStarterPreset(confirmingPreset);
-    toast.success("Starter menu loaded! You can now adjust names and prices.");
-    setShowPresets(false);
-    setConfirmingPreset(null);
-    refresh();
+    try {
+      await applyPresetHelper(confirmingPreset);
+      toast.success("Starter menu pack loaded! You can now adjust names and prices.");
+      setShowPresets(false);
+      setConfirmingPreset(null);
+      refresh();
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   // Add Category
@@ -1206,7 +1214,7 @@ function MyMenu() {
           </DialogHeader>
           <div className="py-3">
             <p className="text-sm text-foreground">
-              This will load a complete curated starter pack into your menu. Current demo dishes will be replaced.
+              This will load a complete curated starter pack into your menu. Existing dishes will be replaced.
             </p>
             <p className="text-xs text-muted-foreground mt-1.5">
               You can still rename, edit prices, add photos, or add custom dishes anytime.

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
-import { setDemoMode } from "@/lib/restaurant";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 type AuthMode = "login" | "signup" | "otp" | "forgot" | "reset";
@@ -264,12 +263,6 @@ function AuthPage() {
     } finally {
       setBusy(false);
     }
-  };
-
-  const enterDemoMode = () => {
-    setDemoMode(true);
-    toast.success("Demo Mode Activated! All features unlocked for testing.");
-    navigate({ to: "/dashboard" });
   };
 
   return (

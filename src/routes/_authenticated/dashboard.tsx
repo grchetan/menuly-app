@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { myMenuQuery, uploadImage, isDemoMode } from "@/lib/restaurant";
+import { myMenuQuery, uploadImage } from "@/lib/restaurant";
 import { slugify } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
@@ -47,17 +47,22 @@ function Dashboard() {
   const qc = useQueryClient();
   const r = data.restaurant;
 
-  const scanKey = `menuly_scans_${r.id || r.slug}`;
-  const totalScans = typeof window !== "undefined" ? Number(localStorage.getItem(scanKey) || 0) : 0;
-  const weeklyScans = [
-    { day: "Mon", scans: Math.round(totalScans * 0.1), height: totalScans > 0 ? "42%" : "8%" },
-    { day: "Tue", scans: Math.round(totalScans * 0.12), height: totalScans > 0 ? "50%" : "8%" },
-    { day: "Wed", scans: Math.round(totalScans * 0.15), height: totalScans > 0 ? "60%" : "8%" },
-    { day: "Thu", scans: Math.round(totalScans * 0.13), height: totalScans > 0 ? "48%" : "8%" },
-    { day: "Fri", scans: Math.round(totalScans * 0.2), height: totalScans > 0 ? "80%" : "8%" },
-    { day: "Sat", scans: Math.round(totalScans * 0.25), height: totalScans > 0 ? "98%" : "8%" },
-    { day: "Sun", scans: Math.round(totalScans * 0.05), height: totalScans > 0 ? "100%" : "8%" },
-  ];
+  const analytics = data.analytics ?? {
+    totalScans: 0,
+    scansToday: 0,
+    tableScans: 0,
+    directVisits: 0,
+    scansThisWeek: 0,
+    weeklyScans: [
+      { day: "Mon", date: "mon", scans: 0, height: "8%" },
+      { day: "Tue", date: "tue", scans: 0, height: "8%" },
+      { day: "Wed", date: "wed", scans: 0, height: "8%" },
+      { day: "Thu", date: "thu", scans: 0, height: "8%" },
+      { day: "Fri", date: "fri", scans: 0, height: "8%" },
+      { day: "Sat", date: "sat", scans: 0, height: "8%" },
+      { day: "Sun", date: "sun", scans: 0, height: "8%" },
+    ],
+  };
 
   const [form, setForm] = useState({
     name: r.name,
@@ -96,46 +101,28 @@ function Dashboard() {
       return;
     }
     setSaving(true);
-    if (isDemoMode() && typeof window !== "undefined" && !localStorage.getItem("menuly_token")) {
-      const cur = JSON.parse(localStorage.getItem("menuly_demo_menu") || "{}");
-      if (cur.restaurant) {
-        cur.restaurant = {
-          ...cur.restaurant,
-          name: form.name.trim(),
-          slug,
-          address: form.address || null,
-          phone: form.phone || null,
-          whatsapp: form.whatsapp || null,
-          hours: form.hours || null,
-          logo_url: logo,
-          updated_at: new Date().toISOString(),
-        };
-        localStorage.setItem("menuly_demo_menu", JSON.stringify(cur));
-      }
-    } else {
-      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
-      const res = await fetch("/api/restaurant/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          slug,
-          address: form.address || null,
-          phone: form.phone || null,
-          whatsapp: form.whatsapp || null,
-          hours: form.hours || null,
-          logoUrl: logo,
-        }),
-      });
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        setSaving(false);
-        toast.error(resData.error || "Failed to update restaurant profile");
-        return;
-      }
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    const res = await fetch("/api/restaurant/update", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        name: form.name.trim(),
+        slug,
+        address: form.address || null,
+        phone: form.phone || null,
+        whatsapp: form.whatsapp || null,
+        hours: form.hours || null,
+        logoUrl: logo,
+      }),
+    });
+    const resData = await res.json();
+    if (!res.ok || !resData.success) {
+      setSaving(false);
+      toast.error(resData.error || "Failed to update restaurant profile");
+      return;
     }
     setSaving(false);
     toast.success("Restaurant details updated successfully");
@@ -178,21 +165,27 @@ function Dashboard() {
       <div className="space-y-6">
         {/* Clean, Simple Metrics Grid (Visitors & QR Scans) */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
-          {/* Card 1: QR Table Scans */}
+          {/* Card 1: Total QR Scans */}
           <div className="rounded-2xl border border-border/70 bg-card p-4 sm:p-5 shadow-xs transition-colors hover:border-primary/40">
             <div className="flex items-center justify-between">
               <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Table QR Scans
+                Total QR Scans
               </span>
               <span className="rounded-lg bg-primary/10 p-1.5 text-primary">
                 <QrCode className="size-4" />
               </span>
             </div>
             <p className="mt-2 font-display text-2xl sm:text-3xl font-extrabold text-foreground">
-              1,415
+              {analytics.totalScans.toLocaleString()}
             </p>
             <p className="mt-1 flex items-center gap-1 text-[11px] text-veg font-semibold truncate">
-              <TrendingUp className="size-3" /> +16.2% scans this week
+              {analytics.scansThisWeek > 0 ? (
+                <>
+                  <TrendingUp className="size-3" /> +{analytics.scansThisWeek} scans this week
+                </>
+              ) : (
+                <span className="text-muted-foreground font-normal">No scans recorded yet</span>
+              )}
             </p>
           </div>
 
@@ -207,10 +200,10 @@ function Dashboard() {
               </span>
             </div>
             <p className="mt-2 font-display text-2xl sm:text-3xl font-extrabold text-foreground">
-              142
+              {analytics.scansToday.toLocaleString()}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground truncate">
-              Live menu views today
+              {analytics.scansToday > 0 ? `${analytics.scansToday} live menu visits today` : "Live menu views today"}
             </p>
           </div>
 
@@ -225,10 +218,10 @@ function Dashboard() {
               </span>
             </div>
             <p className="mt-2 font-display text-2xl sm:text-3xl font-extrabold text-foreground">
-              58
+              {analytics.directVisits.toLocaleString()}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground truncate">
-              WhatsApp & Google shares
+              {analytics.directVisits > 0 ? `${analytics.directVisits} direct link visits` : "WhatsApp & Google shares"}
             </p>
           </div>
 
@@ -267,15 +260,15 @@ function Dashboard() {
                     <Clock className="size-3" /> Live Telemetry
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
-                    {totalScans.toLocaleString()} Total Scans
+                    {analytics.totalScans.toLocaleString()} Total Scans
                   </span>
                 </div>
               </div>
 
               {/* Bar Chart Visualization */}
               <div className="mt-5 flex h-36 items-end justify-between gap-2 sm:gap-3 px-1 pt-2">
-                {weeklyScans.map((d) => (
-                  <div key={d.day} className="flex flex-1 flex-col items-center gap-1.5 h-full justify-end">
+                {analytics.weeklyScans.map((d) => (
+                  <div key={d.day + (d.date || "")} className="flex flex-1 flex-col items-center gap-1.5 h-full justify-end">
                     <span className="text-[10px] font-bold text-muted-foreground">{d.scans}</span>
                     <div
                       style={{ height: d.height }}

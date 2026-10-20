@@ -139,31 +139,29 @@ export async function recordQRScan(data: {
   }
 }
 
+function getAuthHeader(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("menuly_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 /**
  * Fetch Restaurant Tables (Owner Dashboard & QR Studio)
  */
 export async function getRestaurantTables(restaurantId: string): Promise<RestaurantTable[]> {
   if (typeof window === "undefined") return [];
 
-  if (isDemoSession()) {
-    const raw = localStorage.getItem(`menuly_tables_${restaurantId}`);
-    if (raw) {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        // fallback
+  const token = localStorage.getItem("menuly_token");
+  if (token) {
+    try {
+      const res = await fetch("/api/restaurant/tables", { headers: getAuthHeader() });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.tables)) {
+        return data.tables;
       }
+    } catch {
+      // fallback
     }
-    // Default sample tables
-    const sampleTables: RestaurantTable[] = [
-      { id: "tbl-1", restaurant_id: restaurantId, table_number: "1", label: "Window Side", scans_count: 142, created_at: new Date().toISOString() },
-      { id: "tbl-2", restaurant_id: restaurantId, table_number: "2", label: "Window Side", scans_count: 98, created_at: new Date().toISOString() },
-      { id: "tbl-3", restaurant_id: restaurantId, table_number: "3", label: "Center Booth", scans_count: 215, created_at: new Date().toISOString() },
-      { id: "tbl-4", restaurant_id: restaurantId, table_number: "4", label: "Center Booth", scans_count: 180, created_at: new Date().toISOString() },
-      { id: "tbl-5", restaurant_id: restaurantId, table_number: "5", label: "Family Section", scans_count: 310, created_at: new Date().toISOString() },
-    ];
-    localStorage.setItem(`menuly_tables_${restaurantId}`, JSON.stringify(sampleTables));
-    return sampleTables;
   }
 
   try {
@@ -187,27 +185,18 @@ export async function saveRestaurantTable(
   tableNumber: string,
   label?: string
 ): Promise<RestaurantTable> {
-  const newTable: RestaurantTable = {
-    id: `tbl-${Date.now()}`,
-    restaurant_id: restaurantId,
-    table_number: tableNumber.trim(),
-    label: label?.trim() || null,
-    scans_count: 0,
-    created_at: new Date().toISOString(),
-  };
-
-  if (isDemoSession()) {
-    const tables = await getRestaurantTables(restaurantId);
-    const existingIndex = tables.findIndex((t) => t.table_number === tableNumber.trim());
-    let updated: RestaurantTable[];
-    if (existingIndex >= 0 && tables[existingIndex]) {
-      tables[existingIndex]!.label = label?.trim() || null;
-      updated = [...tables];
-    } else {
-      updated = [...tables, newTable];
+  const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+  if (token) {
+    const res = await fetch("/api/restaurant/tables/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ tableNumber, label }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success && data.table) {
+      return data.table;
     }
-    localStorage.setItem(`menuly_tables_${restaurantId}`, JSON.stringify(updated));
-    return newTable;
+    throw new Error(data.error || "Failed to save table");
   }
 
   const { data, error } = await supabase
@@ -228,10 +217,17 @@ export async function saveRestaurantTable(
  * Delete a Table
  */
 export async function deleteRestaurantTable(restaurantId: string, tableId: string): Promise<void> {
-  if (isDemoSession()) {
-    const tables = await getRestaurantTables(restaurantId);
-    const filtered = tables.filter((t) => t.id !== tableId);
-    localStorage.setItem(`menuly_tables_${restaurantId}`, JSON.stringify(filtered));
+  const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+  if (token) {
+    const res = await fetch("/api/restaurant/tables/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ id: tableId }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Failed to delete table");
+    }
     return;
   }
 
@@ -246,27 +242,20 @@ export async function bulkGenerateTables(
   start: number = 1,
   count: number = 10
 ): Promise<RestaurantTable[]> {
-  const tables = await getRestaurantTables(restaurantId);
-  const existingNumbers = new Set(tables.map((t) => t.table_number));
-
-  const newTables: RestaurantTable[] = [];
-  for (let i = start; i < start + count; i++) {
-    const numStr = String(i);
-    if (!existingNumbers.has(numStr)) {
-      newTables.push({
-        id: `tbl-${Date.now()}-${i}`,
-        restaurant_id: restaurantId,
-        table_number: numStr,
-        label: `Table ${numStr}`,
-        scans_count: 0,
-        created_at: new Date().toISOString(),
-      });
+  const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+  if (token) {
+    const res = await fetch("/api/restaurant/tables/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ count, prefix: "Table " }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success && Array.isArray(data.tables)) {
+      return data.tables;
     }
   }
 
-  const merged = [...tables, ...newTables].sort((a, b) => Number(a.table_number) - Number(b.table_number));
-  localStorage.setItem(`menuly_tables_${restaurantId}`, JSON.stringify(merged));
-  return merged;
+  return await getRestaurantTables(restaurantId);
 }
 
 /**

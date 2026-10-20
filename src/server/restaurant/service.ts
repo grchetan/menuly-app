@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { slugify } from "../../lib/config";
+import { STARTER_PRESETS } from "../../lib/presets";
 
 export interface RestaurantPayload {
   name: string;
@@ -59,6 +60,8 @@ export async function getOrCreateUserRestaurant(userId: string, userEmail: strin
     });
   }
 
+  const analytics = await getRestaurantAnalytics(restaurant.id);
+
   return {
     restaurant: {
       id: restaurant.id,
@@ -99,7 +102,263 @@ export async function getOrCreateUserRestaurant(userId: string, userEmail: strin
       position: item.position,
       created_at: item.createdAt.toISOString(),
     })),
+    analytics,
   };
+}
+
+export async function getRestaurantAnalytics(restaurantId: string) {
+  // 1. Total Scans (Real count from database)
+  const totalScans = await prisma.qrScan.count({
+    where: { restaurantId },
+  });
+
+  // 2. Scans Today
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  const scansToday = await prisma.qrScan.count({
+    where: {
+      restaurantId,
+      scannedAt: { gte: startOfToday },
+    },
+  });
+
+  // 3. Table Scans vs Direct Visits
+  const tableScans = await prisma.qrScan.count({
+    where: {
+      restaurantId,
+      tableNumber: { not: null },
+    },
+  });
+
+  const directVisits = await prisma.qrScan.count({
+    where: {
+      restaurantId,
+      tableNumber: null,
+    },
+  });
+
+  // 4. Scans for the last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const pastScans = await prisma.qrScan.findMany({
+    where: {
+      restaurantId,
+      scannedAt: { gte: sevenDaysAgo },
+    },
+    select: { scannedAt: true },
+  });
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const daysMap = new Map<string, number>();
+  const weeklyScansList: { day: string; date: string; scans: number; height: string }[] = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dayLabel = dayNames[d.getDay()]!;
+    daysMap.set(dayKey, 0);
+    weeklyScansList.push({
+      day: dayLabel,
+      date: dayKey,
+      scans: 0,
+      height: "8%",
+    });
+  }
+
+  for (const s of pastScans) {
+    const sDate = s.scannedAt;
+    const key = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, "0")}-${String(sDate.getDate()).padStart(2, "0")}`;
+    if (daysMap.has(key)) {
+      daysMap.set(key, (daysMap.get(key) || 0) + 1);
+    }
+  }
+
+  const maxScans = Math.max(...Array.from(daysMap.values()), 0);
+
+  for (const item of weeklyScansList) {
+    const count = daysMap.get(item.date) || 0;
+    item.scans = count;
+    if (maxScans > 0 && count > 0) {
+      item.height = `${Math.max(16, Math.round((count / maxScans) * 100))}%`;
+    } else {
+      item.height = "8%";
+    }
+  }
+
+  return {
+    totalScans,
+    scansToday,
+    tableScans,
+    directVisits,
+    scansThisWeek: pastScans.length,
+    weeklyScans: weeklyScansList,
+  };
+}
+
+export async function applyPresetToRestaurant(userId: string, presetId: string) {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { ownerId: userId },
+  });
+  if (!restaurant) throw new Error("Restaurant not found.");
+
+  const preset = STARTER_PRESETS.find((p) => p.id === presetId) || STARTER_PRESETS[0]!;
+
+  // 1. Clear existing items and categories
+  await prisma.menuItem.deleteMany({ where: { restaurantId: restaurant.id } });
+  await prisma.category.deleteMany({ where: { restaurantId: restaurant.id } });
+
+  // 2. Insert new categories and items
+  for (let idx = 0; idx < preset.categories.length; idx++) {
+    const c = preset.categories[idx]!;
+    const createdCat = await prisma.category.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: c.name,
+        position: idx,
+      },
+    });
+
+    const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
+    for (let itIdx = 0; itIdx < itemsForCategory.length; itIdx++) {
+      const it = itemsForCategory[itIdx]!;
+      await prisma.menuItem.create({
+        data: {
+          restaurantId: restaurant.id,
+          categoryId: createdCat.id,
+          name: it.name,
+          price: it.price,
+          description: it.description,
+          imageUrl: it.image_url,
+          isVeg: true,
+          available: true,
+          position: itIdx,
+        },
+      });
+    }
+  }
+
+  return await getOrCreateUserRestaurant(userId, "");
+}
+
+export async function getTablesForRestaurant(userId: string) {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { ownerId: userId },
+  });
+  if (!restaurant) return [];
+
+  const tables = await prisma.restaurantTable.findMany({
+    where: { restaurantId: restaurant.id },
+    orderBy: { tableNumber: "asc" },
+  });
+
+  return tables.map((t) => ({
+    id: t.id,
+    restaurant_id: t.restaurantId,
+    table_number: t.tableNumber,
+    label: t.label,
+    scans_count: t.scansCount,
+    created_at: t.createdAt.toISOString(),
+  }));
+}
+
+export async function saveTableForRestaurant(
+  userId: string,
+  tableNumber: string,
+  label?: string | null
+) {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { ownerId: userId },
+  });
+  if (!restaurant) throw new Error("Restaurant not found.");
+
+  const cleanNum = tableNumber.trim();
+  if (!cleanNum) throw new Error("Table number is required.");
+
+  const table = await prisma.restaurantTable.upsert({
+    where: {
+      restaurantId_tableNumber: {
+        restaurantId: restaurant.id,
+        tableNumber: cleanNum,
+      },
+    },
+    update: {
+      label: label?.trim() || null,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      tableNumber: cleanNum,
+      label: label?.trim() || null,
+    },
+  });
+
+  return {
+    id: table.id,
+    restaurant_id: table.restaurantId,
+    table_number: table.tableNumber,
+    label: table.label,
+    scans_count: table.scansCount,
+    created_at: table.createdAt.toISOString(),
+  };
+}
+
+export async function deleteTableForRestaurant(userId: string, id: string) {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { ownerId: userId },
+  });
+  if (!restaurant) throw new Error("Restaurant not found.");
+
+  await prisma.restaurantTable.deleteMany({
+    where: { id, restaurantId: restaurant.id },
+  });
+
+  return { success: true };
+}
+
+export async function bulkCreateTablesForRestaurant(
+  userId: string,
+  count: number,
+  prefix: string = "Table "
+) {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { ownerId: userId },
+  });
+  if (!restaurant) throw new Error("Restaurant not found.");
+
+  const total = Math.min(Math.max(1, count), 100);
+  const created: any[] = [];
+
+  for (let i = 1; i <= total; i++) {
+    const tableNum = String(i);
+    const label = `${prefix.trim()} ${i}`.trim();
+    const t = await prisma.restaurantTable.upsert({
+      where: {
+        restaurantId_tableNumber: {
+          restaurantId: restaurant.id,
+          tableNumber: tableNum,
+        },
+      },
+      update: { label },
+      create: {
+        restaurantId: restaurant.id,
+        tableNumber: tableNum,
+        label,
+      },
+    });
+    created.push({
+      id: t.id,
+      restaurant_id: t.restaurantId,
+      table_number: t.tableNumber,
+      label: t.label,
+      scans_count: t.scansCount,
+      created_at: t.createdAt.toISOString(),
+    });
+  }
+
+  return created;
 }
 
 export async function updateRestaurant(userId: string, data: Partial<RestaurantPayload>) {

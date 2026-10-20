@@ -1,6 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { isDemoMode } from "@/lib/restaurant";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -9,11 +8,6 @@ export const Route = createFileRoute("/_authenticated")({
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("menuly_token");
       if (token) return;
-    }
-
-    // 2. Fallback to demo mode only if explicitly enabled
-    if (isDemoMode() && typeof window !== "undefined") {
-      return;
     }
 
     try {

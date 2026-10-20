@@ -23,6 +23,11 @@ import {
   toggleDishAvailable,
   getPublicRestaurantMenu,
   getAllRestaurantsForAdmin,
+  applyPresetToRestaurant,
+  getTablesForRestaurant,
+  saveTableForRestaurant,
+  deleteTableForRestaurant,
+  bulkCreateTablesForRestaurant,
 } from "./restaurant/service";
 
 function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -311,6 +316,51 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         }
         const updated = await toggleDishAvailable(auth.userId, body.id);
         return json({ success: true, item: updated });
+      }
+
+      // 10. POST /api/restaurant/preset (Load complete starter pack directly into database)
+      if (pathname === "/api/restaurant/preset" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.presetId) {
+          return json({ error: "Preset ID required" }, 400);
+        }
+        const updated = await applyPresetToRestaurant(auth.userId, body.presetId);
+        return json({ success: true, message: "Starter menu pack loaded into database.", ...updated });
+      }
+
+      // 11. GET /api/restaurant/tables
+      if (pathname === "/api/restaurant/tables" && request.method === "GET") {
+        const tables = await getTablesForRestaurant(auth.userId);
+        return json({ success: true, tables });
+      }
+
+      // 12. POST /api/restaurant/tables/save
+      if (pathname === "/api/restaurant/tables/save" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.tableNumber?.trim()) {
+          return json({ error: "Table number is required" }, 400);
+        }
+        const table = await saveTableForRestaurant(auth.userId, body.tableNumber, body.label);
+        return json({ success: true, table });
+      }
+
+      // 13. POST /api/restaurant/tables/delete
+      if (pathname === "/api/restaurant/tables/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.id) {
+          return json({ error: "Table ID is required" }, 400);
+        }
+        await deleteTableForRestaurant(auth.userId, body.id);
+        return json({ success: true, message: "Table removed" });
+      }
+
+      // 14. POST /api/restaurant/tables/bulk
+      if (pathname === "/api/restaurant/tables/bulk" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const count = Number(body.count) || 10;
+        const prefix = body.prefix || "Table ";
+        const tables = await bulkCreateTablesForRestaurant(auth.userId, count, prefix);
+        return json({ success: true, tables });
       }
     }
 
