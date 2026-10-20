@@ -166,6 +166,7 @@ export const userStore = {
   async update(
     id: string,
     data: Partial<{
+      email: string;
       passwordHash: string;
       fullName: string | null;
       phone: string | null;
@@ -202,7 +203,12 @@ export const userStore = {
           ...data,
           updatedAt: new Date(),
         };
-        devUsers.set(email, updated);
+        if (data.email && data.email !== email) {
+          devUsers.delete(email);
+          devUsers.set(data.email, updated);
+        } else {
+          devUsers.set(email, updated);
+        }
         return updated;
       }
     }

@@ -206,22 +206,6 @@ function Support() {
               </Button>
             </div>
           </div>
-
-          {/* Admin shortcut */}
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 shadow-soft">
-            <div className="flex items-center gap-2">
-              <Shield className="size-5 text-primary" />
-              <h3 className="font-display text-base font-bold text-foreground">Admin Desk Access</h3>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Are you the platform administrator? Open the master dashboard to review open tickets, verify restaurants, and mark issues resolved.
-            </p>
-            <Button asChild size="sm" className="mt-4 gap-1.5 shadow-soft">
-              <Link to="/admin">
-                Open Admin Portal <ArrowRight className="size-3.5" />
-              </Link>
-            </Button>
-          </div>
         </div>
       </div>
     </AppShell>

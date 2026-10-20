@@ -6,6 +6,8 @@ import {
   forgotPassword,
   resetPassword,
   getCurrentUser,
+  updateUserProfile,
+  changeUserPassword,
   seedSuperAdmin,
 } from "./auth/service";
 import { verifyAccessToken } from "./auth/security";
@@ -199,6 +201,45 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     if (pathname === "/api/auth/me" && request.method === "GET") {
       const token = extractBearerToken(request);
       const res = await getCurrentUser(token);
+      return json(res, res.status);
+    }
+
+    // --------------------------------------------------------------------------
+    // 9. UPDATE USER PROFILE: POST /api/auth/profile/update
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/profile/update" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) return json({ error: "Authentication required." }, 401);
+      const auth = verifyAccessToken(token);
+      if (!auth) return json({ error: "Session expired. Please log in again." }, 401);
+
+      const body = await request.json().catch(() => ({}));
+      const res = await updateUserProfile({
+        userId: auth.userId,
+        fullName: body.fullName,
+        email: body.email,
+        restaurantName: body.restaurantName,
+        phone: body.phone,
+        whatsapp: body.whatsapp,
+      });
+      return json(res, res.status);
+    }
+
+    // --------------------------------------------------------------------------
+    // 10. CHANGE PASSWORD: POST /api/auth/profile/change-password
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/profile/change-password" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) return json({ error: "Authentication required." }, 401);
+      const auth = verifyAccessToken(token);
+      if (!auth) return json({ error: "Session expired. Please log in again." }, 401);
+
+      const body = await request.json().catch(() => ({}));
+      const res = await changeUserPassword({
+        userId: auth.userId,
+        currentPassword: body.currentPassword,
+        newPassword: body.newPassword,
+      });
       return json(res, res.status);
     }
 

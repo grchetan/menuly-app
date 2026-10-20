@@ -1,5 +1,5 @@
-import { Link, useLocation } from "@tanstack/react-router";
-import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard } from "lucide-react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,20 @@ import { AnimatedQR } from "./AnimatedQR";
 import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
 import { isDemoMode } from "@/lib/restaurant";
 
-const links = [
+const publicLinks = [
   { to: "/", label: "Home" },
   { to: "/how-to-use", label: "How to use" },
   { to: "/shop", label: "Shop", soon: true },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
+] as const;
+
+const authenticatedLinks = [
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/my-menu", label: "My Menu" },
+  { to: "/qr", label: "QR Studio" },
+  { to: "/profile", label: "My Profile" },
+  { to: "/support", label: "Support" },
 ] as const;
 
 export function SiteHeader() {
@@ -22,11 +30,14 @@ export function SiteHeader() {
   const navRef = useRef<HTMLElement>(null);
   const [blob, setBlob] = useState<{ left: number; width: number; show: boolean }>({ left: 0, width: 0, show: false });
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [hot, setHot] = useState<string | null>(null);
 
   useEffect(() => {
     setHasSession(typeof window !== "undefined" && Boolean(localStorage.getItem("menuly_token")));
-  }, []);
+  }, [pathname]);
+
+  const displayedLinks = hasSession ? authenticatedLinks : publicLinks;
 
   const moveTo = (el: HTMLElement | null) => {
     if (!el || !navRef.current) return setBlob((b) => ({ ...b, show: false }));
@@ -35,7 +46,20 @@ export function SiteHeader() {
     setHot(el.getAttribute("href"));
   };
   const resetBlob = () => moveTo(navRef.current?.querySelector<HTMLElement>("[data-status=active]") ?? null);
-  useEffect(() => { const t = setTimeout(resetBlob, 50); return () => clearTimeout(t); }, [pathname]);
+  useEffect(() => { const t = setTimeout(resetBlob, 50); return () => clearTimeout(t); }, [pathname, hasSession]);
+
+  const signOut = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("menuly_token");
+      localStorage.removeItem("menuly_user");
+      localStorage.removeItem("menuly_demo_mode");
+      localStorage.removeItem("menuly_demo_menu");
+      sessionStorage.removeItem("menuly_admin_auth");
+      document.cookie = "menuly_token=; path=/; max-age=0";
+    }
+    setHasSession(false);
+    navigate({ to: "/auth", replace: true });
+  };
 
   return (
     <header
@@ -56,28 +80,32 @@ export function SiteHeader() {
             <span aria-hidden
               className="absolute top-1.5 bottom-1.5 rounded-full bg-accent transition-all duration-500 ease-[cubic-bezier(.5,1.6,.4,1)]"
               style={{ left: blob.left, width: blob.width, opacity: blob.show ? 1 : 0 }} />
-            {links.map((l) => (
-              <Link key={l.to} to={l.to} onMouseEnter={(e) => moveTo(e.currentTarget)}
-                className={cn("relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-300", hot === l.to && blob.show ? "text-accent-foreground" : "text-background/70 hover:text-background")}>
-                {l.label}
-                {"soon" in l && l.soon && (
-                  <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-foreground">
-                    soon
-                  </span>
-                )}
-              </Link>
-            ))}
+            {displayedLinks.map((l) => {
+              const isActive = pathname === l.to || (l.to !== "/" && pathname.startsWith(`${l.to}/`));
+              return (
+                <Link key={l.to} to={l.to} onMouseEnter={(e) => moveTo(e.currentTarget)}
+                  data-status={isActive ? "active" : undefined}
+                  className={cn("relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-300", hot === l.to && blob.show ? "text-accent-foreground" : isActive ? "text-accent font-extrabold" : "text-background/70 hover:text-background")}>
+                  {l.label}
+                  {"soon" in l && l.soon && (
+                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-foreground">
+                      soon
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             {hasSession ? (
               <>
                 <Link
-                  to="/dashboard"
-                  className="hidden text-sm font-bold underline-offset-4 hover:underline sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/80 bg-background/80 hover:bg-secondary"
+                  to="/profile"
+                  title="My Profile"
+                  className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                 >
-                  <LayoutDashboard className="size-3.5 text-primary" />
-                  Dashboard
+                  <User className="size-4" />
                 </Link>
                 <Link
                   to="/qr"
@@ -89,6 +117,13 @@ export function SiteHeader() {
                   </span>
                   Get QR
                 </Link>
+                <button
+                  onClick={signOut}
+                  title="Sign out"
+                  className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                >
+                  <LogOut className="size-4" />
+                </button>
               </>
             ) : (
               <>
@@ -114,7 +149,7 @@ export function SiteHeader() {
 
       {open && (
         <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift md:hidden">
-          {[...links, { to: hasSession ? "/dashboard" : "/auth", label: hasSession ? "Dashboard" : "Log in" } as const].map((l, i) => (
+          {displayedLinks.map((l, i) => (
             <Link key={l.to} to={l.to} onClick={() => setOpen(false)} style={{ animationDelay: `${i * 70}ms` }}
               className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent">
               <span className="flex items-center gap-2">
@@ -128,6 +163,25 @@ export function SiteHeader() {
               <ArrowRight className="size-5 opacity-60" />
             </Link>
           ))}
+          {hasSession ? (
+            <button
+              onClick={() => {
+                setOpen(false);
+                signOut();
+              }}
+              className="flex w-full items-center justify-between px-3 py-4 font-display text-2xl text-destructive hover:opacity-80"
+            >
+              <span className="flex items-center gap-2">
+                <LogOut className="size-5" /> Sign out
+              </span>
+              <ArrowRight className="size-5 opacity-60" />
+            </button>
+          ) : (
+            <Link to="/auth" onClick={() => setOpen(false)} className="flex items-center justify-between px-3 py-4 font-display text-2xl text-accent">
+              <span>Log in</span>
+              <ArrowRight className="size-5 opacity-60" />
+            </Link>
+          )}
         </nav>
       )}
     </header>
@@ -148,7 +202,7 @@ export function SiteFooter() {
         <div>
           <p className="text-xs font-bold uppercase tracking-wider opacity-60">Explore</p>
           <ul className="mt-3 space-y-2 text-sm">
-            {links.map((l) => <li key={l.to}><Link to={l.to} className="opacity-85 hover:opacity-100 hover:underline">{l.label}</Link></li>)}
+            {publicLinks.map((l) => <li key={l.to}><Link to={l.to} className="opacity-85 hover:opacity-100 hover:underline">{l.label}</Link></li>)}
             <li><Link to="/auth" search={{ mode: "signup" }} className="opacity-85 hover:underline">Create menu</Link></li>
           </ul>
         </div>

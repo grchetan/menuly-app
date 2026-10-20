@@ -1,4 +1,5 @@
 import { userStore, otpStore, type StoredUser } from "./store";
+import { prisma } from "../db";
 import {
   hashPassword,
   comparePassword,
@@ -35,7 +36,7 @@ export async function signupUser(params: {
   password: string;
   fullName?: string;
   clientIp?: string;
-}): Promise<ServiceResult<{ email: string; requiresVerification: boolean }>> {
+}): Promise<ServiceResult<{ email: string; requiresVerification: boolean; devOtp?: string }>> {
   const { email, password, fullName, clientIp = "global" } = params;
 
   if (!email || !email.includes("@")) {
@@ -298,6 +299,7 @@ export async function loginUser(params: {
     refreshToken?: string;
     requiresVerification?: boolean;
     email?: string;
+    devOtp?: string;
   }>
 > {
   const { email, password, clientIp = "global" } = params;
@@ -390,7 +392,7 @@ export async function loginUser(params: {
 export async function forgotPassword(params: {
   email: string;
   clientIp?: string;
-}): Promise<ServiceResult<{ email: string }>> {
+}): Promise<ServiceResult<{ email: string; devOtp?: string }>> {
   const { email, clientIp = "global" } = params;
 
   if (!email || !email.includes("@")) {
@@ -541,7 +543,118 @@ export async function getCurrentUser(
 }
 
 /**
- * 8. SEED SUPER ADMIN
+ * 8. UPDATE USER PROFILE
+ * Updates full name, email, and linked restaurant details.
+ */
+export async function updateUserProfile(params: {
+  userId: string;
+  fullName?: string;
+  email?: string;
+  restaurantName?: string;
+  phone?: string;
+  whatsapp?: string;
+}): Promise<ServiceResult<{ user: TokenPayload; token: string }>> {
+  const { userId, fullName, email, restaurantName, phone, whatsapp } = params;
+
+  const user = await userStore.findById(userId);
+  if (!user) {
+    return { success: false, status: 404, error: "User account not found." };
+  }
+
+  let normalizedEmail = user.email;
+  if (email && email.trim() && email.trim().toLowerCase() !== user.email) {
+    normalizedEmail = email.trim().toLowerCase();
+    const existing = await userStore.findByEmail(normalizedEmail);
+    if (existing && existing.id !== userId) {
+      return {
+        success: false,
+        status: 400,
+        error: "This email address is already in use by another account.",
+      };
+    }
+  }
+
+  const updatedUser = await userStore.update(userId, {
+    fullName: fullName !== undefined ? fullName.trim() : user.fullName,
+    email: normalizedEmail,
+    phone: phone !== undefined ? phone.trim() : user.phone,
+  });
+
+  if (Boolean(process.env["DATABASE_URL"])) {
+    try {
+      const rest = await prisma.restaurant.findFirst({ where: { ownerId: userId } });
+      if (rest) {
+        await prisma.restaurant.update({
+          where: { id: rest.id },
+          data: {
+            ...(restaurantName ? { name: restaurantName.trim() } : {}),
+            ...(phone !== undefined ? { phone: phone.trim() } : {}),
+            ...(whatsapp !== undefined ? { whatsapp: whatsapp.trim() } : {}),
+          },
+        });
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const payload: TokenPayload = {
+    userId: user.id,
+    email: normalizedEmail,
+    role: updatedUser?.role || user.role,
+    fullName: updatedUser?.fullName || user.fullName,
+  };
+  const token = signAccessToken(payload);
+
+  return {
+    success: true,
+    status: 200,
+    message: "Profile updated successfully.",
+    data: { user: payload, token },
+  };
+}
+
+/**
+ * 9. CHANGE USER PASSWORD
+ * Securely changes the user password verifying the current password first.
+ */
+export async function changeUserPassword(params: {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<ServiceResult> {
+  const { userId, currentPassword, newPassword } = params;
+
+  if (!currentPassword || !newPassword) {
+    return { success: false, status: 400, error: "Please enter both your current and new password." };
+  }
+
+  if (newPassword.length < 6) {
+    return { success: false, status: 400, error: "New password must be at least 6 characters long." };
+  }
+
+  const user = await userStore.findById(userId);
+  if (!user) {
+    return { success: false, status: 404, error: "User account not found." };
+  }
+
+  const matches = await comparePassword(currentPassword, user.passwordHash);
+  if (!matches) {
+    return { success: false, status: 400, error: "Current password is incorrect." };
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await userStore.update(userId, { passwordHash: newHash });
+
+  return {
+    success: true,
+    status: 200,
+    message: "Password changed successfully.",
+  };
+}
+
+/**
+ * 10. SEED SUPER ADMIN
  * Safe script helper to create or update the initial Super Admin.
  */
 export async function seedSuperAdmin(

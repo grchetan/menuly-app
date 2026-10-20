@@ -19,6 +19,7 @@ import { Route as HowToUseRouteImport } from './routes/how-to-use'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMyMenuRouteImport } from './routes/_authenticated/my-menu'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedQrRouteImport } from './routes/_authenticated/qr'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as MenuSlugRouteImport } from './routes/menu.$slug'
@@ -72,6 +73,11 @@ const AuthenticatedMyMenuRoute = AuthenticatedMyMenuRouteImport.update({
   path: '/my-menu',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedQrRoute = AuthenticatedQrRouteImport.update({
   id: '/qr',
   path: '/qr',
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/shop': typeof ShopRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-menu': typeof AuthenticatedMyMenuRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/shop': typeof ShopRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-menu': typeof AuthenticatedMyMenuRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/shop': typeof ShopRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/my-menu': typeof AuthenticatedMyMenuRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/qr': typeof AuthenticatedQrRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
@@ -144,6 +153,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/dashboard'
     | '/my-menu'
+    | '/profile'
     | '/qr'
     | '/support'
     | '/menu/$slug'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/dashboard'
     | '/my-menu'
+    | '/profile'
     | '/qr'
     | '/support'
     | '/menu/$slug'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/_authenticated/dashboard'
     | '/_authenticated/my-menu'
+    | '/_authenticated/profile'
     | '/_authenticated/qr'
     | '/_authenticated/support'
     | '/menu/$slug'
@@ -262,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyMenuRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/qr': {
       id: '/_authenticated/qr'
       path: '/qr'
@@ -289,6 +308,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMyMenuRoute: typeof AuthenticatedMyMenuRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedQrRoute: typeof AuthenticatedQrRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
 }
@@ -296,6 +316,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMyMenuRoute: AuthenticatedMyMenuRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedQrRoute: AuthenticatedQrRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
 }

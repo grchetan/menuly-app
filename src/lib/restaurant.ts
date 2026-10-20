@@ -50,7 +50,7 @@ export const INITIAL_DEMO_MENU: FullMenu = {
     phone: "+91 98765 43210",
     whatsapp: "919876543210",
     hours: "Mon–Sun, 10:00 AM – 11:00 PM",
-    logo_url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80",
+    logo_url: null,
     qr_fg: "#2e7d52",
     qr_bg: "#ffffff",
     qr_corner: "rounded",

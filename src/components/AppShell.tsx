@@ -11,6 +11,7 @@ import {
   Eye,
   ArrowRight,
   Sparkles,
+  User,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,8 +24,7 @@ const DASHBOARD_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/my-menu", label: "My Menu" },
   { to: "/qr", label: "QR Studio" },
-  { to: "/shop", label: "Shop", soon: true },
-  { to: "/how-to-use", label: "How to use" },
+  { to: "/profile", label: "My Profile" },
   { to: "/support", label: "Support" },
 ] as const;
 
@@ -157,11 +157,6 @@ export function AppShell({
                     )}
                   >
                     {l.label}
-                    {"soon" in l && l.soon && (
-                      <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-foreground">
-                        soon
-                      </span>
-                    )}
                   </Link>
                 );
               })}
@@ -192,10 +187,18 @@ export function AppShell({
                 <span>Get QR</span>
               </Link>
 
+              <Link
+                to="/profile"
+                title="My Profile"
+                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <User className="size-4" />
+              </Link>
+
               <button
                 onClick={signOut}
                 title="Sign out"
-                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
               >
                 <LogOut className="size-4" />
               </button>
@@ -236,11 +239,6 @@ export function AppShell({
               >
                 <span className="flex items-center gap-2">
                   {l.label}
-                  {"soon" in l && l.soon && (
-                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-sans font-bold uppercase tracking-wider text-accent-foreground">
-                      soon
-                    </span>
-                  )}
                 </span>
                 <ArrowRight className="size-5 opacity-60" />
               </Link>

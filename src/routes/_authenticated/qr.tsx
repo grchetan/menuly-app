@@ -180,7 +180,7 @@ function QrPage() {
       type: "canvas",
       data: url,
       margin: 8,
-      ...(showLogo && r.logo_url ? { image: r.logo_url } : {}),
+      ...(showLogo && r.logo_url && !r.id.startsWith("demo-") ? { image: r.logo_url } : {}),
       qrOptions: { errorCorrectionLevel: "H" },
       imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.3, hideBackgroundDots: true },
       dotsOptions: { color: fg, type: corners[corner].dots },
@@ -188,7 +188,7 @@ function QrPage() {
       cornersDotOptions: { color: fg, type: corners[corner].dot },
       backgroundOptions: { color: bg },
     }),
-    [url, r.logo_url, showLogo, fg, bg, corner]
+    [url, r.id, r.logo_url, showLogo, fg, bg, corner]
   );
 
   useEffect(() => {

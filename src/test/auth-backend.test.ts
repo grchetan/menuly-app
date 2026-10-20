@@ -17,6 +17,8 @@ import {
   loginUser,
   forgotPassword,
   resetPassword,
+  updateUserProfile,
+  changeUserPassword,
 } from "../server/auth/service";
 
 describe("Custom Authentication & Security Suite", () => {
@@ -159,4 +161,46 @@ describe("Custom Authentication & Security Suite", () => {
     },
     20000
   );
+
+  it("updates user profile and changes password securely", async () => {
+    const testEmail = `owner-${Date.now()}@restaurant.com`;
+    const initialPassword = "InitialPassword123!";
+    const signupRes = await signupUser({ email: testEmail, password: initialPassword, fullName: "Chef Initial" });
+    const otp = signupRes.data?.devOtp;
+    if (otp) {
+      await verifyUserOtp({ email: testEmail, otp, type: "SIGNUP" });
+    }
+    const loginRes = await loginUser({ email: testEmail, password: initialPassword });
+    expect(loginRes.success).toBe(true);
+    const userId = loginRes.data?.user?.id;
+    expect(userId).toBeTruthy();
+
+    if (userId) {
+      // 1. Update Profile
+      const updateRes = await updateUserProfile({
+        userId,
+        fullName: "Chef Updated Name",
+        phone: "+91 99999 88888",
+      });
+      expect(updateRes.success).toBe(true);
+      expect(updateRes.data?.user?.fullName).toBe("Chef Updated Name");
+      expect(updateRes.data?.token).toBeTruthy();
+
+      // 2. Change Password
+      const changedPwRes = await changeUserPassword({
+        userId,
+        currentPassword: initialPassword,
+        newPassword: "UpdatedSecretPassword99!",
+      });
+      expect(changedPwRes.success).toBe(true);
+
+      // Verify old password fails
+      const oldLogin = await loginUser({ email: testEmail, password: initialPassword });
+      expect(oldLogin.success).toBe(false);
+
+      // Verify new password succeeds
+      const newLogin = await loginUser({ email: testEmail, password: "UpdatedSecretPassword99!" });
+      expect(newLogin.success).toBe(true);
+    }
+  }, 20000);
 });
