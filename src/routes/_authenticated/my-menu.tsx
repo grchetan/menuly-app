@@ -125,19 +125,28 @@ function MyMenu() {
       return;
     }
 
-    let targetCatId = quickCatId;
-    if (!targetCatId) {
-      const firstCat = data.categories[0];
-      if (firstCat) {
-        targetCatId = firstCat.id;
-      } else {
-        const cat = await addCategoryHelper(rid, "Main Dishes");
-        targetCatId = cat.id;
-      }
-    }
-
     setIsQuickAdding(true);
     try {
+      let targetCatId = quickCatId;
+
+      // If user typed a new category name in the inline field, auto-create it first!
+      if (newCat.trim()) {
+        const cat = await addCategoryHelper(rid, newCat.trim());
+        targetCatId = cat.id;
+        setNewCat("");
+        setShowAddCat(false);
+        setQuickCatId(cat.id);
+      } else if (!targetCatId || targetCatId === "__NEW__" || !data.categories.some((c) => c.id === targetCatId)) {
+        const firstCat = data.categories[0];
+        if (firstCat) {
+          targetCatId = firstCat.id;
+        } else {
+          const cat = await addCategoryHelper(rid, "Main Dishes");
+          targetCatId = cat.id;
+          setQuickCatId(cat.id);
+        }
+      }
+
       await addDishHelper({
         restaurant_id: rid,
         category_id: targetCatId,
@@ -478,11 +487,13 @@ function MyMenu() {
               />
             </div>
             <select
-              value={quickCatId}
+              value={quickCatId || (data.categories[0]?.id ?? "__NEW__")}
               onChange={(e) => {
                 if (e.target.value === "__NEW__") {
                   setShowAddCat(true);
+                  setQuickCatId("__NEW__");
                 } else {
+                  setShowAddCat(false);
                   setQuickCatId(e.target.value);
                 }
               }}

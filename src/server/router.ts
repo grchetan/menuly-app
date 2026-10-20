@@ -518,6 +518,6 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[API Error]", message);
-    return json({ error: "Internal Server Error", message }, 500);
+    return json({ error: message || "Internal Server Error", message }, 500);
   }
 }

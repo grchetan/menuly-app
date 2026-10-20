@@ -400,9 +400,14 @@ export async function updateRestaurant(userId: string, data: Partial<RestaurantP
 }
 
 export async function addCategory(userId: string, name: string) {
-  const restaurant = await prisma.restaurant.findFirst({
+  let restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
   });
+  if (!restaurant) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const full = await getOrCreateUserRestaurant(userId, user?.email || "owner@menuly.app", user?.fullName);
+    restaurant = await prisma.restaurant.findUnique({ where: { id: full.restaurant.id } });
+  }
   if (!restaurant) throw new Error("Restaurant not found.");
 
   const currentCount = await prisma.category.count({
@@ -471,10 +476,42 @@ export async function addDish(
     isVeg?: boolean;
   }
 ) {
-  const restaurant = await prisma.restaurant.findFirst({
+  let restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
   });
+  if (!restaurant) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const full = await getOrCreateUserRestaurant(userId, user?.email || "owner@menuly.app", user?.fullName);
+    restaurant = await prisma.restaurant.findUnique({ where: { id: full.restaurant.id } });
+  }
   if (!restaurant) throw new Error("Restaurant not found.");
+
+  // Resolve valid categoryId (guard against "__NEW__", invalid strings, deleted categories)
+  let category = null;
+  if (data.categoryId && data.categoryId !== "__NEW__") {
+    category = await prisma.category.findFirst({
+      where: { id: data.categoryId, restaurantId: restaurant.id },
+    });
+  }
+
+  if (!category) {
+    // Pick the first existing category for this restaurant
+    category = await prisma.category.findFirst({
+      where: { restaurantId: restaurant.id },
+      orderBy: { position: "asc" },
+    });
+  }
+
+  if (!category) {
+    // If restaurant has zero categories, auto-create a default one
+    category = await prisma.category.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: "Main Menu",
+        position: 0,
+      },
+    });
+  }
 
   const currentCount = await prisma.menuItem.count({
     where: { restaurantId: restaurant.id },
@@ -483,7 +520,7 @@ export async function addDish(
   const item = await prisma.menuItem.create({
     data: {
       restaurantId: restaurant.id,
-      categoryId: data.categoryId,
+      categoryId: category.id,
       name: data.name.trim(),
       price: data.price,
       description: data.description?.trim() || null,
@@ -532,6 +569,16 @@ export async function updateDish(
   });
   if (!item) throw new Error("Item not found or unauthorized.");
 
+  let validatedCategoryId: string | undefined = undefined;
+  if (updates.categoryId && updates.categoryId !== "__NEW__") {
+    const validCat = await prisma.category.findFirst({
+      where: { id: updates.categoryId, restaurantId: restaurant.id },
+    });
+    if (validCat) {
+      validatedCategoryId = validCat.id;
+    }
+  }
+
   const updated = await prisma.menuItem.update({
     where: { id },
     data: {
@@ -541,7 +588,7 @@ export async function updateDish(
       ...(updates.imageUrl !== undefined ? { imageUrl: updates.imageUrl || null } : {}),
       ...(updates.isVeg !== undefined ? { isVeg: updates.isVeg } : {}),
       ...(updates.available !== undefined ? { available: updates.available } : {}),
-      ...(updates.categoryId !== undefined ? { categoryId: updates.categoryId } : {}),
+      ...(validatedCategoryId ? { categoryId: validatedCategoryId } : {}),
     },
   });
 
