@@ -140,6 +140,20 @@ header.fixed {
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @utility animate-marquee { animation: marquee 28s linear infinite; }
 
+@keyframes auth-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@utility animate-auth-swap {
+  animation: auth-fade-slide 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* =========================================================
    CUSTOM BESPOKE TOAST NOTIFICATION (WARM ARTISAN PALETTE)
    - Bottom-right anchored

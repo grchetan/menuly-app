@@ -364,26 +364,26 @@ function AuthPage() {
         <div className="absolute right-1/4 bottom-1/4 size-80 rounded-full bg-accent/15 blur-3xl" />
       </div>
 
-      {/* Main Responsive Executive Auth Container (2-Column on Desktop) */}
-      <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lift backdrop-blur-xl">
-        <div className="grid lg:grid-cols-12">
+      {/* Main Responsive Executive Auth Container (Fixed Consistent Height on Desktop) */}
+      <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lift backdrop-blur-xl lg:h-[640px]">
+        <div className="grid lg:grid-cols-12 h-full">
           
           {/* ================================================================= */}
-          {/* LEFT COLUMN: Visual Brand Image Panel (Desktop Only)               */}
+          {/* LEFT COLUMN: Visual Brand Image Panel (Strictly Fixed on Desktop)   */}
           {/* ================================================================= */}
-          <div className="hidden lg:relative lg:block lg:col-span-5 overflow-hidden bg-muted border-r border-border/50">
+          <div className="hidden lg:relative lg:block lg:col-span-5 h-full overflow-hidden bg-muted border-r border-border/50 select-none">
             <img
               src={authImage}
               alt="Menuly Digital Dining"
-              className="absolute inset-0 size-full object-cover select-none"
+              className="absolute inset-0 size-full object-cover object-center select-none pointer-events-none"
               loading="eager"
             />
           </div>
 
           {/* ================================================================= */}
-          {/* RIGHT COLUMN: The Auth Form Card                                 */}
+          {/* RIGHT COLUMN: The Auth Form Card (Consistent Height & Layout)     */}
           {/* ================================================================= */}
-          <div className="col-span-12 lg:col-span-7 p-6 sm:p-10 flex flex-col justify-center">
+          <div className="col-span-12 lg:col-span-7 p-6 sm:p-10 flex flex-col justify-between h-full overflow-y-auto no-scrollbar">
             
             {/* Mobile Header Brand */}
             <div className="lg:hidden mb-6 flex justify-between items-center">
@@ -402,17 +402,24 @@ function AuthPage() {
             {/* MODE: LOGIN OR SIGNUP                                           */}
             {/* --------------------------------------------------------------- */}
             {(mode === "login" || mode === "signup") && (
-              <div className="space-y-6">
+              <div className="flex flex-col justify-between flex-1 space-y-4">
                 
-                {/* Mode Segmented Pill Switcher */}
-                <div className="flex items-center p-1 rounded-2xl bg-secondary/80 border border-border/80">
+                {/* Mode Segmented Pill Switcher with Gliding Animated Pill */}
+                <div className="relative flex items-center p-1 rounded-2xl bg-secondary/80 border border-border/80 select-none">
+                  {/* Sliding Active Pill Indicator */}
+                  <div
+                    className={cn(
+                      "absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-xl bg-card shadow-xs border border-border/40 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none",
+                      mode === "login" ? "left-1 translate-x-0" : "left-1 translate-x-[calc(100%+0px)]"
+                    )}
+                  />
                   <button
                     type="button"
                     onClick={() => setMode("login")}
                     className={cn(
-                      "flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 cursor-pointer",
+                      "relative z-10 flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-colors duration-200 cursor-pointer text-center",
                       mode === "login"
-                        ? "bg-background text-foreground shadow-xs"
+                        ? "text-foreground font-extrabold"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -422,9 +429,9 @@ function AuthPage() {
                     type="button"
                     onClick={() => setMode("signup")}
                     className={cn(
-                      "flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 cursor-pointer",
+                      "relative z-10 flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-colors duration-200 cursor-pointer text-center",
                       mode === "signup"
-                        ? "bg-background text-foreground shadow-xs"
+                        ? "text-foreground font-extrabold"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -432,143 +439,146 @@ function AuthPage() {
                   </button>
                 </div>
 
-                <div>
-                  <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-                    {mode === "login" ? "Welcome back" : "Get your digital menu"}
-                  </h1>
-                  <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-                    {mode === "login"
-                      ? "Sign in to manage dishes, tables, and view live customer scans."
-                      : "Create your restaurant account and launch your dynamic QR code in 2 minutes."}
-                  </p>
-                </div>
+                {/* Animated Form Body (Transitions smoothly between Login & Signup) */}
+                <div key={mode} className="animate-auth-swap space-y-4 my-auto py-1">
+                  <div>
+                    <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+                      {mode === "login" ? "Welcome back" : "Get your digital menu"}
+                    </h1>
+                    <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+                      {mode === "login"
+                        ? "Sign in to manage dishes, tables, and view live customer scans."
+                        : "Create your restaurant account and launch your dynamic QR code in 2 minutes."}
+                    </p>
+                  </div>
 
-                <form onSubmit={mode === "login" ? handleLogin : handleSignup} className="space-y-4">
-                  {/* Full Name for Signup */}
-                  {mode === "signup" && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="fullName" className="text-xs font-bold text-foreground">
-                        Restaurant or Owner Name
+                  <form onSubmit={mode === "login" ? handleLogin : handleSignup} className="space-y-3.5">
+                    {/* Full Name for Signup */}
+                    {mode === "signup" && (
+                      <div className="space-y-1 animate-auth-swap">
+                        <Label htmlFor="fullName" className="text-xs font-bold text-foreground">
+                          Restaurant or Owner Name
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="fullName"
+                            type="text"
+                            required
+                            placeholder="e.g. Royal Kitchen or Chef Rajesh"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            className="pl-10 h-10 sm:h-11 rounded-xl text-sm"
+                          />
+                          <Store className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Email Input */}
+                    <div className="space-y-1">
+                      <Label htmlFor="email" className="text-xs font-bold text-foreground">
+                        Email Address
                       </Label>
                       <div className="relative">
                         <Input
-                          id="fullName"
-                          type="text"
+                          id="email"
+                          type="email"
                           required
-                          placeholder="e.g. Royal Kitchen or Chef Rajesh"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          className="pl-10 h-11 rounded-xl text-sm"
+                          placeholder="chef@restaurant.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 h-10 sm:h-11 rounded-xl text-sm"
                         />
-                        <Store className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                        <Mail className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
                       </div>
                     </div>
-                  )}
 
-                  {/* Email Input */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-xs font-bold text-foreground">
-                      Email Address
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        placeholder="chef@restaurant.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 h-11 rounded-xl text-sm"
-                      />
-                      <Mail className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
-                    </div>
-                  </div>
-
-                  {/* Password Input with Show/Hide Toggle */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-xs font-bold text-foreground">
-                        Password
-                      </Label>
-                      {mode === "login" && (
+                    {/* Password Input with Show/Hide Toggle */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="password" className="text-xs font-bold text-foreground">
+                          Password
+                        </Label>
+                        {mode === "login" && (
+                          <button
+                            type="button"
+                            onClick={() => setMode("forgot")}
+                            className="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
+                          >
+                            Forgot password?
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-10 pr-10 h-10 sm:h-11 rounded-xl text-sm"
+                        />
+                        <Lock className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
                         <button
                           type="button"
-                          onClick={() => setMode("forgot")}
-                          className="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-2.5 sm:top-3 text-muted-foreground hover:text-foreground cursor-pointer"
+                          title={showPassword ? "Hide password" : "Show password"}
                         >
-                          Forgot password?
+                          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4 text-muted-foreground" />}
                         </button>
+                      </div>
+                      {mode === "signup" && (
+                        <p className="text-[11px] text-muted-foreground">Minimum 6 characters with letters and numbers.</p>
                       )}
                     </div>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        required
-                        minLength={6}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 pr-10 h-11 rounded-xl text-sm"
-                      />
-                      <Lock className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
-                        title={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4 text-muted-foreground" />}
-                      </button>
-                    </div>
-                    {mode === "signup" && (
-                      <p className="text-[11px] text-muted-foreground">Minimum 6 characters with letters and numbers.</p>
+
+                    <Button
+                      type="submit"
+                      size="lg"
+                      disabled={busy}
+                      className="w-full h-10 sm:h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm hover:brightness-105 active:scale-[0.99]"
+                    >
+                      {busy ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <RefreshCw className="size-4 animate-spin text-primary-foreground" />
+                          {mode === "login" ? "Signing In..." : "Creating Account..."}
+                        </span>
+                      ) : mode === "login" ? (
+                        "Sign In to Dashboard"
+                      ) : (
+                        "Create Account & Verify OTP"
+                      )}
+                    </Button>
+                  </form>
+
+                  <div className="text-center text-xs text-muted-foreground pt-1">
+                    {mode === "login" ? (
+                      <p>
+                        New to Menuly?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setMode("signup")}
+                          className="font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          Create an account for free
+                        </button>
+                      </p>
+                    ) : (
+                      <p>
+                        Already have an account?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setMode("login")}
+                          className="font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          Sign in here
+                        </button>
+                      </p>
                     )}
                   </div>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={busy}
-                    className="w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
-                  >
-                    {busy ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <RefreshCw className="size-4 animate-spin text-primary-foreground" />
-                        {mode === "login" ? "Signing In..." : "Creating Account..."}
-                      </span>
-                    ) : mode === "login" ? (
-                      "Sign In to Dashboard"
-                    ) : (
-                      "Create Account & Verify OTP"
-                    )}
-                  </Button>
-                </form>
-
-                <div className="text-center text-xs text-muted-foreground pt-2">
-                  {mode === "login" ? (
-                    <p>
-                      New to Menuly?{" "}
-                      <button
-                        type="button"
-                        onClick={() => setMode("signup")}
-                        className="font-bold text-primary hover:underline cursor-pointer"
-                      >
-                        Create an account for free
-                      </button>
-                    </p>
-                  ) : (
-                    <p>
-                      Already have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => setMode("login")}
-                        className="font-bold text-primary hover:underline cursor-pointer"
-                      >
-                        Sign in here
-                      </button>
-                    </p>
-                  )}
                 </div>
               </div>
             )}
@@ -577,7 +587,7 @@ function AuthPage() {
             {/* MODE: OTP VERIFICATION                                          */}
             {/* --------------------------------------------------------------- */}
             {mode === "otp" && (
-              <div className="space-y-6">
+              <div key="otp" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
                 <div>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                     <Shield className="size-3.5" /> Single-Use Verification Code
@@ -679,7 +689,7 @@ function AuthPage() {
             {/* MODE: FORGOT PASSWORD                                           */}
             {/* --------------------------------------------------------------- */}
             {mode === "forgot" && (
-              <div className="space-y-6">
+              <div key="forgot" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
                 <div>
                   <button
                     type="button"
@@ -739,7 +749,7 @@ function AuthPage() {
             {/* MODE: SET NEW PASSWORD                                          */}
             {/* --------------------------------------------------------------- */}
             {mode === "reset" && (
-              <div className="space-y-6">
+              <div key="reset" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
                 <div>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                     <KeyRound className="size-3.5" /> Set New Password
@@ -800,7 +810,7 @@ function AuthPage() {
             )}
 
             {/* Global Back to Website Footer Link */}
-            <div className="mt-8 pt-4 border-t border-border/50 text-center">
+            <div className="pt-3 border-t border-border/50 text-center">
               <Link
                 to="/"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
