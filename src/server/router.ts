@@ -365,6 +365,47 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // 8. PUBLIC OR AUTHENTICATED SUPPORT TICKET SUBMISSION
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/support/ticket" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      if (!body.subject?.trim() || !body.description?.trim()) {
+        return json({ error: "Subject and description are required" }, 400);
+      }
+
+      const token = extractBearerToken(request);
+      let userId: string | null = null;
+      let restaurantId: string | null = null;
+      if (token) {
+        const auth = verifyAccessToken(token);
+        if (auth) {
+          userId = auth.userId;
+          const r = await prisma.restaurant.findFirst({ where: { ownerId: auth.userId } });
+          if (r) restaurantId = r.id;
+        }
+      }
+
+      const ticketId = `TKT-${Math.floor(1000 + Math.random() * 9000)}`;
+      const ticket = await prisma.supportTicket.create({
+        data: {
+          id: ticketId,
+          userId,
+          restaurantId,
+          restaurantName: body.restaurantName?.trim() || "Menuly Dining Partner",
+          ownerEmail: body.ownerEmail?.trim() || "support@menuly.app",
+          ownerPhone: body.ownerPhone?.trim() || null,
+          category: body.category || "QR Code",
+          subject: body.subject.trim(),
+          description: body.description.trim(),
+          priority: body.priority || "medium",
+          status: "open",
+        },
+      });
+
+      return json({ success: true, ticket });
+    }
+
+    // --------------------------------------------------------------------------
     // 9. SUPER ADMIN PROTECTED APIS
     // --------------------------------------------------------------------------
     if (pathname.startsWith("/api/admin/")) {
@@ -404,6 +445,49 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           success: true,
           restaurants: rests,
         });
+      }
+
+      // GET /api/admin/tickets
+      if (pathname === "/api/admin/tickets" && request.method === "GET") {
+        const tickets = await prisma.supportTicket.findMany({
+          orderBy: { createdAt: "desc" },
+        });
+        return json({
+          success: true,
+          tickets: tickets.map((t) => ({
+            id: t.id,
+            restaurantName: t.restaurantName,
+            restaurantSlug: t.restaurantName.toLowerCase().replace(/\s+/g, "-"),
+            ownerEmail: t.ownerEmail,
+            phone: t.ownerPhone || "+91 98765 00000",
+            category: t.category,
+            subject: t.subject,
+            description: t.description,
+            priority: t.priority,
+            status: t.status,
+            createdAt: t.createdAt.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            adminNote: t.adminNotes || "",
+          })),
+        });
+      }
+
+      // POST /api/admin/tickets/update
+      if (pathname === "/api/admin/tickets/update" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.id) return json({ error: "Ticket ID required" }, 400);
+        const updated = await prisma.supportTicket.update({
+          where: { id: body.id },
+          data: {
+            ...(body.status ? { status: body.status } : {}),
+            ...(body.adminNote !== undefined ? { adminNotes: body.adminNote } : {}),
+          },
+        });
+        return json({ success: true, ticket: updated });
       }
 
       // POST /api/admin/restaurant/toggle-status

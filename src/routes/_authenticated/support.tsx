@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
+import { myMenuQuery } from "@/lib/restaurant";
+import { useQuery } from "@tanstack/react-query";
 import type { SupportTicket } from "@/routes/admin";
 
 export const Route = createFileRoute("/_authenticated/support")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Support & Help Desk — Menuly" },
@@ -22,47 +25,71 @@ export const Route = createFileRoute("/_authenticated/support")({
 });
 
 function Support() {
+  const { data } = useQuery(myMenuQuery);
+  const restaurantName = data?.restaurant?.name || "Restaurant Partner";
+  const restaurantSlug = data?.restaurant?.slug || "";
+
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState<SupportTicket["category"]>("QR Code");
   const [priority, setPriority] = useState<SupportTicket["priority"]>("medium");
   const [description, setDescription] = useState("");
+  const [phone, setPhone] = useState(data?.restaurant?.phone || "");
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !description.trim()) {
       toast.error("Please fill subject and problem description");
       return;
     }
 
-    const ticketId = `TKT-${Math.floor(100 + Math.random() * 900)}`;
-    const newTicket: SupportTicket = {
-      id: ticketId,
-      restaurantName: "My Restaurant",
-      restaurantSlug: "my-restaurant",
-      ownerEmail: "owner@menuly-test.com",
-      phone: "919876543210",
-      category,
-      subject: subject.trim(),
-      description: description.trim(),
-      priority,
-      status: "open",
-      createdAt: "Just now",
-      adminNote: "",
-    };
-
+    setIsSubmitting(true);
     try {
-      const existingRaw = localStorage.getItem("menuly_admin_tickets");
-      const existing: SupportTicket[] = existingRaw ? JSON.parse(existingRaw) : [];
-      localStorage.setItem("menuly_admin_tickets", JSON.stringify([newTicket, ...existing]));
-    } catch {
-      // ignore
-    }
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const userStr = typeof window !== "undefined" ? localStorage.getItem("menuly_user") : null;
+      let ownerEmail = "partner@menuly.app";
+      try {
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          if (u?.email) ownerEmail = u.email;
+        }
+      } catch {}
 
-    setSubmittedId(ticketId);
-    toast.success(`Support Ticket #${ticketId} created successfully! Our team will review it.`);
-    setSubject("");
-    setDescription("");
+      const res = await fetch("/api/support/ticket", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          restaurantName,
+          restaurantSlug,
+          ownerEmail,
+          ownerPhone: phone.trim() || undefined,
+          category,
+          subject: subject.trim(),
+          description: description.trim(),
+          priority,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Failed to submit ticket");
+      }
+
+      const ticketId = resData.ticket.id;
+      setSubmittedId(ticketId);
+      toast.success(`Support Ticket #${ticketId} created! Super Admin will review it.`);
+      setSubject("");
+      setDescription("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -151,8 +178,8 @@ function Support() {
                 />
               </div>
 
-              <Button type="submit" size="lg" className="w-full gap-2 shadow-soft font-semibold">
-                <Send className="size-4" /> Submit Support Ticket
+              <Button type="submit" size="lg" disabled={isSubmitting} className="w-full gap-2 shadow-soft font-semibold">
+                <Send className="size-4" /> {isSubmitting ? "Submitting to Super Admin..." : "Submit Support Ticket"}
               </Button>
             </form>
           )}

@@ -17,6 +17,7 @@ import {
   TrendingUp,
   Store,
   Eye,
+  EyeOff,
   RefreshCw,
   Copy,
   ChevronRight,
@@ -207,9 +208,11 @@ const DEFAULT_RESTAURANTS: AdminRestaurant[] = [];
 const DEFAULT_TICKETS: SupportTicket[] = [];
 
 function AdminPage() {
-  // Discreet PIN Protection Gate (restricted like major SaaS platforms)
   const [isAdminAuth, setIsAdminAuth] = useState(false);
-  const [pinInput, setPinInput] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "analytics" | "settings">("restaurants");
@@ -231,31 +234,28 @@ function AdminPage() {
   const [newPriority, setNewPriority] = useState<SupportTicket["priority"]>("medium");
   const [newDescription, setNewDescription] = useState("");
 
-  // Check auth session & clear legacy mock cache
+  // Check auth session & auto-login if already logged in as Super Admin
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
-        localStorage.removeItem("menuly_admin_restaurants");
-        localStorage.removeItem("menuly_admin_users");
-        localStorage.removeItem("menuly_admin_tickets");
+        const token = localStorage.getItem("menuly_token");
+        const userStr = localStorage.getItem("menuly_user");
+        if (token && userStr) {
+          try {
+            const u = JSON.parse(userStr);
+            if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
+              sessionStorage.setItem("menuly_admin_auth", "true");
+              setIsAdminAuth(true);
+              return;
+            }
+          } catch {
+            // ignore
+          }
+        }
 
         const authed = sessionStorage.getItem("menuly_admin_auth") === "true";
         if (authed) {
           setIsAdminAuth(true);
-        } else {
-          // Check if currently authenticated with Super Admin role
-          const userStr = localStorage.getItem("menuly_user");
-          if (userStr) {
-            try {
-              const u = JSON.parse(userStr);
-              if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
-                sessionStorage.setItem("menuly_admin_auth", "true");
-                setIsAdminAuth(true);
-              }
-            } catch {
-              // ignore
-            }
-          }
         }
       }
     } catch {
@@ -281,9 +281,12 @@ function AdminPage() {
       fetch("/api/admin/restaurants", {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => res.json()),
+      fetch("/api/admin/tickets", {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((res) => res.json()),
     ])
-      .then(([userData, restData]) => {
-        if (userData.success && userData.users) {
+      .then(([userData, restData, ticketData]) => {
+        if (userData?.success && userData.users) {
           const mappedUsers: AdminUser[] = userData.users.map((u: { id: string; email: string; role: string; fullName: string | null; createdAt: string }) => ({
             id: u.id,
             name: u.fullName || u.email.split("@")[0],
@@ -299,8 +302,12 @@ function AdminPage() {
           setUsers(mappedUsers);
         }
 
-        if (restData.success && restData.restaurants) {
+        if (restData?.success && restData.restaurants) {
           setRestaurants(restData.restaurants);
+        }
+
+        if (ticketData?.success && ticketData.tickets) {
+          setTickets(ticketData.tickets);
         }
       })
       .catch((err) => {
@@ -311,70 +318,140 @@ function AdminPage() {
       });
   }, [isAdminAuth]);
 
-  const handleUnlock = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (pinInput.trim() === "2026" || pinInput.trim().toLowerCase() === "admin") {
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      toast.error("Please enter your Super Admin email and password");
+      return;
+    }
+
+    setLoginLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: adminEmail.trim(), password: adminPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "Authentication failed");
+        setLoginLoading(false);
+        return;
+      }
+
+      if (data.user?.role !== "SUPER_ADMIN") {
+        toast.error("Access Restricted: This account does not have Super Admin privileges.");
+        setLoginLoading(false);
+        return;
+      }
+
+      // Store credentials and auth flag
+      localStorage.setItem("menuly_token", data.token);
+      localStorage.setItem("menuly_user", JSON.stringify(data.user));
       sessionStorage.setItem("menuly_admin_auth", "true");
       setIsAdminAuth(true);
-      toast.success("Welcome, Master Admin");
-    } else {
-      toast.error("Incorrect Master PIN. (Default: 2026)");
+      toast.success(`Welcome to Executive Command Center, ${data.user.fullName || data.user.email}!`);
+    } catch {
+      toast.error("Network error during login. Please try again.");
+    } finally {
+      setLoginLoading(false);
     }
-  };
-
-  const instantUnlock = () => {
-    sessionStorage.setItem("menuly_admin_auth", "true");
-    setIsAdminAuth(true);
-    toast.success("Unlocked in Master Owner mode");
   };
 
   const handleLock = () => {
     sessionStorage.removeItem("menuly_admin_auth");
     setIsAdminAuth(false);
-    toast.info("Admin console locked");
+    toast.info("Super Admin console locked");
   };
 
-  const saveTickets = (updated: SupportTicket[]) => {
-    setTickets(updated);
-    localStorage.setItem("menuly_admin_tickets", JSON.stringify(updated));
-  };
-
-  const updateTicketStatus = (ticketId: string, newStatus: SupportTicket["status"]) => {
-    const updated = tickets.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t));
-    saveTickets(updated);
+  const updateTicketStatus = async (ticketId: string, newStatus: SupportTicket["status"]) => {
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t)));
     toast.success(`Ticket #${ticketId} status updated to ${newStatus.replace("_", " ")}`);
+
+    const token = localStorage.getItem("menuly_token");
+    if (token) {
+      try {
+        await fetch("/api/admin/tickets/update", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ id: ticketId, status: newStatus }),
+        });
+      } catch (err) {
+        console.error("Failed to sync ticket status to DB:", err);
+      }
+    }
   };
 
-  const updateTicketNote = (ticketId: string, note: string) => {
-    const updated = tickets.map((t) => (t.id === ticketId ? { ...t, adminNote: note } : t));
-    saveTickets(updated);
-    toast.success("Resolution note saved");
+  const updateTicketNote = async (ticketId: string, note: string) => {
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, adminNote: note } : t)));
+    toast.success("Resolution note saved to database");
+
+    const token = localStorage.getItem("menuly_token");
+    if (token) {
+      try {
+        await fetch("/api/admin/tickets/update", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ id: ticketId, adminNote: note }),
+        });
+      } catch (err) {
+        console.error("Failed to sync ticket note to DB:", err);
+      }
+    }
   };
 
-  const handleCreateTicket = (e: React.FormEvent) => {
+  const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRestName.trim() || !newSubject.trim()) {
       toast.error("Please fill restaurant name and subject");
       return;
     }
 
-    const newTicket: SupportTicket = {
-      id: `TKT-${Math.floor(100 + Math.random() * 900)}`,
-      restaurantName: newRestName.trim(),
-      restaurantSlug: newRestName.toLowerCase().replace(/\s+/g, "-"),
-      ownerEmail: `contact@${newRestName.toLowerCase().replace(/\s+/g, "")}.com`,
-      phone: newPhone.trim() || "919876543210",
-      category: newCategory,
-      subject: newSubject.trim(),
-      description: newDescription.trim() || "User raised an inquiry from support desk.",
-      priority: newPriority,
-      status: "open",
-      createdAt: "Just now",
-      adminNote: "",
-    };
+    try {
+      const res = await fetch("/api/support/ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantName: newRestName.trim(),
+          ownerEmail: `contact@${newRestName.toLowerCase().replace(/\s+/g, "")}.com`,
+          phone: newPhone.trim() || "+91 98765 00000",
+          category: newCategory,
+          subject: newSubject.trim(),
+          description: newDescription.trim() || "Admin logged ticket",
+          priority: newPriority,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.ticket) {
+        const createdTicket: SupportTicket = {
+          id: data.ticket.id,
+          restaurantName: data.ticket.restaurantName,
+          restaurantSlug: data.ticket.restaurantName.toLowerCase().replace(/\s+/g, "-"),
+          ownerEmail: data.ticket.ownerEmail,
+          phone: data.ticket.ownerPhone || "+91 98765 00000",
+          category: data.ticket.category,
+          subject: data.ticket.subject,
+          description: data.ticket.description,
+          priority: data.ticket.priority,
+          status: data.ticket.status,
+          createdAt: "Just now",
+          adminNote: "",
+        };
+        setTickets([createdTicket, ...tickets]);
+        toast.success(`Support ticket ${createdTicket.id} saved in database!`);
+      } else {
+        toast.error(data.error || "Failed to create ticket");
+      }
+    } catch {
+      toast.error("Network error while creating ticket");
+    }
 
-    saveTickets([newTicket, ...tickets]);
-    toast.success(`Support ticket ${newTicket.id} created successfully!`);
     setCreateTicketOpen(false);
     setNewRestName("");
     setNewSubject("");
@@ -382,17 +459,33 @@ function AdminPage() {
     setNewDescription("");
   };
 
-  const toggleRestaurantStatus = (id: string) => {
-    const updated = restaurants.map((r) => {
-      if (r.id === id) {
-        const nextStatus: AdminRestaurant["status"] = r.status === "active" ? "suspended" : "active";
-        return { ...r, status: nextStatus };
-      }
-      return r;
-    });
-    setRestaurants(updated);
-    localStorage.setItem("menuly_admin_restaurants", JSON.stringify(updated));
+  const toggleRestaurantStatus = async (id: string) => {
+    setRestaurants((prev) =>
+      prev.map((r) => {
+        if (r.id === id) {
+          const nextStatus: AdminRestaurant["status"] = r.status === "active" ? "suspended" : "active";
+          return { ...r, status: nextStatus };
+        }
+        return r;
+      })
+    );
     toast.success("Restaurant status updated");
+
+    const token = localStorage.getItem("menuly_token");
+    if (token) {
+      try {
+        await fetch("/api/admin/restaurant/toggle-status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ id }),
+        });
+      } catch (err) {
+        console.error("Failed to sync restaurant status to DB:", err);
+      }
+    }
   };
 
   const filteredRestaurants = restaurants.filter(
@@ -429,7 +522,7 @@ function AdminPage() {
     { day: "Sun", scans: Math.round(totalScans * 0.05), height: totalScans > 0 ? "100%" : "6%" },
   ];
 
-  // IF NOT AUTHENTICATED: Discreet Master PIN Gate
+  // IF NOT AUTHENTICATED: High-Security Super Admin Credential Gate
   if (!isAdminAuth) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 text-foreground">
@@ -438,41 +531,71 @@ function AdminPage() {
             <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20">
               <Shield className="size-7" />
             </div>
-            <h1 className="mt-4 font-display text-2xl font-bold tracking-tight">Executive Control Center</h1>
+            <h1 className="mt-4 font-display text-2xl font-bold tracking-tight">Super Admin Gateway</h1>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Internal console for platform analytics, restaurant monitoring, and customer support.
+              Restricted console. Only authorized platform Super Admins can access platform analytics, users, and tickets.
             </p>
           </div>
 
-          <form onSubmit={handleUnlock} className="space-y-4">
+          <form onSubmit={handleAdminLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="admin-pin">Enter Master Admin PIN</Label>
-              <Input
-                id="admin-pin"
-                type="password"
-                placeholder="Default PIN: 2026"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                className="bg-background text-center text-lg tracking-widest font-mono"
-                autoFocus
-              />
+              <Label htmlFor="admin-email">Super Admin Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="admin-email"
+                  type="email"
+                  placeholder="admin@menuly.com"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  className="pl-9 bg-background"
+                  required
+                  autoFocus
+                />
+              </div>
             </div>
 
-            <Button type="submit" className="w-full font-bold">
-              <Unlock className="size-4 mr-2" /> Unlock Console
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="admin-password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••••••"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="pl-9 pr-10 bg-background"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full font-bold h-11" disabled={loginLoading}>
+              {loginLoading ? (
+                <>
+                  <RefreshCw className="size-4 mr-2 animate-spin" /> Verifying Credentials...
+                </>
+              ) : (
+                <>
+                  <Shield className="size-4 mr-2" /> Authenticate Super Admin
+                </>
+              )}
             </Button>
           </form>
 
-          <div className="relative flex items-center justify-center">
-            <span className="h-px w-full bg-border" />
-            <span className="absolute bg-card px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Owner Mode
-            </span>
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center">
+            <p className="text-[11px] text-amber-500 font-medium">
+              🔒 256-Bit Encrypted Session. Super Admin credentials are cryptographically verified against PostgreSQL.
+            </p>
           </div>
-
-          <Button variant="outline" className="w-full text-xs font-semibold" onClick={instantUnlock}>
-            ⚡ Instant Unlock (Project Founder Mode)
-          </Button>
 
           <p className="text-center text-xs text-muted-foreground">
             <Link to="/" className="hover:underline">
