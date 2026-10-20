@@ -10,7 +10,7 @@ function getTransporter(): Transporter | null {
   const user = process.env["SMTP_USER"] || "menulyoffcial@gmail.com";
   const pass = process.env["SMTP_PASS"];
 
-  if (!pass || pass.trim() === "" || pass === "your-16-char-gmail-app-password") {
+  if (!pass || pass.trim() === "" || pass === "your-16-char-gmail-app-password" || process.env["NODE_ENV"] === "test" || process.env["VITEST"]) {
     return null;
   }
 
