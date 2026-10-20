@@ -6,8 +6,27 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
+  let url = process.env["DATABASE_URL"] || "";
+  if (url) {
+    if (url.includes("connection_limit=1")) {
+      url = url.replace("connection_limit=1", "connection_limit=10&pool_timeout=25");
+    } else if (!url.includes("connection_limit")) {
+      const sep = url.includes("?") ? "&" : "?";
+      url = `${url}${sep}connection_limit=10&pool_timeout=25`;
+    }
+  }
+
+  const log = process.env["NODE_ENV"] === "development" ? (["warn", "error"] as const) : (["error"] as const);
+
+  if (url) {
+    return new PrismaClient({
+      datasources: { db: { url } },
+      log: [...log],
+    });
+  }
+
   return new PrismaClient({
-    log: process.env["NODE_ENV"] === "development" ? ["warn", "error"] : ["error"],
+    log: [...log],
   });
 }
 

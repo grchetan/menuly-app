@@ -25,6 +25,10 @@ import {
   FolderEdit,
   AlertTriangle,
   FolderPlus,
+  Flame,
+  Coffee,
+  Store,
+  RefreshCw,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { MenuView } from "@/components/MenuView";
@@ -129,6 +133,7 @@ function MyMenu() {
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
   const [deletingDish, setDeletingDish] = useState<MenuItem | null>(null);
   const [confirmingPreset, setConfirmingPreset] = useState<string | null>(null);
+  const [applyingPresetId, setApplyingPresetId] = useState<string | null>(null);
   const [dishPhotoSummary, setDishPhotoSummary] = useState<string | null>(null);
 
   const soldOut = data.items.filter((i) => !i.available).length;
@@ -198,6 +203,7 @@ function MyMenu() {
       setConfirmingPreset(presetId);
       return;
     }
+    setApplyingPresetId(presetId);
     try {
       await applyPresetHelper(presetId);
       toast.success("Starter menu pack loaded! You can now adjust names and prices.");
@@ -205,11 +211,14 @@ function MyMenu() {
       refresh();
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setApplyingPresetId(null);
     }
   };
 
   const confirmApplyPreset = async () => {
     if (!confirmingPreset) return;
+    setApplyingPresetId(confirmingPreset);
     try {
       await applyPresetHelper(confirmingPreset);
       toast.success("Starter menu pack loaded! You can now adjust names and prices.");
@@ -218,6 +227,8 @@ function MyMenu() {
       refresh();
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setApplyingPresetId(null);
     }
   };
 
@@ -434,49 +445,112 @@ function MyMenu() {
           </div>
         </div>
 
-        {/* 1-Click Starter Menu Presets (Collapse/Expand) */}
+        {/* 1-Click Starter Menu Presets (Modern Executive Cuisine Packs) */}
         {showPresets && (
-          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs animate-rise">
-            <div className="mb-3.5 flex items-center justify-between">
+          <div className="rounded-3xl border border-border/80 bg-card/95 backdrop-blur-md p-5 sm:p-6 shadow-lift animate-rise">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/60">
               <div>
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="size-3.5 text-accent" />
-                  <h3 className="text-sm font-bold text-foreground">1-Click Starter Menus</h3>
+                <div className="flex items-center gap-2">
+                  <div className="size-7 rounded-lg bg-accent/20 flex items-center justify-center text-accent-foreground">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <h3 className="font-display text-base font-bold text-foreground">1-Click Starter Menu Packs</h3>
+                  <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary uppercase tracking-wider">
+                    Instant Setup
+                  </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Pick a cuisine to populate categories and authentic dishes instantly.
+                <p className="text-xs text-muted-foreground mt-1">
+                  Choose a curated cuisine to instantly populate your categories and dishes. You can customize prices and items anytime.
                 </p>
               </div>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowPresets(false)}>
-                Dismiss
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs font-semibold text-muted-foreground hover:text-foreground self-start sm:self-auto cursor-pointer"
+                onClick={() => setShowPresets(false)}
+              >
+                Dismiss Pack
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-              {STARTER_PRESETS.map((p) => (
-                <div
-                  key={p.id}
-                  className="group flex flex-col justify-between rounded-xl border border-border/70 bg-background p-3.5 transition-all hover:border-primary/50"
-                >
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xl">{p.icon}</span>
-                      <span className="rounded-full bg-secondary px-2 py-0.2 text-[9px] font-bold text-muted-foreground">
-                        {p.badge}
-                      </span>
-                    </div>
-                    <h4 className="mt-1.5 text-xs font-bold text-foreground">{p.title}</h4>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">{p.description}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="mt-3 w-full text-xs font-semibold h-7"
-                    onClick={() => handleApplyPreset(p.id)}
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+              {STARTER_PRESETS.map((p) => {
+                const isLoadingThis = applyingPresetId === p.id;
+                const isAnyLoading = Boolean(applyingPresetId);
+
+                return (
+                  <div
+                    key={p.id}
+                    className="group relative flex flex-col justify-between rounded-2xl border border-border/80 bg-background/80 p-4 transition-all duration-200 hover:border-primary/50 hover:shadow-soft"
                   >
-                    Load Menu
-                  </Button>
-                </div>
-              ))}
+                    <div>
+                      {/* Top Header: Culinary Icon & Status Badge */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div
+                          className={cn(
+                            "size-10 rounded-xl flex items-center justify-center shadow-xs border transition-transform duration-200 group-hover:scale-105",
+                            p.id === "dhaba" && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                            p.id === "cafe" && "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
+                            p.id === "south_indian" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+                            p.id === "street_food" && "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                          )}
+                        >
+                          {p.id === "dhaba" && <Flame className="size-5" />}
+                          {p.id === "cafe" && <Coffee className="size-5" />}
+                          {p.id === "south_indian" && <UtensilsCrossed className="size-5" />}
+                          {p.id === "street_food" && <Store className="size-5" />}
+                        </div>
+                        <span className="rounded-full bg-secondary/80 border border-border/60 px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground tracking-wide">
+                          {p.badge}
+                        </span>
+                      </div>
+
+                      {/* Title & Description */}
+                      <h4 className="mt-3 font-display text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                        {p.title}
+                      </h4>
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                        {p.description}
+                      </p>
+
+                      {/* Sample Dishes Badges */}
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {p.items.slice(0, 3).map((it, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-block rounded-md bg-secondary/70 px-2 py-0.5 text-[10px] font-semibold text-foreground/80 truncate max-w-[120px]"
+                          >
+                            {it.name}
+                          </span>
+                        ))}
+                        {p.items.length > 3 && (
+                          <span className="inline-block rounded-md bg-secondary/40 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            +{p.items.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <Button
+                      size="sm"
+                      disabled={isAnyLoading}
+                      className="mt-4 w-full text-xs font-bold h-9 rounded-xl gap-1.5 shadow-xs transition-all cursor-pointer"
+                      onClick={() => handleApplyPreset(p.id)}
+                    >
+                      {isLoadingThis ? (
+                        <>
+                          <RefreshCw className="size-3.5 animate-spin" /> Loading Pack...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="size-3.5 text-accent" /> Load Menu Pack
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1269,10 +1343,17 @@ function MyMenu() {
             </Button>
             <Button
               type="button"
+              disabled={!!applyingPresetId}
               onClick={confirmApplyPreset}
-              className="h-11 px-5 rounded-xl font-bold bg-primary text-primary-foreground shadow-xs"
+              className="h-11 px-5 rounded-xl font-bold bg-primary text-primary-foreground shadow-xs gap-2"
             >
-              Load Starter Pack
+              {applyingPresetId ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" /> Loading Pack...
+                </>
+              ) : (
+                "Load Starter Pack"
+              )}
             </Button>
           </div>
         </DialogContent>

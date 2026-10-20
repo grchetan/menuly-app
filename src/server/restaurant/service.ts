@@ -107,24 +107,6 @@ export async function getOrCreateUserRestaurant(userId: string, userEmail: strin
 }
 
 export async function getRestaurantAnalytics(restaurantId: string) {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
-
-  // Execute telemetry queries concurrently in parallel
-  const [totalScans, scansToday, tableScans, directVisits, pastScans] = await Promise.all([
-    prisma.qrScan.count({ where: { restaurantId } }),
-    prisma.qrScan.count({ where: { restaurantId, scannedAt: { gte: startOfToday } } }),
-    prisma.qrScan.count({ where: { restaurantId, tableNumber: { not: null } } }),
-    prisma.qrScan.count({ where: { restaurantId, tableNumber: null } }),
-    prisma.qrScan.findMany({
-      where: { restaurantId, scannedAt: { gte: sevenDaysAgo } },
-      select: { scannedAt: true },
-    }),
-  ]);
-
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const daysMap = new Map<string, number>();
   const weeklyScansList: { day: string; date: string; scans: number; height: string }[] = [];
@@ -143,34 +125,73 @@ export async function getRestaurantAnalytics(restaurantId: string) {
     });
   }
 
-  for (const s of pastScans) {
-    const sDate = s.scannedAt;
-    const key = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, "0")}-${String(sDate.getDate()).padStart(2, "0")}`;
-    if (daysMap.has(key)) {
-      daysMap.set(key, (daysMap.get(key) || 0) + 1);
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    // Optimized telemetry: 2 lightweight queries instead of 5
+    const [totalScans, pastScans] = await Promise.all([
+      prisma.qrScan.count({ where: { restaurantId } }).catch(() => 0),
+      prisma.qrScan.findMany({
+        where: { restaurantId, scannedAt: { gte: sevenDaysAgo } },
+        select: { scannedAt: true, tableNumber: true },
+      }).catch(() => []),
+    ]);
+
+    let scansToday = 0;
+    let tableScans = 0;
+    let directVisits = 0;
+
+    for (const s of pastScans) {
+      if (s.scannedAt >= startOfToday) {
+        scansToday++;
+      }
+      if (s.tableNumber) {
+        tableScans++;
+      } else {
+        directVisits++;
+      }
+      const sDate = s.scannedAt;
+      const key = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, "0")}-${String(sDate.getDate()).padStart(2, "0")}`;
+      if (daysMap.has(key)) {
+        daysMap.set(key, (daysMap.get(key) || 0) + 1);
+      }
     }
-  }
 
-  const maxScans = Math.max(...Array.from(daysMap.values()), 0);
+    const maxScans = Math.max(...Array.from(daysMap.values()), 0);
 
-  for (const item of weeklyScansList) {
-    const count = daysMap.get(item.date) || 0;
-    item.scans = count;
-    if (maxScans > 0 && count > 0) {
-      item.height = `${Math.max(16, Math.round((count / maxScans) * 100))}%`;
-    } else {
-      item.height = "8%";
+    for (const item of weeklyScansList) {
+      const count = daysMap.get(item.date) || 0;
+      item.scans = count;
+      if (maxScans > 0 && count > 0) {
+        item.height = `${Math.max(16, Math.round((count / maxScans) * 100))}%`;
+      } else {
+        item.height = "8%";
+      }
     }
-  }
 
-  return {
-    totalScans,
-    scansToday,
-    tableScans,
-    directVisits,
-    scansThisWeek: pastScans.length,
-    weeklyScans: weeklyScansList,
-  };
+    return {
+      totalScans,
+      scansToday,
+      tableScans,
+      directVisits,
+      scansThisWeek: pastScans.length,
+      weeklyScans: weeklyScansList,
+    };
+  } catch (err) {
+    console.error("[Analytics Telemetry Warning]", err);
+    return {
+      totalScans: 0,
+      scansToday: 0,
+      tableScans: 0,
+      directVisits: 0,
+      scansThisWeek: 0,
+      weeklyScans: weeklyScansList,
+    };
+  }
 }
 
 export async function applyPresetToRestaurant(userId: string, presetId: string) {
@@ -181,38 +202,61 @@ export async function applyPresetToRestaurant(userId: string, presetId: string) 
 
   const preset = STARTER_PRESETS.find((p) => p.id === presetId) || STARTER_PRESETS[0]!;
 
-  // 1. Clear existing items and categories
-  await prisma.menuItem.deleteMany({ where: { restaurantId: restaurant.id } });
-  await prisma.category.deleteMany({ where: { restaurantId: restaurant.id } });
+  // 1. Clear existing items and categories in parallel
+  await Promise.all([
+    prisma.menuItem.deleteMany({ where: { restaurantId: restaurant.id } }),
+    prisma.category.deleteMany({ where: { restaurantId: restaurant.id } }),
+  ]);
 
-  // 2. Insert new categories and items
-  for (let idx = 0; idx < preset.categories.length; idx++) {
-    const c = preset.categories[idx]!;
-    const createdCat = await prisma.category.create({
-      data: {
-        restaurantId: restaurant.id,
-        name: c.name,
-        position: idx,
-      },
-    });
-
-    const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
-    for (let itIdx = 0; itIdx < itemsForCategory.length; itIdx++) {
-      const it = itemsForCategory[itIdx]!;
-      await prisma.menuItem.create({
+  // 2. Batch create categories in parallel
+  const createdCats = await Promise.all(
+    preset.categories.map((c, idx) =>
+      prisma.category.create({
         data: {
           restaurantId: restaurant.id,
-          categoryId: createdCat.id,
-          name: it.name,
-          price: it.price,
-          description: it.description,
-          imageUrl: it.image_url,
-          isVeg: true,
-          available: true,
-          position: itIdx,
+          name: c.name,
+          position: idx,
         },
+      })
+    )
+  );
+
+  // 3. Batch insert ALL menu items in 1 single createMany query
+  const allItems: Array<{
+    restaurantId: string;
+    categoryId: string;
+    name: string;
+    price: number;
+    description: string;
+    imageUrl: string | null;
+    isVeg: boolean;
+    available: boolean;
+    position: number;
+  }> = [];
+
+  for (let idx = 0; idx < preset.categories.length; idx++) {
+    const createdCat = createdCats[idx];
+    if (!createdCat) continue;
+    const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
+    itemsForCategory.forEach((it, itIdx) => {
+      allItems.push({
+        restaurantId: restaurant.id,
+        categoryId: createdCat.id,
+        name: it.name,
+        price: it.price,
+        description: it.description,
+        imageUrl: it.image_url,
+        isVeg: true,
+        available: true,
+        position: itIdx,
       });
-    }
+    });
+  }
+
+  if (allItems.length > 0) {
+    await prisma.menuItem.createMany({
+      data: allItems,
+    });
   }
 
   return await getOrCreateUserRestaurant(userId, "");
