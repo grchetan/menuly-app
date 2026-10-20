@@ -110,7 +110,7 @@ export async function signupUser(params: {
     data: {
       email: normalized,
       requiresVerification: true,
-      ...(!process.env["SMTP_PASS"] ? { devOtp: rawOtp } : {}),
+      ...(!process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test" ? { devOtp: rawOtp } : {}),
     },
   };
 }
@@ -351,7 +351,7 @@ export async function loginUser(params: {
       data: {
         requiresVerification: true,
         email: normalized,
-        ...(!process.env["SMTP_PASS"] ? { devOtp: rawOtp } : {}),
+        ...(!process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test" ? { devOtp: rawOtp } : {}),
       },
     };
   }
@@ -428,7 +428,7 @@ export async function forgotPassword(params: {
 
     await sendOtpEmail(normalized, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
 
-    if (!process.env["SMTP_PASS"]) {
+    if (!process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test") {
       devOtp = rawOtp;
     }
   }
@@ -464,14 +464,28 @@ export async function resetPassword(params: {
   }
 
   const normalized = email.toLowerCase().trim();
-  const verifyRes = await verifyUserOtp({
-    email: normalized,
-    otp,
-    type: "PASSWORD_RESET",
-  });
 
-  if (!verifyRes.success) {
-    return verifyRes;
+  // Find the OTP requested for PASSWORD_RESET for this email within expiration
+  const activeOtp = await otpStore.findLatestPasswordResetOtp(normalized);
+
+  if (!activeOtp) {
+    return {
+      success: false,
+      status: 400,
+      error: "Verification code has expired or was not requested. Please request a new code.",
+    };
+  }
+
+  // If activeOtp was NOT marked verified in the previous step, compare now
+  if (!activeOtp.verified) {
+    const isValid = await compareOtp(otp.trim(), activeOtp.otpHash);
+    if (!isValid) {
+      return {
+        success: false,
+        status: 400,
+        error: "Incorrect verification code.",
+      };
+    }
   }
 
   const user = await userStore.findByEmail(normalized);
@@ -481,6 +495,9 @@ export async function resetPassword(params: {
 
   const newHash = await hashPassword(newPassword);
   await userStore.update(user.id, { passwordHash: newHash });
+
+  // Invalidate OTP so it cannot be used again
+  await otpStore.invalidateOtp(activeOtp.id);
 
   return {
     success: true,

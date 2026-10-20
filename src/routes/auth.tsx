@@ -18,6 +18,7 @@ import {
   QrCode,
   Store,
   Check,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -334,6 +335,14 @@ function AuthPage() {
           <p className="text-xs text-muted-foreground font-medium">
             Verifying your restaurant credentials...
           </p>
+          <div className="pt-2">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="size-3.5" /> Back to Home
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -341,6 +350,16 @@ function AuthPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-hero px-4 py-8 sm:py-12">
+      {/* Floating Top-Left "Back to Home" Link */}
+      <div className="fixed top-4 left-4 sm:top-6 sm:left-8 z-30">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/90 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-card shadow-xs backdrop-blur-md transition-all hover:-translate-x-0.5"
+        >
+          <ArrowLeft className="size-3.5 text-primary" /> Back to Home
+        </Link>
+      </div>
+
       {/* Decorative Background Lighting */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/4 top-1/4 -translate-x-1/2 -translate-y-1/2 size-96 rounded-full bg-primary/10 blur-3xl" />
@@ -436,9 +455,12 @@ function AuthPage() {
               <Link to="/" className="inline-block hover:opacity-90 transition-opacity">
                 <Logo />
               </Link>
-              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                <Shield className="size-3 text-primary" /> Secure Auth
-              </span>
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/80 px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all"
+              >
+                <ArrowLeft className="size-3 text-primary" /> Home
+              </Link>
             </div>
 
             {/* --------------------------------------------------------------- */}
@@ -576,9 +598,9 @@ function AuthPage() {
                     className="w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
                   >
                     {busy ? (
-                      <span className="flex items-center gap-2">
-                        <span className="size-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-                        Please wait...
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw className="size-4 animate-spin text-primary-foreground" />
+                        {mode === "login" ? "Signing In..." : "Creating Account..."}
                       </span>
                     ) : mode === "login" ? (
                       "Sign In to Dashboard"
@@ -686,7 +708,14 @@ function AuthPage() {
                     disabled={busy || otp.length !== 6}
                     className="w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer"
                   >
-                    {busy ? "Verifying..." : "Verify & Launch Menu"}
+                    {busy ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw className="size-4 animate-spin text-primary-foreground" />
+                        Verifying Code...
+                      </span>
+                    ) : (
+                      "Verify & Launch Menu"
+                    )}
                   </Button>
                 </form>
 
@@ -758,7 +787,14 @@ function AuthPage() {
                     disabled={busy}
                     className="w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer"
                   >
-                    {busy ? "Sending Code..." : "Send Verification Code"}
+                    {busy ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw className="size-4 animate-spin text-primary-foreground" />
+                        Sending Reset Code...
+                      </span>
+                    ) : (
+                      "Send Verification Code"
+                    )}
                   </Button>
                 </form>
               </div>
@@ -815,11 +851,28 @@ function AuthPage() {
                     disabled={busy}
                     className="w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer"
                   >
-                    {busy ? "Updating..." : "Save Password & Log In"}
+                    {busy ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw className="size-4 animate-spin text-primary-foreground" />
+                        Saving New Password...
+                      </span>
+                    ) : (
+                      "Save Password & Log In"
+                    )}
                   </Button>
                 </form>
               </div>
             )}
+
+            {/* Global Back to Website Footer Link */}
+            <div className="mt-8 pt-4 border-t border-border/50 text-center">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                <ArrowLeft className="size-3.5 group-hover:-translate-x-0.5 transition-transform" /> Return to public website
+              </Link>
+            </div>
 
           </div>
         </div>

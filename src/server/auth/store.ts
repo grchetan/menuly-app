@@ -345,6 +345,62 @@ export const otpStore = {
     return matching[0] || null;
   },
 
+  async findLatestPasswordResetOtp(email: string): Promise<StoredOtp | null> {
+    const normalized = email.toLowerCase().trim();
+
+    if (isPrismaAvailable()) {
+      try {
+        const latest = await prisma.otpVerification.findFirst({
+          where: {
+            email: normalized,
+            type: "PASSWORD_RESET",
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        if (latest) {
+          return {
+            id: latest.id,
+            email: latest.email,
+            otpHash: latest.otpHash,
+            type: latest.type as StoredOtp["type"],
+            expiresAt: latest.expiresAt,
+            attempts: latest.attempts,
+            maxAttempts: latest.maxAttempts,
+            verified: latest.verified,
+            createdAt: latest.createdAt,
+          };
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    // Dev store fallback
+    const matching = Array.from(devOtps.values())
+      .filter((o) => o.email === normalized && o.type === "PASSWORD_RESET" && o.expiresAt > new Date())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return matching[0] || null;
+  },
+
+  async invalidateOtp(id: string): Promise<void> {
+    if (isPrismaAvailable()) {
+      try {
+        await prisma.otpVerification.update({
+          where: { id },
+          data: { verified: true, expiresAt: new Date(Date.now() - 1000) },
+        });
+      } catch {
+        // fallback
+      }
+    }
+    const mem = devOtps.get(id);
+    if (mem) {
+      devOtps.set(id, { ...mem, verified: true, expiresAt: new Date(Date.now() - 1000) });
+    }
+  },
+
   async incrementAttempts(id: string): Promise<number> {
     if (isPrismaAvailable()) {
       try {

@@ -11,7 +11,13 @@ import {
 import { checkRateLimit } from "../server/auth/rate-limiter";
 import { hasRole, sanitizePublicRole } from "../server/auth/rbac";
 import { renderOtpEmail } from "../server/email/templates";
-import { signupUser, verifyUserOtp, loginUser } from "../server/auth/service";
+import {
+  signupUser,
+  verifyUserOtp,
+  loginUser,
+  forgotPassword,
+  resetPassword,
+} from "../server/auth/service";
 
 describe("Custom Authentication & Security Suite", () => {
   it("securely hashes and verifies passwords", async () => {
@@ -101,7 +107,56 @@ describe("Custom Authentication & Security Suite", () => {
       const unverifiedLogin = await loginUser({ email: testEmail, password });
       expect(unverifiedLogin.success).toBe(false);
       expect(unverifiedLogin.data?.requiresVerification).toBe(true);
+
+      // 3. Verify OTP (using latest OTP from unverified login prompt)
+      const otp = unverifiedLogin.data?.devOtp || signupRes.data?.devOtp;
+      expect(otp).toBeTruthy();
+      if (otp) {
+        const verifyRes = await verifyUserOtp({
+          email: testEmail,
+          otp,
+          type: "SIGNUP",
+        });
+        expect(verifyRes.success).toBe(true);
+
+        // 4. Login after verification
+        const verifiedLogin = await loginUser({ email: testEmail, password });
+        expect(verifiedLogin.success).toBe(true);
+        expect(verifiedLogin.data?.token).toBeTruthy();
+
+        // 5. Test Forgot Password -> Reset Flow (Prevents regression of double verification bug)
+        const forgotRes = await forgotPassword({ email: testEmail });
+        expect(forgotRes.success).toBe(true);
+        const resetOtp = forgotRes.data?.devOtp;
+
+        if (resetOtp) {
+          // Frontend Step 1: verify-otp
+          const verifyResetOtpRes = await verifyUserOtp({
+            email: testEmail,
+            otp: resetOtp,
+            type: "PASSWORD_RESET",
+          });
+          expect(verifyResetOtpRes.success).toBe(true);
+
+          // Frontend Step 2: reset-password with the verified OTP
+          const newPassword = "BrandNewPassword456!";
+          const resetRes = await resetPassword({
+            email: testEmail,
+            otp: resetOtp,
+            newPassword,
+          });
+          expect(resetRes.success).toBe(true);
+
+          // Verify user can now log in with the new password
+          const newLogin = await loginUser({ email: testEmail, password: newPassword });
+          expect(newLogin.success).toBe(true);
+
+          // Old password should fail
+          const oldLogin = await loginUser({ email: testEmail, password });
+          expect(oldLogin.success).toBe(false);
+        }
+      }
     },
-    15000
+    20000
   );
 });
