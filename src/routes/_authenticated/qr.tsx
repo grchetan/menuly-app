@@ -42,6 +42,7 @@ import {
 } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/qr")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "QR Studio & Print Templates — Menuly" },

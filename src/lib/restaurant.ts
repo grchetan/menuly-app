@@ -222,10 +222,9 @@ export async function loadMyMenu(): Promise<FullMenu> {
   const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
   if (!token) {
     if (typeof window !== "undefined") {
-      // If no token exists, fallback to demo menu for preview
       return getLocalDemoMenu();
     }
-    throw new Error("Not signed in");
+    return INITIAL_DEMO_MENU;
   }
 
   const res = await fetch("/api/restaurant/my-menu", {

@@ -31,6 +31,7 @@ import { slugify } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Dashboard & Analytics — Menuly" },

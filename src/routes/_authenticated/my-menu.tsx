@@ -53,6 +53,7 @@ import { formatPrice } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/my-menu")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Easy Menu Setup — Menuly" },
