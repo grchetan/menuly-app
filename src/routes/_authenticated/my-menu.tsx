@@ -31,7 +31,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { MenuView } from "@/components/MenuView";
+import { MenuView, VegMark } from "@/components/MenuView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -654,11 +654,11 @@ function MyMenu() {
             </div>
 
             {/* DEDICATED HORIZONTAL CATEGORY TABS (Clean, Responsive, No Awkward Stacking) */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">
               <button
                 onClick={() => setActiveCatTab("all")}
                 className={cn(
-                  "shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs",
+                  "shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer",
                   activeCatTab === "all"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-card border border-border/80 text-foreground hover:bg-secondary"
@@ -674,7 +674,7 @@ function MyMenu() {
                     key={c.id}
                     onClick={() => setActiveCatTab(c.id)}
                     className={cn(
-                      "shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs",
+                      "shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-xs"
                         : "bg-card border border-border/80 text-foreground hover:bg-secondary"
@@ -686,7 +686,7 @@ function MyMenu() {
               })}
               <button
                 onClick={() => setShowAddCat(true)}
-                className="shrink-0 rounded-xl border border-dashed border-primary/50 bg-primary/5 px-3.5 py-2 text-xs font-bold text-primary hover:bg-primary/10 transition-colors"
+                className="shrink-0 whitespace-nowrap rounded-xl border border-dashed border-primary/50 bg-primary/5 px-3.5 py-2 text-xs font-bold text-primary hover:bg-primary/10 transition-colors cursor-pointer"
               >
                 + Add Category
               </button>
@@ -784,9 +784,15 @@ function MyMenu() {
                               {/* Details */}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
+                                  <VegMark veg={i.is_veg ?? true} />
                                   <span className="font-bold text-sm sm:text-base text-foreground truncate">{i.name}</span>
-                                  <span className="rounded-full bg-primary/10 px-2 py-0.2 text-[9px] font-bold text-primary">
-                                    Menu Item
+                                  <span
+                                    className={cn(
+                                      "rounded-full px-2 py-0.2 text-[9px] font-bold tracking-wide",
+                                      i.is_veg ? "bg-veg/10 text-veg" : "bg-nonveg/10 text-nonveg"
+                                    )}
+                                  >
+                                    {i.is_veg ? "Veg" : "Non-Veg"}
                                   </span>
                                 </div>
                                 {i.description && (
