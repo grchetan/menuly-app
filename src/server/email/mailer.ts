@@ -53,7 +53,8 @@ export async function sendOtpEmail(
     expiresInMinutes,
   });
 
-  const fromName = process.env["SMTP_FROM_NAME"] || "Menuly";
+  const rawFromName = process.env["SMTP_FROM_NAME"];
+  const fromName = rawFromName && !rawFromName.includes("Pure Veg") ? rawFromName : "Menuly";
   const fromEmail = process.env["SMTP_FROM_EMAIL"] || process.env["SMTP_USER"] || "menulyoffcial@gmail.com";
   const fromHeader = `"${fromName}" <${fromEmail}>`;
 

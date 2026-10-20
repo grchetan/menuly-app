@@ -74,8 +74,10 @@ describe("Custom Authentication & Security Suite", () => {
       expiresInMinutes: 10,
     });
 
-    expect(email.subject).toContain("582910");
-    expect(email.html).toContain("SECURE VERIFICATION");
+    expect(email.subject).toBe("Verify your email address for Menuly");
+    expect(email.subject).not.toContain("582910");
+    expect(email.subject).not.toContain("[Menuly]");
+    expect(email.html).toContain("VERIFICATION CODE");
     expect(email.html).toContain("582910");
     expect(email.html).toContain("menulyoffcial@gmail.com");
   });
