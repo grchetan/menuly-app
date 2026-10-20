@@ -12,9 +12,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Zap,
-  Smartphone,
-  TrendingUp,
   QrCode,
   Store,
   Check,
@@ -27,6 +24,7 @@ import { Logo } from "@/components/Logo";
 import { AnimatedQR } from "@/components/AnimatedQR";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { cn } from "@/lib/utils";
+import authImage from "@/assets/auth-image.png";
 
 type AuthMode = "login" | "signup" | "otp" | "forgot" | "reset";
 
@@ -371,78 +369,15 @@ function AuthPage() {
         <div className="grid lg:grid-cols-12">
           
           {/* ================================================================= */}
-          {/* LEFT COLUMN: Feature Showcase & Trust Panel (Desktop Only)         */}
+          {/* LEFT COLUMN: Visual Brand Image Panel (Desktop Only)               */}
           {/* ================================================================= */}
-          <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-gradient-to-b from-[#0f172a] via-[#111c2e] to-[#0b1322] p-8 text-white border-r border-border/50">
-            <div>
-              {/* Brand Top */}
-              <Link to="/" className="inline-block hover:opacity-90 transition-opacity">
-                <Logo />
-              </Link>
-
-              <div className="mt-8">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-primary-foreground">
-                  <Sparkles className="size-3 text-amber-400" /> Dining Reimagined
-                </span>
-                <h2 className="mt-4 font-display text-2xl font-bold leading-tight">
-                  The Complete Digital Menu Suite for Restaurants & Cafes
-                </h2>
-                <p className="mt-2 text-xs text-slate-300 leading-relaxed">
-                  Join hundreds of top dining spaces eliminating paper reprint costs and tracking customer visits in real time.
-                </p>
-              </div>
-
-              {/* Feature Points */}
-              <div className="mt-8 space-y-4">
-                <div className="flex items-start gap-3">
-                  <span className="rounded-xl bg-primary/20 p-2 text-primary shrink-0 border border-primary/30">
-                    <Zap className="size-4 text-emerald-400" />
-                  </span>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-100">Instant Live Updates</h3>
-                    <p className="text-[11px] text-slate-400">Change dish prices, names or mark 86 sold-out in 1 tap without reprints.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <span className="rounded-xl bg-primary/20 p-2 text-primary shrink-0 border border-primary/30">
-                    <Smartphone className="size-4 text-blue-400" />
-                  </span>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-100">Zero App Required</h3>
-                    <p className="text-[11px] text-slate-400">Guests simply point their iPhone or Android camera to browse in &lt;1 second.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <span className="rounded-xl bg-primary/20 p-2 text-primary shrink-0 border border-primary/30">
-                    <TrendingUp className="size-4 text-amber-400" />
-                  </span>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-100">Real-Time Diner Telemetry</h3>
-                    <p className="text-[11px] text-slate-400">Track daily QR scans, peak visit hours, and customer interest live.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <span className="rounded-xl bg-primary/20 p-2 text-primary shrink-0 border border-primary/30">
-                    <Shield className="size-4 text-purple-400" />
-                  </span>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-100">Bank-Grade OTP Protection</h3>
-                    <p className="text-[11px] text-slate-400">Direct Gmail verification codes keep your restaurant account safe.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Trust Badge */}
-            <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="size-3.5 text-emerald-400" /> Mumbai Edge CDN
-              </span>
-              <span>Fast &bull; Reliable &bull; Secure</span>
-            </div>
+          <div className="hidden lg:relative lg:block lg:col-span-5 overflow-hidden bg-muted border-r border-border/50">
+            <img
+              src={authImage}
+              alt="Menuly Digital Dining"
+              className="absolute inset-0 size-full object-cover select-none"
+              loading="eager"
+            />
           </div>
 
           {/* ================================================================= */}
