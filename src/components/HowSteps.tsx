@@ -3,7 +3,7 @@ import { UserPlus, Store, UtensilsCrossed, QrCode, Printer, RefreshCw } from "lu
 export const steps = [
   { icon: UserPlus, title: "Create your account", text: "Sign up free with your email or Google. Takes 30 seconds." },
   { icon: Store, title: "Add restaurant details", text: "On the Dashboard, add your name, logo, phone, WhatsApp, address and timings." },
-  { icon: UtensilsCrossed, title: "Build your menu", text: "In My Menu, add categories like Starters or Drinks, then add dishes with price, photo and veg/non-veg tag." },
+  { icon: UtensilsCrossed, title: "Build your menu", text: "In My Menu, add categories like Starters or Drinks, then add dishes with price, photo and description." },
   { icon: QrCode, title: "Design your QR code", text: "Open QR Code, choose colours and corner style. Your logo appears in the centre automatically." },
   { icon: Printer, title: "Download & print", text: "Download PNG/SVG or use Print to get a ready-made 'Scan to view menu' card for your tables." },
   { icon: RefreshCw, title: "Update anytime", text: "Price changed or dish sold out? Edit it in seconds — the same QR shows the new menu instantly." },

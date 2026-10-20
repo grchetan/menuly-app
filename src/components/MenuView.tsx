@@ -15,20 +15,8 @@ import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
 import { formatPrice, whatsappLink, APP_NAME } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
-export function VegMark({ veg, className }: { veg: boolean; className?: string }) {
-  return (
-    <span
-      aria-label={veg ? "Vegetarian" : "Non-vegetarian"}
-      title={veg ? "Pure Vegetarian" : "Non-Vegetarian"}
-      className={cn(
-        "inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border-[1.5px]",
-        veg ? "border-veg bg-veg/5" : "border-nonveg bg-nonveg/5",
-        className,
-      )}
-    >
-      <span className={cn("size-1.5 rounded-full", veg ? "bg-veg" : "bg-nonveg")} />
-    </span>
-  );
+export function VegMark({ veg: _veg, className: _className }: { veg?: boolean; className?: string }) {
+  return null;
 }
 
 /** Customer-facing menu. `compact` is used inside the dashboard live smartphone preview. */
@@ -44,7 +32,6 @@ export function MenuView({
   const { restaurant: r, categories, items } = menu;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [dietFilter, setDietFilter] = useState<"all" | "veg" | "nonveg">("all");
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -76,10 +63,6 @@ export function MenuView({
         if (!matchesName && !matchesDesc) continue;
       }
 
-      // Diet filter
-      if (dietFilter === "veg" && !item.is_veg) continue;
-      if (dietFilter === "nonveg" && item.is_veg) continue;
-
       const canonicalId = catIdToCanonicalId.get(item.category_id) || item.category_id;
       const list = itemsMap.get(canonicalId) || [];
 
@@ -99,7 +82,7 @@ export function MenuView({
       normalizedCategories: validCats,
       categoryItemsMap: itemsMap,
     };
-  }, [categories, items, searchQuery, dietFilter]);
+  }, [categories, items, searchQuery]);
 
   const [active, setActive] = useState<string>(normalizedCategories[0]?.id || "");
   const scroller = useRef<HTMLDivElement>(null);
@@ -237,9 +220,9 @@ export function MenuView({
             )}
           </div>
 
-          {/* Interactive Search & Diet Filter */}
+          {/* Interactive Search */}
           {!compact && (
-            <div className="mt-4 space-y-2.5 max-w-lg mx-auto">
+            <div className="mt-4 max-w-lg mx-auto">
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <input
@@ -258,48 +241,6 @@ export function MenuView({
                     <X className="size-3.5" />
                   </button>
                 )}
-              </div>
-
-              {/* Diet Pills */}
-              <div className="flex items-center justify-center gap-1.5 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => setDietFilter("all")}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer",
-                    dietFilter === "all"
-                      ? "bg-foreground text-background shadow-xs"
-                      : "bg-secondary/70 text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  All Items
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDietFilter(dietFilter === "veg" ? "all" : "veg")}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer",
-                    dietFilter === "veg"
-                      ? "bg-veg text-white shadow-xs"
-                      : "bg-secondary/70 text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span className="size-2 rounded-full bg-veg" />
-                  Veg Only
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDietFilter(dietFilter === "nonveg" ? "all" : "nonveg")}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer",
-                    dietFilter === "nonveg"
-                      ? "bg-nonveg text-white shadow-xs"
-                      : "bg-secondary/70 text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span className="size-2 rounded-full bg-nonveg" />
-                  Non-Veg
-                </button>
               </div>
             </div>
           )}
@@ -430,14 +371,13 @@ export function MenuView({
                   >
                     {/* Left: Dish Info */}
                     <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <VegMark veg={i.is_veg ?? true} className={compact ? "size-3.5" : "size-4"} />
-                        {!i.available && (
-                          <span className="rounded-full bg-destructive/10 px-2 py-0.2 text-[9px] font-bold uppercase tracking-wider text-destructive">
+                      {!i.available && (
+                        <div className="flex items-center gap-1.5 pb-0.5">
+                          <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-destructive">
                             Sold Out
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       <h3 className={cn("font-bold text-foreground leading-snug group-hover:text-primary transition-colors", compact ? "text-xs font-sans" : "text-sm sm:text-base font-sans")}>
                         {i.name}

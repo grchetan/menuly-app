@@ -31,7 +31,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { MenuView, VegMark } from "@/components/MenuView";
+import { MenuView } from "@/components/MenuView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -923,16 +923,7 @@ function MyMenu() {
                               {/* Details */}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <VegMark veg={i.is_veg ?? true} />
                                   <span className="font-bold text-sm sm:text-base text-foreground truncate">{i.name}</span>
-                                  <span
-                                    className={cn(
-                                      "rounded-full px-2 py-0.2 text-[9px] font-bold tracking-wide",
-                                      i.is_veg ? "bg-veg/10 text-veg" : "bg-nonveg/10 text-nonveg"
-                                    )}
-                                  >
-                                    {i.is_veg ? "Veg" : "Non-Veg"}
-                                  </span>
                                 </div>
                                 {i.description && (
                                   <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
