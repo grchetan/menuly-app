@@ -1,0 +1,558 @@
+import { userStore, otpStore, type StoredUser } from "./store";
+import {
+  hashPassword,
+  comparePassword,
+  generateNumericOtp,
+  hashOtp,
+  compareOtp,
+  signAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  type TokenPayload,
+} from "./security";
+import { sendOtpEmail } from "../email/mailer";
+import { checkRateLimit, AuthRateLimits } from "./rate-limiter";
+import { sanitizePublicRole, type UserRole } from "./rbac";
+
+export interface ServiceResult<T = unknown> {
+  success: boolean;
+  status: number;
+  message?: string;
+  data?: T;
+  error?: string;
+}
+
+const OTP_EXPIRY_MINUTES = Number(process.env["OTP_EXPIRY_MINUTES"]) || 10;
+const OTP_MAX_ATTEMPTS = Number(process.env["OTP_MAX_ATTEMPTS"]) || 5;
+
+/**
+ * 1. SIGNUP
+ * Registers a new restaurant owner (unverified) and dispatches a branded OTP email.
+ * Enforces: Role is ALWAYS RESTAURANT_OWNER. Public signup can NEVER assign SUPER_ADMIN.
+ */
+export async function signupUser(params: {
+  email: string;
+  password: string;
+  fullName?: string;
+  clientIp?: string;
+}): Promise<ServiceResult<{ email: string; requiresVerification: boolean }>> {
+  const { email, password, fullName, clientIp = "global" } = params;
+
+  if (!email || !email.includes("@")) {
+    return { success: false, status: 400, error: "Please enter a valid email address." };
+  }
+  if (!password || password.length < 6) {
+    return { success: false, status: 400, error: "Password must be at least 6 characters long." };
+  }
+
+  // Rate Limiting
+  const rate = checkRateLimit(`signup:${clientIp}`, AuthRateLimits.SIGNUP);
+  if (!rate.allowed) {
+    return {
+      success: false,
+      status: 429,
+      error: `Too many signup attempts. Please try again in ${rate.resetInSeconds} seconds.`,
+    };
+  }
+
+  const normalized = email.toLowerCase().trim();
+  const existingUser = await userStore.findByEmail(normalized);
+
+  if (existingUser && existingUser.isVerified) {
+    return {
+      success: false,
+      status: 409,
+      error: "An account with this email already exists. Please log in instead.",
+    };
+  }
+
+  const passwordHash = await hashPassword(password);
+  let user: StoredUser;
+
+  if (existingUser && !existingUser.isVerified) {
+    // Update password hash for unverified user re-attempting signup
+    const updated = await userStore.update(existingUser.id, {
+      passwordHash,
+      fullName: fullName || existingUser.fullName,
+    });
+    user = updated || existingUser;
+  } else {
+    // Strictly sanitize role to RESTAURANT_OWNER
+    const safeRole = sanitizePublicRole();
+    user = await userStore.create({
+      email: normalized,
+      passwordHash,
+      ...(fullName ? { fullName } : {}),
+      role: safeRole,
+      isVerified: false,
+    });
+  }
+
+  // Generate and send 6-digit OTP
+  const rawOtp = generateNumericOtp();
+  const otpHash = await hashOtp(rawOtp);
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+  await otpStore.saveOtp({
+    email: normalized,
+    otpHash,
+    type: "SIGNUP",
+    expiresAt,
+    maxAttempts: OTP_MAX_ATTEMPTS,
+  });
+
+  await sendOtpEmail(normalized, rawOtp, "SIGNUP", OTP_EXPIRY_MINUTES);
+
+  return {
+    success: true,
+    status: 200,
+    message: `Verification code sent to ${normalized}. Please check your email.`,
+    data: {
+      email: normalized,
+      requiresVerification: true,
+      ...(!process.env["SMTP_PASS"] ? { devOtp: rawOtp } : {}),
+    },
+  };
+}
+
+/**
+ * 2. VERIFY OTP
+ * Validates the 6-digit OTP code against the bcrypt hash and activates the user account.
+ */
+export async function verifyUserOtp(params: {
+  email: string;
+  otp: string;
+  type?: "SIGNUP" | "PASSWORD_RESET" | "LOGIN";
+  clientIp?: string;
+}): Promise<
+  ServiceResult<{
+    user?: { id: string; email: string; role: UserRole; fullName: string | null };
+    token?: string;
+    refreshToken?: string;
+    verified?: boolean;
+  }>
+> {
+  const { email, otp, type = "SIGNUP", clientIp = "global" } = params;
+
+  if (!email || !otp || otp.trim().length !== 6) {
+    return { success: false, status: 400, error: "Please enter a valid 6-digit verification code." };
+  }
+
+  const normalized = email.toLowerCase().trim();
+
+  // Rate Limiting on verification attempts
+  const rate = checkRateLimit(`verify:${normalized}:${clientIp}`, AuthRateLimits.VERIFY_OTP);
+  if (!rate.allowed) {
+    return {
+      success: false,
+      status: 429,
+      error: `Too many failed verification attempts. Please wait ${rate.resetInSeconds} seconds.`,
+    };
+  }
+
+  const activeOtp = await otpStore.findLatestValidOtp(normalized, type);
+  if (!activeOtp) {
+    return {
+      success: false,
+      status: 400,
+      error: "Verification code has expired or was not requested. Please request a new code.",
+    };
+  }
+
+  if (activeOtp.attempts >= activeOtp.maxAttempts) {
+    return {
+      success: false,
+      status: 400,
+      error: "Maximum verification attempts exceeded. Please request a new code.",
+    };
+  }
+
+  // Compare candidate code with stored bcrypt hash
+  const isValid = await compareOtp(otp.trim(), activeOtp.otpHash);
+  if (!isValid) {
+    const attempts = await otpStore.incrementAttempts(activeOtp.id);
+    const remaining = Math.max(0, activeOtp.maxAttempts - attempts);
+    return {
+      success: false,
+      status: 400,
+      error: remaining > 0
+        ? `Incorrect verification code. ${remaining} attempt(s) remaining.`
+        : "Verification code locked due to too many failed attempts. Please request a new code.",
+    };
+  }
+
+  // Mark OTP as used
+  await otpStore.markVerified(activeOtp.id);
+
+  if (type === "SIGNUP") {
+    const user = await userStore.findByEmail(normalized);
+    if (!user) {
+      return { success: false, status: 404, error: "User account not found." };
+    }
+
+    // Activate user
+    const updatedUser = await userStore.update(user.id, { isVerified: true });
+    const payload: TokenPayload = {
+      userId: user.id,
+      email: user.email,
+      role: updatedUser?.role || user.role,
+      fullName: user.fullName,
+    };
+
+    const token = signAccessToken(payload);
+    const { token: refreshToken } = generateRefreshToken();
+
+    return {
+      success: true,
+      status: 200,
+      message: "Email verified successfully! Welcome to Menuly.",
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: updatedUser?.role || user.role,
+          fullName: user.fullName,
+        },
+        token,
+        refreshToken,
+      },
+    };
+  }
+
+  // For PASSWORD_RESET, returning verified flag so reset-password endpoint can proceed
+  return {
+    success: true,
+    status: 200,
+    message: "Verification code confirmed.",
+    data: { verified: true },
+  };
+}
+
+/**
+ * 3. RESEND OTP
+ * Dispatches a new OTP with a 60-second cooldown protection.
+ */
+export async function resendUserOtp(params: {
+  email: string;
+  type?: "SIGNUP" | "PASSWORD_RESET" | "LOGIN";
+  clientIp?: string;
+}): Promise<ServiceResult<{ email: string }>> {
+  const { email, type = "SIGNUP", clientIp = "global" } = params;
+
+  if (!email || !email.includes("@")) {
+    return { success: false, status: 400, error: "Please provide a valid email." };
+  }
+
+  const normalized = email.toLowerCase().trim();
+
+  // 60-second cooldown rate limit per email
+  const rate = checkRateLimit(`resend:${normalized}`, {
+    windowMs: 60 * 1000,
+    max: 1,
+  });
+  if (!rate.allowed) {
+    return {
+      success: false,
+      status: 429,
+      error: `Please wait ${rate.resetInSeconds} seconds before requesting another code.`,
+    };
+  }
+
+  const rawOtp = generateNumericOtp();
+  const otpHash = await hashOtp(rawOtp);
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+  await otpStore.saveOtp({
+    email: normalized,
+    otpHash,
+    type,
+    expiresAt,
+    maxAttempts: OTP_MAX_ATTEMPTS,
+  });
+
+  await sendOtpEmail(normalized, rawOtp, type, OTP_EXPIRY_MINUTES);
+
+  return {
+    success: true,
+    status: 200,
+    message: `A new verification code has been sent to ${normalized}.`,
+    data: {
+      email: normalized,
+      ...(!process.env["SMTP_PASS"] ? { devOtp: rawOtp } : {}),
+    },
+  };
+}
+
+/**
+ * 4. LOGIN
+ * Authenticates user credentials. If email is unverified, dispatches a fresh OTP and halts.
+ */
+export async function loginUser(params: {
+  email: string;
+  password: string;
+  clientIp?: string;
+}): Promise<
+  ServiceResult<{
+    user?: { id: string; email: string; role: UserRole; fullName: string | null };
+    token?: string;
+    refreshToken?: string;
+    requiresVerification?: boolean;
+    email?: string;
+  }>
+> {
+  const { email, password, clientIp = "global" } = params;
+
+  if (!email || !password) {
+    return { success: false, status: 400, error: "Please enter both email and password." };
+  }
+
+  const normalized = email.toLowerCase().trim();
+
+  // Rate Limiting to prevent brute-force password guessing
+  const rate = checkRateLimit(`login:${normalized}:${clientIp}`, AuthRateLimits.LOGIN);
+  if (!rate.allowed) {
+    return {
+      success: false,
+      status: 429,
+      error: `Too many failed login attempts. Please wait ${rate.resetInSeconds} seconds.`,
+    };
+  }
+
+  const user = await userStore.findByEmail(normalized);
+  if (!user) {
+    return { success: false, status: 401, error: "Invalid email or password." };
+  }
+
+  const passwordMatch = await comparePassword(password, user.passwordHash);
+  if (!passwordMatch) {
+    return { success: false, status: 401, error: "Invalid email or password." };
+  }
+
+  // If email is not yet verified, send fresh OTP and prompt verification
+  if (!user.isVerified) {
+    const rawOtp = generateNumericOtp();
+    const otpHash = await hashOtp(rawOtp);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await otpStore.saveOtp({
+      email: normalized,
+      otpHash,
+      type: "SIGNUP",
+      expiresAt,
+      maxAttempts: OTP_MAX_ATTEMPTS,
+    });
+
+    await sendOtpEmail(normalized, rawOtp, "SIGNUP", OTP_EXPIRY_MINUTES);
+
+    return {
+      success: false,
+      status: 403,
+      message: "Your email is not verified yet. We just sent a verification code to your email.",
+      data: {
+        requiresVerification: true,
+        email: normalized,
+        ...(!process.env["SMTP_PASS"] ? { devOtp: rawOtp } : {}),
+      },
+    };
+  }
+
+  const payload: TokenPayload = {
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    fullName: user.fullName,
+  };
+
+  const token = signAccessToken(payload);
+  const { token: refreshToken } = generateRefreshToken();
+
+  return {
+    success: true,
+    status: 200,
+    message: "Logged in successfully.",
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        fullName: user.fullName,
+      },
+      token,
+      refreshToken,
+    },
+  };
+}
+
+/**
+ * 5. FORGOT PASSWORD
+ * Sends a password reset OTP to the registered email.
+ */
+export async function forgotPassword(params: {
+  email: string;
+  clientIp?: string;
+}): Promise<ServiceResult<{ email: string }>> {
+  const { email, clientIp = "global" } = params;
+
+  if (!email || !email.includes("@")) {
+    return { success: false, status: 400, error: "Please enter a valid email." };
+  }
+
+  const normalized = email.toLowerCase().trim();
+
+  // Rate Limiting
+  const rate = checkRateLimit(`forgot:${normalized}:${clientIp}`, AuthRateLimits.FORGOT_PASSWORD);
+  if (!rate.allowed) {
+    return {
+      success: false,
+      status: 429,
+      error: `Too many requests. Please wait ${rate.resetInSeconds} seconds.`,
+    };
+  }
+
+  const user = await userStore.findByEmail(normalized);
+
+  // Even if user does not exist, return success to prevent email enumeration attacks
+  let devOtp: string | undefined;
+  if (user) {
+    const rawOtp = generateNumericOtp();
+    const otpHash = await hashOtp(rawOtp);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await otpStore.saveOtp({
+      email: normalized,
+      otpHash,
+      type: "PASSWORD_RESET",
+      expiresAt,
+      maxAttempts: OTP_MAX_ATTEMPTS,
+    });
+
+    await sendOtpEmail(normalized, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
+
+    if (!process.env["SMTP_PASS"]) {
+      devOtp = rawOtp;
+    }
+  }
+
+  return {
+    success: true,
+    status: 200,
+    message: "If this email is registered, a password reset code has been sent.",
+    data: {
+      email: normalized,
+      ...(devOtp ? { devOtp } : {}),
+    },
+  };
+}
+
+/**
+ * 6. RESET PASSWORD
+ * Updates the user's password once the OTP has been verified.
+ */
+export async function resetPassword(params: {
+  email: string;
+  otp: string;
+  newPassword: string;
+}): Promise<ServiceResult> {
+  const { email, otp, newPassword } = params;
+
+  if (!email || !otp || !newPassword || newPassword.length < 6) {
+    return {
+      success: false,
+      status: 400,
+      error: "Please enter all required fields. New password must be at least 6 characters.",
+    };
+  }
+
+  const normalized = email.toLowerCase().trim();
+  const verifyRes = await verifyUserOtp({
+    email: normalized,
+    otp,
+    type: "PASSWORD_RESET",
+  });
+
+  if (!verifyRes.success) {
+    return verifyRes;
+  }
+
+  const user = await userStore.findByEmail(normalized);
+  if (!user) {
+    return { success: false, status: 404, error: "User not found." };
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await userStore.update(user.id, { passwordHash: newHash });
+
+  return {
+    success: true,
+    status: 200,
+    message: "Password reset successfully. You can now log in with your new password.",
+  };
+}
+
+/**
+ * 7. GET CURRENT USER (from Bearer Token)
+ */
+export async function getCurrentUser(
+  token?: string | null
+): Promise<ServiceResult<{ user: TokenPayload }>> {
+  if (!token) {
+    return { success: false, status: 401, error: "Not authenticated. Missing token." };
+  }
+
+  const payload = verifyAccessToken(token);
+  if (!payload) {
+    return { success: false, status: 401, error: "Invalid or expired token." };
+  }
+
+  const user = await userStore.findById(payload.userId);
+  if (!user) {
+    return { success: false, status: 404, error: "User no longer exists." };
+  }
+
+  return {
+    success: true,
+    status: 200,
+    data: {
+      user: {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        fullName: user.fullName,
+      },
+    },
+  };
+}
+
+/**
+ * 8. SEED SUPER ADMIN
+ * Safe script helper to create or update the initial Super Admin.
+ */
+export async function seedSuperAdmin(
+  adminEmail = process.env["SUPER_ADMIN_EMAIL"] || "admin@menuly.com",
+  adminPassword = process.env["SUPER_ADMIN_PASSWORD"] || "AdminPassword123!"
+): Promise<StoredUser> {
+  const normalized = adminEmail.toLowerCase().trim();
+  const existing = await userStore.findByEmail(normalized);
+  const passwordHash = await hashPassword(adminPassword);
+
+  if (existing) {
+    const updated = await userStore.update(existing.id, {
+      role: "SUPER_ADMIN",
+      passwordHash,
+      isVerified: true,
+      fullName: "Super Admin",
+    });
+    console.log(`[Super Admin] Updated existing account: ${normalized} (Role: SUPER_ADMIN)`);
+    return updated || existing;
+  }
+
+  const created = await userStore.create({
+    email: normalized,
+    passwordHash,
+    fullName: "Super Admin",
+    role: "SUPER_ADMIN",
+    isVerified: true,
+  });
+  console.log(`[Super Admin] Created new super admin: ${normalized} (Role: SUPER_ADMIN)`);
+  return created;
+}

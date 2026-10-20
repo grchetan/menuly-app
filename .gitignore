@@ -1,0 +1,89 @@
+# =========================================================
+# MENULY — PUBLIC REPO GITIGNORE (MAXIMUM SECURITY)
+# Strictly protects all database credentials, SMTP keys, and secrets
+# =========================================================
+
+# Environment Variables & Secrets (CRITICAL FOR PUBLIC REPOS)
+.env
+.env*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.staging
+!.env.example
+
+# Certificates & Private Keys
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Local Database Files & Dumps
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.sql
+*.dump
+
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs & Production Bundles
+dist/
+**/dist/
+dist-ssr/
+.output/
+.vinxi/
+.tanstack/
+.vite/
+.nitro/
+*.local
+
+# Vendor / Imported Ai Previews
+Readdy Ai/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor & IDE Directories
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-project
+*.sublime-workspace
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+
+# Temporary Scratch Scripts
+scripts/test*
+scratch/

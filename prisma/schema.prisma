@@ -1,0 +1,214 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  RESTAURANT_OWNER
+  STAFF
+}
+
+enum OtpType {
+  SIGNUP
+  PASSWORD_RESET
+  LOGIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String?  @map("full_name")
+  phone        String?
+  role         Role     @default(RESTAURANT_OWNER)
+  isVerified   Boolean  @default(false) @map("is_verified")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  restaurants    Restaurant[]
+  sessions       Session[]
+  supportTickets SupportTicket[]
+
+  @@map("users")
+}
+
+model OtpVerification {
+  id          String   @id @default(uuid())
+  email       String
+  otpHash     String   @map("otp_hash")
+  type        OtpType  @default(SIGNUP)
+  expiresAt   DateTime @map("expires_at")
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5) @map("max_attempts")
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([email, type, verified])
+  @@map("otp_verifications")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Plan {
+  id               String       @id @default(uuid())
+  name             String
+  slug             String       @unique
+  priceInr         Int          @default(0) @map("price_inr")
+  maxDishes        Int          @default(20) @map("max_dishes")
+  maxTables        Int          @default(1) @map("max_tables")
+  customBranding   Boolean      @default(false) @map("custom_branding")
+  analyticsEnabled Boolean      @default(true) @map("analytics_enabled")
+  photoUploads     Boolean      @default(true) @map("photo_uploads")
+  features         Json         @default("[]")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  restaurants      Restaurant[]
+
+  @@map("plans")
+}
+
+model Restaurant {
+  id        String   @id @default(uuid())
+  ownerId   String?  @map("owner_id")
+  name      String
+  slug      String   @unique
+  phone     String?
+  whatsapp  String?
+  address   String?
+  hours     String?  @default("Mon–Sun, 10:00 AM – 11:00 PM")
+  logoUrl   String?  @map("logo_url")
+  planSlug  String   @default("starter") @map("plan_slug")
+  isActive  Boolean  @default(true) @map("is_active")
+  isPureVeg Boolean  @default(true) @map("is_pure_veg")
+  qrFg      String   @default("#2e7d52") @map("qr_fg")
+  qrBg      String   @default("#ffffff") @map("qr_bg")
+  qrCorner  String   @default("rounded") @map("qr_corner")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  owner          User?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  plan           Plan              @relation(fields: [planSlug], references: [slug])
+  categories     Category[]
+  menuItems      MenuItem[]
+  tables         RestaurantTable[]
+  qrScans        QrScan[]
+  supportTickets SupportTicket[]
+
+  @@index([slug])
+  @@index([ownerId])
+  @@map("restaurants")
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  restaurantId String   @map("restaurant_id")
+  name         String
+  position     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      MenuItem[]
+
+  @@index([restaurantId, position])
+  @@map("categories")
+}
+
+model MenuItem {
+  id           String   @id @default(uuid())
+  restaurantId String   @map("restaurant_id")
+  categoryId   String   @map("category_id")
+  name         String
+  description  String?
+  price        Decimal  @default(0) @db.Decimal(10, 2)
+  imageUrl     String?  @map("image_url")
+  isVeg        Boolean  @default(true) @map("is_veg")
+  available    Boolean  @default(true)
+  position     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, categoryId, position])
+  @@index([restaurantId, available])
+  @@map("menu_items")
+}
+
+model RestaurantTable {
+  id           String   @id @default(uuid())
+  restaurantId String   @map("restaurant_id")
+  tableNumber  String   @map("table_number")
+  label        String?
+  scansCount   Int      @default(0) @map("scans_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, tableNumber])
+  @@index([restaurantId, tableNumber])
+  @@map("restaurant_tables")
+}
+
+model QrScan {
+  id           String   @id @default(uuid())
+  restaurantId String   @map("restaurant_id")
+  tableNumber  String?  @map("table_number")
+  userAgent    String?  @map("user_agent")
+  ipHash       String?  @map("ip_hash")
+  scannedAt    DateTime @default(now()) @map("scanned_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, scannedAt(sort: Desc)])
+  @@map("qr_scans")
+}
+
+model SupportTicket {
+  id             String      @id
+  restaurantId   String?     @map("restaurant_id")
+  userId         String?     @map("user_id")
+  restaurantName String      @map("restaurant_name")
+  ownerEmail     String      @map("owner_email")
+  ownerPhone     String?     @map("owner_phone")
+  category       String      @default("QR Code")
+  subject        String
+  description    String
+  priority       String      @default("medium")
+  status         String      @default("open")
+  adminNotes     String?     @map("admin_notes")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority])
+  @@map("support_tickets")
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}

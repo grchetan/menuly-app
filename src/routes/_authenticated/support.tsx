@@ -1,0 +1,202 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Mail, MessageCircle, Send, CheckCircle2, Shield, LifeBuoy, Clock, ArrowRight } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
+import type { SupportTicket } from "@/routes/admin";
+
+export const Route = createFileRoute("/_authenticated/support")({
+  head: () => ({
+    meta: [
+      { title: "Support & Help Desk — Menuly" },
+      { name: "description", content: "Submit an inquiry or report an issue with your digital QR menu." },
+      { property: "og:title", content: "Support & Help Desk — Menuly" },
+    ],
+  }),
+  component: Support,
+});
+
+function Support() {
+  const [subject, setSubject] = useState("");
+  const [category, setCategory] = useState<SupportTicket["category"]>("QR Code");
+  const [priority, setPriority] = useState<SupportTicket["priority"]>("medium");
+  const [description, setDescription] = useState("");
+  const [submittedId, setSubmittedId] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subject.trim() || !description.trim()) {
+      toast.error("Please fill subject and problem description");
+      return;
+    }
+
+    const ticketId = `TKT-${Math.floor(100 + Math.random() * 900)}`;
+    const newTicket: SupportTicket = {
+      id: ticketId,
+      restaurantName: "My Restaurant",
+      restaurantSlug: "my-restaurant",
+      ownerEmail: "owner@menuly-test.com",
+      phone: "919876543210",
+      category,
+      subject: subject.trim(),
+      description: description.trim(),
+      priority,
+      status: "open",
+      createdAt: "Just now",
+      adminNote: "",
+    };
+
+    try {
+      const existingRaw = localStorage.getItem("menuly_admin_tickets");
+      const existing: SupportTicket[] = existingRaw ? JSON.parse(existingRaw) : [];
+      localStorage.setItem("menuly_admin_tickets", JSON.stringify([newTicket, ...existing]));
+    } catch {
+      // ignore
+    }
+
+    setSubmittedId(ticketId);
+    toast.success(`Support Ticket #${ticketId} created successfully! Our team will review it.`);
+    setSubject("");
+    setDescription("");
+  };
+
+  return (
+    <AppShell title="Support & Help Desk">
+      <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+        {/* Ticket Submission Form */}
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft md:p-8">
+          <div className="flex items-center gap-2.5 border-b border-border/60 pb-4">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <LifeBuoy className="size-5" />
+            </span>
+            <div>
+              <h2 className="font-display text-lg font-bold">Raise a Support Ticket</h2>
+              <p className="text-xs text-muted-foreground">Submit any issue or request directly to the admin team.</p>
+            </div>
+          </div>
+
+          {submittedId ? (
+            <div className="my-6 rounded-2xl border border-veg/30 bg-veg/5 p-6 text-center animate-rise">
+              <CheckCircle2 className="mx-auto size-12 text-veg" />
+              <h3 className="mt-3 text-lg font-bold text-foreground">Ticket #{submittedId} Submitted!</h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
+                Your ticket has been sent directly to the Admin Master Desk. We usually inspect and resolve issues within a few hours.
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                <Button size="sm" onClick={() => setSubmittedId(null)}>
+                  Submit Another Ticket
+                </Button>
+                <Button size="sm" variant="outline" asChild className="gap-1.5">
+                  <Link to="/admin">
+                    <Shield className="size-3.5 text-primary" /> View in Admin Portal
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <Label>Subject / Issue Title *</Label>
+                <Input
+                  required
+                  placeholder="e.g. QR code not scanning properly or price update error"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Category</Label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-card px-3 text-xs"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as SupportTicket["category"])}
+                  >
+                    <option value="QR Code">QR Code Issue</option>
+                    <option value="Menu Edit">Menu & Dishes Edit</option>
+                    <option value="Printing">Printing & Physical Stands</option>
+                    <option value="Account">Account & Settings</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Priority</Label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-card px-3 text-xs"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as SupportTicket["priority"])}
+                  >
+                    <option value="low">Low (General question)</option>
+                    <option value="medium">Medium (Standard)</option>
+                    <option value="high">High (Urgent meal service)</option>
+                    <option value="urgent">Urgent (Live menu down)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Problem Description & Details *</Label>
+                <Textarea
+                  rows={4}
+                  required
+                  placeholder="Explain the problem in detail: what happened, what device was used, etc."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <Button type="submit" size="lg" className="w-full gap-2 shadow-soft font-semibold">
+                <Send className="size-4" /> Submit Support Ticket
+              </Button>
+            </form>
+          )}
+        </div>
+
+        {/* Instant Contact & Admin Portal Shortcut */}
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
+            <h3 className="font-display text-base font-bold">Instant Emergency Channels</h3>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+              If your live restaurant menu is affected during service hours, reach out instantly via WhatsApp:
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3">
+              <Button variant="whatsapp" size="lg" asChild className="gap-2 shadow-soft">
+                <a href={whatsappLink(SUPPORT_WHATSAPP, "Hi, I need immediate help with my Menuly menu")} target="_blank" rel="noreferrer">
+                  <MessageCircle className="size-4" /> Chat on WhatsApp
+                </a>
+              </Button>
+              <Button variant="outline" size="lg" asChild className="gap-2">
+                <a href={`mailto:${SUPPORT_EMAIL}`}>
+                  <Mail className="size-4" /> Email {SUPPORT_EMAIL}
+                </a>
+              </Button>
+            </div>
+          </div>
+
+          {/* Admin shortcut */}
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 shadow-soft">
+            <div className="flex items-center gap-2">
+              <Shield className="size-5 text-primary" />
+              <h3 className="font-display text-base font-bold text-foreground">Admin Desk Access</h3>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Are you the platform administrator? Open the master dashboard to review open tickets, verify restaurants, and mark issues resolved.
+            </p>
+            <Button asChild size="sm" className="mt-4 gap-1.5 shadow-soft">
+              <Link to="/admin">
+                Open Admin Portal <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
