@@ -135,7 +135,7 @@ const DEFAULT_SETTINGS: PlatformSettings = {
   maintenanceMode: false,
   strictVegOnly: true,
   supportWhatsApp: "919876543210",
-  supportEmail: "support@menuly.com",
+  supportEmail: "menulyofficial@gmail.com",
   currency: "₹ (INR)",
   announcementTicker: "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   allowNewSignups: true,

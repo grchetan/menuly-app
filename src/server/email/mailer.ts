@@ -7,7 +7,7 @@ function getTransporter(): Transporter | null {
   const host = process.env["SMTP_HOST"] || "smtp.gmail.com";
   const port = Number(process.env["SMTP_PORT"]) || 465;
   const secure = process.env["SMTP_SECURE"] !== "false";
-  const user = process.env["SMTP_USER"] || "menulyoffcial@gmail.com";
+  const user = process.env["SMTP_USER"] || "menulyofficial@gmail.com";
   const pass = process.env["SMTP_PASS"];
 
   if (!pass || pass.trim() === "" || pass === "your-16-char-gmail-app-password" || process.env["NODE_ENV"] === "test" || process.env["VITEST"]) {
@@ -55,7 +55,7 @@ export async function sendOtpEmail(
 
   const rawFromName = process.env["SMTP_FROM_NAME"];
   const fromName = rawFromName && !rawFromName.includes("Pure Veg") ? rawFromName : "Menuly";
-  const fromEmail = process.env["SMTP_FROM_EMAIL"] || process.env["SMTP_USER"] || "menulyoffcial@gmail.com";
+  const fromEmail = process.env["SMTP_FROM_EMAIL"] || process.env["SMTP_USER"] || "menulyofficial@gmail.com";
   const fromHeader = `"${fromName}" <${fromEmail}>`;
 
   // If no SMTP App Password is configured yet, safely simulate in console for seamless dev/testing

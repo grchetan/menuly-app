@@ -1,7 +1,7 @@
 // App-wide branding and support contacts. Replace the placeholders with real details.
 export const APP_NAME = "Menuly";
 export const SUPPORT_WHATSAPP = "919999999999"; // digits only, with country code
-export const SUPPORT_EMAIL = "support@menuly.app";
+export const SUPPORT_EMAIL = "menulyofficial@gmail.com";
 export const CURRENCY = "₹";
 
 export const formatPrice = (n: number | string) =>

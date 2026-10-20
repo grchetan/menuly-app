@@ -433,7 +433,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           userId,
           restaurantId,
           restaurantName: body.restaurantName?.trim() || "Menuly Dining Partner",
-          ownerEmail: body.ownerEmail?.trim() || "support@menuly.app",
+          ownerEmail: body.ownerEmail?.trim() || "menulyofficial@gmail.com",
           ownerPhone: body.ownerPhone?.trim() || null,
           category: body.category || "QR Code",
           subject: body.subject.trim(),

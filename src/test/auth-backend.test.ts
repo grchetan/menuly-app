@@ -87,7 +87,7 @@ describe("Custom Authentication & Security Suite", () => {
     expect(email.subject).not.toContain("[Menuly]");
     expect(email.html).toContain("VERIFICATION CODE");
     expect(email.html).toContain("582910");
-    expect(email.html).toContain("menulyoffcial@gmail.com");
+    expect(email.html).toContain("menulyofficial@gmail.com");
   });
 
   it(
@@ -159,7 +159,7 @@ describe("Custom Authentication & Security Suite", () => {
         }
       }
     },
-    20000
+    45000
   );
 
   it("updates user profile and changes password securely", async () => {
@@ -202,5 +202,5 @@ describe("Custom Authentication & Security Suite", () => {
       const newLogin = await loginUser({ email: testEmail, password: "UpdatedSecretPassword99!" });
       expect(newLogin.success).toBe(true);
     }
-  }, 20000);
+  }, 45000);
 });

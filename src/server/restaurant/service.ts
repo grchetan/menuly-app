@@ -474,12 +474,13 @@ export async function deleteCategory(userId: string, id: string) {
   });
   if (!restaurant) throw new Error("Restaurant not found.");
 
-  const cat = await prisma.category.findFirst({
+  // Atomically and idempotently remove all items in category, then the category
+  await prisma.menuItem.deleteMany({
+    where: { categoryId: id, restaurantId: restaurant.id },
+  });
+  await prisma.category.deleteMany({
     where: { id, restaurantId: restaurant.id },
   });
-  if (!cat) throw new Error("Category not found or unauthorized.");
-
-  await prisma.category.delete({ where: { id } });
   return { success: true };
 }
 
@@ -631,12 +632,10 @@ export async function deleteDish(userId: string, id: string) {
   });
   if (!restaurant) throw new Error("Restaurant not found.");
 
-  const item = await prisma.menuItem.findFirst({
+  // Atomically and idempotently remove the item
+  await prisma.menuItem.deleteMany({
     where: { id, restaurantId: restaurant.id },
   });
-  if (!item) throw new Error("Item not found or unauthorized.");
-
-  await prisma.menuItem.delete({ where: { id } });
   return { success: true };
 }
 

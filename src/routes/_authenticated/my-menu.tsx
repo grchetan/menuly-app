@@ -52,6 +52,7 @@ import {
   deleteDishHelper,
   type Category,
   type MenuItem,
+  type FullMenu,
 } from "@/lib/restaurant";
 import { formatPrice } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -59,18 +60,44 @@ import { cn } from "@/lib/utils";
 function MyMenuSkeleton() {
   return (
     <AppShell title="Easy Menu Setup">
-      <div className="space-y-6 animate-pulse max-w-6xl mx-auto py-6">
-        <div className="h-32 rounded-2xl border border-border/70 bg-card p-5 space-y-3">
-          <div className="h-5 w-48 rounded bg-muted animate-pulse" />
-          <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
-        </div>
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6 space-y-4">
-            <div className="h-6 w-36 rounded bg-muted animate-pulse" />
-            <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
-            <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
+      <div className="space-y-6 max-w-6xl mx-auto py-6">
+        {/* Animated Loading Header Banner */}
+        <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 shadow-xs flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-5 sm:h-6 w-48 sm:w-60 rounded-xl bg-muted animate-pulse" />
+            <div className="h-3.5 w-64 sm:w-80 rounded-lg bg-muted/60 animate-pulse" />
           </div>
-          <div className="h-96 rounded-2xl border border-border/70 bg-card p-6" />
+          <div className="flex items-center gap-2">
+            <RefreshCw className="size-4 animate-spin text-primary" />
+            <span className="text-xs font-bold text-muted-foreground hidden sm:inline">Loading Menu Studio...</span>
+          </div>
+        </div>
+
+        {/* Quick Add Skeleton Bar */}
+        <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3">
+          <div className="h-4 w-36 rounded bg-muted animate-pulse" />
+          <div className="h-11 rounded-xl bg-muted/50 animate-pulse" />
+        </div>
+
+        {/* Main Grid Skeleton */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+          <div className="space-y-4">
+            <div className="h-11 rounded-xl bg-muted/60 animate-pulse" />
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3">
+              <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+              <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />
+              <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />
+              <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />
+            </div>
+          </div>
+          <div className="hidden lg:flex h-[560px] rounded-[2.8rem] border-8 border-foreground/10 bg-card/60 p-4 animate-pulse flex-col justify-between">
+            <div className="h-6 w-32 mx-auto rounded-full bg-muted/60" />
+            <div className="space-y-3 text-center">
+              <div className="size-16 mx-auto rounded-2xl bg-muted/60" />
+              <div className="h-4 w-40 mx-auto rounded bg-muted/60" />
+            </div>
+            <div className="h-10 rounded-xl bg-muted/60" />
+          </div>
         </div>
       </div>
     </AppShell>
@@ -130,8 +157,19 @@ function MyMenu() {
   // Custom Dialog States (No Native Browser prompt/confirm)
   const [renamingCat, setRenamingCat] = useState<Category | null>(null);
   const [renameCatValue, setRenameCatValue] = useState("");
+  const [isRenamingCat, setIsRenamingCat] = useState(false);
+
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
+  const [isDeletingCat, setIsDeletingCat] = useState(false);
+
   const [deletingDish, setDeletingDish] = useState<MenuItem | null>(null);
+  const [isDeletingDish, setIsDeletingDish] = useState(false);
+
+  const [isAddingCat, setIsAddingCat] = useState(false);
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
+  const [duplicatingItemId, setDuplicatingItemId] = useState<string | null>(null);
+
   const [confirmingPreset, setConfirmingPreset] = useState<string | null>(null);
   const [applyingPresetId, setApplyingPresetId] = useState<string | null>(null);
   const [dishPhotoSummary, setDishPhotoSummary] = useState<string | null>(null);
@@ -235,7 +273,8 @@ function MyMenu() {
   // Add Category
   const handleAddCat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCat.trim()) return;
+    if (!newCat.trim() || isAddingCat) return;
+    setIsAddingCat(true);
     try {
       const added = await addCategoryHelper(rid, newCat.trim());
       setNewCat("");
@@ -245,6 +284,8 @@ function MyMenu() {
       refresh();
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setIsAddingCat(false);
     }
   };
 
@@ -256,14 +297,29 @@ function MyMenu() {
 
   const handleSaveRenameCat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!renamingCat || !renameCatValue.trim()) return;
+    if (!renamingCat || !renameCatValue.trim() || isRenamingCat) return;
+    const targetId = renamingCat.id;
+    const newName = renameCatValue.trim();
+    setIsRenamingCat(true);
+
+    // Optimistic in-memory update for 0ms delay
+    qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        categories: old.categories.map((c) => (c.id === targetId ? { ...c, name: newName } : c)),
+      };
+    });
+
     try {
-      await renameCategoryHelper(renamingCat.id, renameCatValue.trim());
-      toast.success(`Category renamed to "${renameCatValue.trim()}"`);
+      await renameCategoryHelper(targetId, newName);
+      toast.success(`Category renamed to "${newName}"`);
       setRenamingCat(null);
-      refresh();
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setIsRenamingCat(false);
+      refresh();
     }
   };
 
@@ -273,26 +329,62 @@ function MyMenu() {
   };
 
   const confirmDeleteCat = async () => {
-    if (!deletingCat) return;
+    if (!deletingCat || isDeletingCat) return;
+    const targetId = deletingCat.id;
+    const targetName = deletingCat.name;
+    setIsDeletingCat(true);
+
+    // Optimistic instant UI update: remove category and its items from memory immediately
+    qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        categories: old.categories.filter((c) => c.id !== targetId),
+        items: old.items.filter((item) => item.category_id !== targetId),
+      };
+    });
+
+    // Close modal right away so user sees instant result
+    setDeletingCat(null);
+    toast.success(`Category "${targetName}" deleted`);
+
     try {
-      await deleteCategoryHelper(deletingCat.id);
-      toast.success(`Category "${deletingCat.name}" deleted`);
-      setDeletingCat(null);
-      refresh();
+      await deleteCategoryHelper(targetId);
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setIsDeletingCat(false);
+      refresh();
     }
   };
 
   const toggleAvail = async (i: MenuItem) => {
+    if (togglingItemId === i.id) return;
+    const newAvailable = !i.available;
+    setTogglingItemId(i.id);
+
+    // Optimistic instant toggle in memory
+    qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        items: old.items.map((item) =>
+          item.id === i.id ? { ...item, available: newAvailable } : item
+        ),
+      };
+    });
+
+    toast.success(
+      newAvailable ? `"${i.name}" marked In Stock` : `"${i.name}" marked Sold Out`
+    );
+
     try {
-      await updateDishHelper(i.id, { available: !i.available });
-      toast.success(
-        i.available ? `"${i.name}" marked Sold Out` : `"${i.name}" marked In Stock`
-      );
-      refresh();
+      await updateDishHelper(i.id, { available: newAvailable });
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setTogglingItemId(null);
+      refresh();
     }
   };
 
@@ -302,18 +394,37 @@ function MyMenu() {
   };
 
   const confirmDeleteDish = async () => {
-    if (!deletingDish) return;
+    if (!deletingDish || isDeletingDish) return;
+    const targetId = deletingDish.id;
+    const targetName = deletingDish.name;
+    setIsDeletingDish(true);
+
+    // Optimistic instant UI update: remove item from memory immediately
+    qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        items: old.items.filter((item) => item.id !== targetId),
+      };
+    });
+
+    // Close modal right away so user sees instant result
+    setDeletingDish(null);
+    toast.success(`"${targetName}" removed`);
+
     try {
-      await deleteDishHelper(deletingDish.id);
-      toast.success(`"${deletingDish.name}" removed`);
-      setDeletingDish(null);
-      refresh();
+      await deleteDishHelper(targetId);
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setIsDeletingDish(false);
+      refresh();
     }
   };
 
   const handleDuplicateItem = async (i: MenuItem) => {
+    if (duplicatingItemId === i.id) return;
+    setDuplicatingItemId(i.id);
     try {
       await addDishHelper({
         restaurant_id: rid,
@@ -327,6 +438,8 @@ function MyMenu() {
       refresh();
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setDuplicatingItemId(null);
     }
   };
 
@@ -359,13 +472,14 @@ function MyMenu() {
 
   const saveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft) return;
+    if (!draft || isSavingItem) return;
     const price = Number(draft.price);
     if (!draft.name.trim() || isNaN(price) || price < 0) {
       toast.error("Enter a dish name and a valid price");
       return;
     }
 
+    setIsSavingItem(true);
     try {
       if (draft.id) {
         await updateDishHelper(draft.id, {
@@ -375,6 +489,7 @@ function MyMenu() {
           category_id: draft.category_id,
           image_url: draft.image_url,
           available: draft.available,
+          is_veg: draft.is_veg,
         });
         toast.success("Dish updated");
       } else {
@@ -392,6 +507,8 @@ function MyMenu() {
       refresh();
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setIsSavingItem(false);
     }
   };
 
@@ -606,8 +723,20 @@ function MyMenu() {
               ))}
               <option value="__NEW__">+ Add New Category...</option>
             </select>
-            <Button type="submit" disabled={isQuickAdding} className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl gap-1.5 shadow-xs shrink-0 whitespace-nowrap bg-primary text-primary-foreground">
-              <Plus className="size-4" /> Add Dish
+            <Button
+              type="submit"
+              disabled={isQuickAdding || !quickName.trim()}
+              className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl gap-1.5 shadow-xs shrink-0 whitespace-nowrap bg-primary text-primary-foreground cursor-pointer"
+            >
+              {isQuickAdding ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" /> Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="size-4" /> Add Dish
+                </>
+              )}
             </Button>
           </form>
 
@@ -622,10 +751,20 @@ function MyMenu() {
                 autoFocus
               />
               <div className="flex gap-2">
-                <Button type="submit" className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl">
-                  Create Category
+                <Button
+                  type="submit"
+                  disabled={isAddingCat || !newCat.trim()}
+                  className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl gap-1.5 cursor-pointer"
+                >
+                  {isAddingCat ? (
+                    <>
+                      <RefreshCw className="size-4 animate-spin" /> Creating...
+                    </>
+                  ) : (
+                    "Create Category"
+                  )}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setShowAddCat(false)} className="h-11 px-4 rounded-xl text-xs font-semibold">
+                <Button type="button" variant="outline" onClick={() => setShowAddCat(false)} className="h-11 px-4 rounded-xl text-xs font-semibold cursor-pointer">
                   Cancel
                 </Button>
               </div>
@@ -816,13 +955,15 @@ function MyMenu() {
                               {/* Human-Crafted Tactile Kitchen Availability Switch (No generic AI dots!) */}
                               <button
                                 type="button"
+                                disabled={togglingItemId === i.id}
                                 onClick={() => toggleAvail(i)}
                                 title={i.available ? "Click to mark as Sold Out" : "Click to mark as In Stock"}
                                 className={cn(
-                                  "group shrink-0 whitespace-nowrap inline-flex items-center gap-2 rounded-xl px-2.5 py-1 text-xs font-bold transition-all border select-none shadow-2xs",
+                                  "group shrink-0 whitespace-nowrap inline-flex items-center gap-2 rounded-xl px-2.5 py-1 text-xs font-bold transition-all border select-none shadow-2xs cursor-pointer",
                                   i.available
                                     ? "bg-veg/10 border-veg/30 text-veg hover:bg-veg/15"
-                                    : "bg-muted/70 border-border text-muted-foreground hover:bg-muted"
+                                    : "bg-muted/70 border-border text-muted-foreground hover:bg-muted",
+                                  togglingItemId === i.id && "opacity-70 pointer-events-none"
                                 )}
                               >
                                 {/* Micro Physical Slider */}
@@ -841,7 +982,15 @@ function MyMenu() {
                                   />
                                 </span>
                                 <span className="text-[11px] font-extrabold tracking-tight">
-                                  {i.available ? "In Stock" : "Sold Out"}
+                                  {togglingItemId === i.id ? (
+                                    <span className="flex items-center gap-1">
+                                      <RefreshCw className="size-2.5 animate-spin" /> Saving
+                                    </span>
+                                  ) : i.available ? (
+                                    "In Stock"
+                                  ) : (
+                                    "Sold Out"
+                                  )}
                                 </span>
                               </button>
 
@@ -850,11 +999,16 @@ function MyMenu() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="size-7 sm:size-8 rounded-lg"
+                                  disabled={duplicatingItemId === i.id}
+                                  className="size-7 sm:size-8 rounded-lg cursor-pointer"
                                   title="Duplicate"
                                   onClick={() => handleDuplicateItem(i)}
                                 >
-                                  <Copy className="size-3.5" />
+                                  {duplicatingItemId === i.id ? (
+                                    <RefreshCw className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <Copy className="size-3.5" />
+                                  )}
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -1163,13 +1317,24 @@ function MyMenu() {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={isSavingItem}
                   onClick={() => setDraft(null)}
-                  className="h-11 px-5 rounded-xl font-semibold"
+                  className="h-11 px-5 rounded-xl font-semibold cursor-pointer"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="h-11 px-6 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
-                  Save Dish
+                <Button
+                  type="submit"
+                  disabled={isSavingItem}
+                  className="h-11 px-6 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm cursor-pointer"
+                >
+                  {isSavingItem ? (
+                    <>
+                      <RefreshCw className="size-4 animate-spin mr-1.5" /> Saving Dish...
+                    </>
+                  ) : (
+                    "Save Dish"
+                  )}
                 </Button>
               </div>
             </form>
@@ -1178,7 +1343,7 @@ function MyMenu() {
       </Dialog>
 
       {/* CUSTOM RENAME CATEGORY MODAL (Replaces browser prompt) */}
-      <Dialog open={!!renamingCat} onOpenChange={(open) => !open && setRenamingCat(null)}>
+      <Dialog open={!!renamingCat} onOpenChange={(open) => !open && !isRenamingCat && setRenamingCat(null)}>
         <DialogContent className="sm:max-w-md p-6 sm:p-7 rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-2.5">
@@ -1211,13 +1376,24 @@ function MyMenu() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isRenamingCat}
                 onClick={() => setRenamingCat(null)}
-                className="h-11 px-5 rounded-xl font-medium"
+                className="h-11 px-5 rounded-xl font-medium cursor-pointer"
               >
                 Cancel
               </Button>
-              <Button type="submit" className="h-11 px-6 rounded-xl font-bold bg-primary text-primary-foreground shadow-xs">
-                Save Name
+              <Button
+                type="submit"
+                disabled={isRenamingCat || !renameCatValue.trim()}
+                className="h-11 px-6 rounded-xl font-bold bg-primary text-primary-foreground shadow-xs cursor-pointer"
+              >
+                {isRenamingCat ? (
+                  <>
+                    <RefreshCw className="size-4 animate-spin mr-1.5" /> Saving...
+                  </>
+                ) : (
+                  "Save Name"
+                )}
               </Button>
             </div>
           </form>
@@ -1225,7 +1401,7 @@ function MyMenu() {
       </Dialog>
 
       {/* CUSTOM DELETE CATEGORY CONFIRMATION MODAL (Replaces browser confirm) */}
-      <Dialog open={!!deletingCat} onOpenChange={(open) => !open && setDeletingCat(null)}>
+      <Dialog open={!!deletingCat} onOpenChange={(open) => !open && !isDeletingCat && setDeletingCat(null)}>
         <DialogContent className="sm:max-w-md p-6 sm:p-7 rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-2.5">
@@ -1252,25 +1428,33 @@ function MyMenu() {
             <Button
               type="button"
               variant="outline"
+              disabled={isDeletingCat}
               onClick={() => setDeletingCat(null)}
-              className="h-11 px-5 rounded-xl font-medium"
+              className="h-11 px-5 rounded-xl font-medium cursor-pointer"
             >
               Keep Category
             </Button>
             <Button
               type="button"
               variant="destructive"
+              disabled={isDeletingCat}
               onClick={confirmDeleteCat}
-              className="h-11 px-5 rounded-xl font-bold shadow-xs"
+              className="h-11 px-5 rounded-xl font-bold shadow-xs cursor-pointer"
             >
-              Delete Category
+              {isDeletingCat ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin mr-1.5" /> Deleting...
+                </>
+              ) : (
+                "Delete Category"
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* CUSTOM DELETE DISH CONFIRMATION MODAL (Replaces browser confirm) */}
-      <Dialog open={!!deletingDish} onOpenChange={(open) => !open && setDeletingDish(null)}>
+      <Dialog open={!!deletingDish} onOpenChange={(open) => !open && !isDeletingDish && setDeletingDish(null)}>
         <DialogContent className="sm:max-w-md p-6 sm:p-7 rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-2.5">
@@ -1297,18 +1481,26 @@ function MyMenu() {
             <Button
               type="button"
               variant="outline"
+              disabled={isDeletingDish}
               onClick={() => setDeletingDish(null)}
-              className="h-11 px-5 rounded-xl font-medium"
+              className="h-11 px-5 rounded-xl font-medium cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
+              disabled={isDeletingDish}
               onClick={confirmDeleteDish}
-              className="h-11 px-5 rounded-xl font-bold shadow-xs"
+              className="h-11 px-5 rounded-xl font-bold shadow-xs cursor-pointer"
             >
-              Remove Dish
+              {isDeletingDish ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin mr-1.5" /> Removing...
+                </>
+              ) : (
+                "Remove Dish"
+              )}
             </Button>
           </div>
         </DialogContent>

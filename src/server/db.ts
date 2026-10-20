@@ -6,7 +6,7 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
-  let url = process.env["DATABASE_URL"] || "";
+  let url = process.env["DIRECT_URL"] || process.env["DATABASE_URL"] || "";
   if (url) {
     if (url.includes("connection_limit=1")) {
       url = url.replace("connection_limit=1", "connection_limit=10&pool_timeout=25");

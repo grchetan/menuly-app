@@ -226,7 +226,7 @@ export function renderOtpEmail({
       <div class="footer">
         <p style="margin: 0 0 6px 0;">
           Sent by <b>Menuly</b> · Digital Dining & QR Menu Solutions<br>
-          Need help? Contact <a href="mailto:menulyoffcial@gmail.com">menulyoffcial@gmail.com</a>
+          Need help? Contact <a href="mailto:menulyofficial@gmail.com">menulyofficial@gmail.com</a>
         </p>
         <p style="margin: 0; opacity: 0.85;">
           © ${new Date().getFullYear()} Menuly Technologies. All rights reserved.
@@ -253,7 +253,7 @@ ${otp}
 This code was requested for: ${email}
 If you did not request this code, please ignore this email.
 
-Need help? Contact support at menulyoffcial@gmail.com
+Need help? Contact support at menulyofficial@gmail.com
 © ${new Date().getFullYear()} Menuly.
 `.trim();
 
