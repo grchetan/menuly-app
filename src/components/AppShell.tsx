@@ -38,6 +38,8 @@ const ticker = [
   "Made for India",
 ];
 
+let lastAppShellNavPill: { left: number; width: number; show: boolean; to: string } | null = null;
+
 export function AppShell({
   title,
   actions,
@@ -54,12 +56,14 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navRef = useRef<HTMLElement>(null);
-  const [blob, setBlob] = useState<{ left: number; width: number; show: boolean }>({
-    left: 0,
-    width: 0,
-    show: false,
+  const [blob, setBlob] = useState<{ left: number; width: number; show: boolean }>(() => {
+    if (lastAppShellNavPill) {
+      return { left: lastAppShellNavPill.left, width: lastAppShellNavPill.width, show: lastAppShellNavPill.show };
+    }
+    return { left: 0, width: 0, show: false };
   });
-  const [hot, setHot] = useState<string | null>(null);
+  const [isAnimated, setIsAnimated] = useState(false);
+  const [hot, setHot] = useState<string | null>(() => lastAppShellNavPill?.to ?? null);
 
   const { data } = useQuery(myMenuQuery);
   const slug = data?.restaurant?.slug;
@@ -74,23 +78,50 @@ export function AppShell({
     return () => window.removeEventListener("scroll", on);
   }, []);
 
-  const moveTo = (el: HTMLElement | null) => {
-    if (!el || !navRef.current) return setBlob((b) => ({ ...b, show: false }));
-    const n = navRef.current.getBoundingClientRect();
-    const r = el.getBoundingClientRect();
-    setBlob({ left: r.left - n.left, width: r.width, show: true });
-    setHot(el.getAttribute("href"));
-  };
-
-  const resetBlob = () => {
-    const activeEl = navRef.current?.querySelector<HTMLElement>("[data-status=active]") ?? null;
-    moveTo(activeEl);
+  const syncToActive = (enableTransition = false) => {
+    if (!navRef.current) return;
+    const activeEl = navRef.current.querySelector<HTMLElement>("[data-status=active]");
+    if (activeEl) {
+      const n = navRef.current.getBoundingClientRect();
+      const r = activeEl.getBoundingClientRect();
+      const nextLeft = r.left - n.left;
+      const nextWidth = r.width;
+      const to = activeEl.getAttribute("href") || "";
+      lastAppShellNavPill = { left: nextLeft, width: nextWidth, show: true, to };
+      setBlob({ left: nextLeft, width: nextWidth, show: true });
+      setHot(to);
+    } else {
+      setBlob((b) => ({ ...b, show: false }));
+      setHot(null);
+    }
+    if (enableTransition) {
+      setIsAnimated(true);
+    }
   };
 
   useEffect(() => {
-    const t = setTimeout(resetBlob, 50);
+    // Snap immediately without sliding across from (0,0)
+    syncToActive(false);
+    const t = setTimeout(() => setIsAnimated(true), 100);
     return () => clearTimeout(t);
   }, [pathname]);
+
+  const moveTo = (el: HTMLElement | null) => {
+    if (!el || !navRef.current) return setBlob((b) => ({ ...b, show: false }));
+    setIsAnimated(true);
+    const n = navRef.current.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const nextLeft = r.left - n.left;
+    const nextWidth = r.width;
+    const to = el.getAttribute("href") || "";
+    lastAppShellNavPill = { left: nextLeft, width: nextWidth, show: true, to };
+    setBlob({ left: nextLeft, width: nextWidth, show: true });
+    setHot(to);
+  };
+
+  const resetBlob = () => {
+    syncToActive(true);
+  };
 
   async function signOut() {
     setDemoMode(false);
@@ -136,7 +167,12 @@ export function AppShell({
             >
               <span
                 aria-hidden
-                className="absolute top-1.5 bottom-1.5 rounded-full bg-accent transition-all duration-500 ease-[cubic-bezier(.5,1.6,.4,1)]"
+                className={cn(
+                  "absolute top-1.5 bottom-1.5 rounded-full bg-accent pointer-events-none",
+                  isAnimated
+                    ? "transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]"
+                    : "transition-none"
+                )}
                 style={{ left: blob.left, width: blob.width, opacity: blob.show ? 1 : 0 }}
               />
               {DASHBOARD_LINKS.map((l) => {
@@ -147,10 +183,11 @@ export function AppShell({
                     to={l.to}
                     data-status={isActive ? "active" : undefined}
                     onMouseEnter={(e) => moveTo(e.currentTarget)}
+                    onClick={(e) => moveTo(e.currentTarget)}
                     className={cn(
-                      "relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-300",
-                      (hot === l.to || (isActive && !hot)) && blob.show
-                        ? "text-accent-foreground"
+                      "relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-200",
+                      hot === l.to && blob.show
+                        ? "text-accent-foreground font-extrabold"
                         : isActive
                         ? "text-accent font-extrabold"
                         : "text-background/70 hover:text-background"

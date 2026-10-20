@@ -22,6 +22,7 @@ import { Route as AuthenticatedMyMenuRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedQrRouteImport } from './routes/_authenticated/qr'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
+import { Route as MenuIndexRouteImport } from './routes/menu.index'
 import { Route as MenuSlugRouteImport } from './routes/menu.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -88,6 +89,11 @@ const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
   path: '/support',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const MenuIndexRoute = MenuIndexRouteImport.update({
+  id: '/menu/',
+  path: '/menu/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MenuSlugRoute = MenuSlugRouteImport.update({
   id: '/menu/$slug',
   path: '/menu/$slug',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
+  '/menu/': typeof MenuIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
+  '/menu': typeof MenuIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/_authenticated/qr': typeof AuthenticatedQrRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
+  '/menu/': typeof MenuIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/qr'
     | '/support'
     | '/menu/$slug'
+    | '/menu/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/qr'
     | '/support'
     | '/menu/$slug'
+    | '/menu'
   id:
     | '__root__'
     | '/'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/_authenticated/qr'
     | '/_authenticated/support'
     | '/menu/$slug'
+    | '/menu/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   HowToUseRoute: typeof HowToUseRoute
   ShopRoute: typeof ShopRoute
   MenuSlugRoute: typeof MenuSlugRoute
+  MenuIndexRoute: typeof MenuIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -295,6 +308,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSupportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/menu/': {
+      id: '/menu/'
+      path: '/menu'
+      fullPath: '/menu/'
+      preLoaderRoute: typeof MenuIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/menu/$slug': {
       id: '/menu/$slug'
       path: '/menu/$slug'
@@ -334,6 +354,7 @@ const rootRouteChildren: RootRouteChildren = {
   HowToUseRoute: HowToUseRoute,
   ShopRoute: ShopRoute,
   MenuSlugRoute: MenuSlugRoute,
+  MenuIndexRoute: MenuIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -24,29 +24,74 @@ const authenticatedLinks = [
   { to: "/support", label: "Support" },
 ] as const;
 
+let lastPublicNavPill: { left: number; width: number; show: boolean; to: string } | null = null;
+
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const navRef = useRef<HTMLElement>(null);
-  const [blob, setBlob] = useState<{ left: number; width: number; show: boolean }>({ left: 0, width: 0, show: false });
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [hot, setHot] = useState<string | null>(null);
+
+  const [blob, setBlob] = useState<{ left: number; width: number; show: boolean }>(() => {
+    if (lastPublicNavPill) {
+      return { left: lastPublicNavPill.left, width: lastPublicNavPill.width, show: lastPublicNavPill.show };
+    }
+    return { left: 0, width: 0, show: false };
+  });
+  const [isAnimated, setIsAnimated] = useState(false);
+  const [hot, setHot] = useState<string | null>(() => lastPublicNavPill?.to ?? null);
 
   useEffect(() => {
     setHasSession(typeof window !== "undefined" && Boolean(localStorage.getItem("menuly_token")));
   }, [pathname]);
 
-  const displayedLinks = hasSession ? authenticatedLinks : publicLinks;
+  const displayedLinks = publicLinks;
+
+  const syncToActive = (enableTransition = false) => {
+    if (!navRef.current) return;
+    const activeEl = navRef.current.querySelector<HTMLElement>("[data-status=active]");
+    if (activeEl) {
+      const n = navRef.current.getBoundingClientRect();
+      const r = activeEl.getBoundingClientRect();
+      const nextLeft = r.left - n.left;
+      const nextWidth = r.width;
+      const to = activeEl.getAttribute("href") || "";
+      lastPublicNavPill = { left: nextLeft, width: nextWidth, show: true, to };
+      setBlob({ left: nextLeft, width: nextWidth, show: true });
+      setHot(to);
+    } else {
+      setBlob((b) => ({ ...b, show: false }));
+      setHot(null);
+    }
+    if (enableTransition) {
+      setIsAnimated(true);
+    }
+  };
+
+  useEffect(() => {
+    // Snap immediately to active position without glitching/sliding from 0
+    syncToActive(false);
+    const t = setTimeout(() => setIsAnimated(true), 100);
+    return () => clearTimeout(t);
+  }, [pathname]);
 
   const moveTo = (el: HTMLElement | null) => {
     if (!el || !navRef.current) return setBlob((b) => ({ ...b, show: false }));
-    const n = navRef.current.getBoundingClientRect(), r = el.getBoundingClientRect();
-    setBlob({ left: r.left - n.left, width: r.width, show: true });
-    setHot(el.getAttribute("href"));
+    setIsAnimated(true);
+    const n = navRef.current.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const nextLeft = r.left - n.left;
+    const nextWidth = r.width;
+    const to = el.getAttribute("href") || "";
+    lastPublicNavPill = { left: nextLeft, width: nextWidth, show: true, to };
+    setBlob({ left: nextLeft, width: nextWidth, show: true });
+    setHot(to);
   };
-  const resetBlob = () => moveTo(navRef.current?.querySelector<HTMLElement>("[data-status=active]") ?? null);
-  useEffect(() => { const t = setTimeout(resetBlob, 50); return () => clearTimeout(t); }, [pathname, hasSession]);
+
+  const resetBlob = () => {
+    syncToActive(true);
+  };
 
   const signOut = () => {
     if (typeof window !== "undefined") {
@@ -77,15 +122,32 @@ export function SiteHeader() {
 
           <nav ref={navRef} onMouseLeave={resetBlob}
             className="relative hidden items-center rounded-full bg-foreground p-1.5 shadow-lift md:flex">
-            <span aria-hidden
-              className="absolute top-1.5 bottom-1.5 rounded-full bg-accent transition-all duration-500 ease-[cubic-bezier(.5,1.6,.4,1)]"
-              style={{ left: blob.left, width: blob.width, opacity: blob.show ? 1 : 0 }} />
+            <span
+              aria-hidden
+              className={cn(
+                "absolute top-1.5 bottom-1.5 rounded-full bg-accent pointer-events-none",
+                isAnimated ? "transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]" : "transition-none"
+              )}
+              style={{ left: blob.left, width: blob.width, opacity: blob.show ? 1 : 0 }}
+            />
             {displayedLinks.map((l) => {
               const isActive = pathname === l.to || (l.to !== "/" && pathname.startsWith(`${l.to}/`));
               return (
-                <Link key={l.to} to={l.to} onMouseEnter={(e) => moveTo(e.currentTarget)}
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  onMouseEnter={(e) => moveTo(e.currentTarget)}
+                  onClick={(e) => moveTo(e.currentTarget)}
                   data-status={isActive ? "active" : undefined}
-                  className={cn("relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-300", hot === l.to && blob.show ? "text-accent-foreground" : isActive ? "text-accent font-extrabold" : "text-background/70 hover:text-background")}>
+                  className={cn(
+                    "relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-200",
+                    hot === l.to && blob.show
+                      ? "text-accent-foreground font-extrabold"
+                      : isActive
+                      ? "text-accent font-extrabold"
+                      : "text-background/70 hover:text-background"
+                  )}
+                >
                   {l.label}
                   {"soon" in l && l.soon && (
                     <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-foreground">
@@ -100,6 +162,13 @@ export function SiteHeader() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             {hasSession ? (
               <>
+                <Link
+                  to="/dashboard"
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-soft transition-all hover:opacity-90"
+                >
+                  <LayoutDashboard className="size-3.5" />
+                  Dashboard
+                </Link>
                 <Link
                   to="/profile"
                   title="My Profile"
@@ -149,9 +218,26 @@ export function SiteHeader() {
 
       {open && (
         <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift md:hidden">
+          {hasSession && (
+            <Link
+              to="/dashboard"
+              onClick={() => setOpen(false)}
+              className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl text-accent"
+            >
+              <span className="flex items-center gap-2">
+                <LayoutDashboard className="size-5" /> Dashboard
+              </span>
+              <ArrowRight className="size-5 opacity-60" />
+            </Link>
+          )}
           {displayedLinks.map((l, i) => (
-            <Link key={l.to} to={l.to} onClick={() => setOpen(false)} style={{ animationDelay: `${i * 70}ms` }}
-              className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent">
+            <Link
+              key={l.to}
+              to={l.to}
+              onClick={() => setOpen(false)}
+              style={{ animationDelay: `${i * 70}ms` }}
+              className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent"
+            >
               <span className="flex items-center gap-2">
                 {l.label}
                 {"soon" in l && l.soon && (

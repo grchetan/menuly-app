@@ -18,7 +18,7 @@ export const Route = createFileRoute("/about")({
 const values = [
   { icon: Zap, title: "Simple first", text: "If a chai stall owner can't set it up in 5 minutes, we haven't done our job." },
   { icon: Leaf, title: "Less paper", text: "No reprinting every time a price changes. Better for your pocket and the planet." },
-  { icon: Heart, title: "Local at heart", text: "Built for Indian restaurants, cafes and food corners — veg tags, ₹ prices and WhatsApp built in." },
+  { icon: Heart, title: "Local at heart", text: "Built for Indian restaurants, cafes and food corners — ₹ prices, fast updates and WhatsApp built in." },
 ];
 
 function About() {
