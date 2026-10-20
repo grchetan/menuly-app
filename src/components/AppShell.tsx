@@ -33,7 +33,7 @@ const ticker = [
   "See the menu",
   "Update prices anytime",
   "Mark sold out in 1 tap",
-  "100% Pure Veg",
+  "Instant live updates",
   "Zero reprinting",
   "Made for India",
 ];
@@ -288,7 +288,7 @@ export function AppShell({
       {/* App Footer */}
       <footer className="border-t border-border/80 bg-muted/40 py-6 text-center text-xs text-muted-foreground">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 sm:flex-row md:px-6">
-          <p>© {new Date().getFullYear()} {APP_NAME}. 100% Pure Veg digital QR menus for restaurants.</p>
+          <p>© {new Date().getFullYear()} {APP_NAME}. Smart digital QR menus for restaurants & cafes.</p>
           <div className="flex items-center gap-4">
             <Link to="/how-to-use" className="hover:text-foreground transition-colors">
               How it works

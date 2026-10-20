@@ -66,7 +66,7 @@ describe("Custom Authentication & Security Suite", () => {
     expect(checkRateLimit(testKey, opts).allowed).toBe(false);
   });
 
-  it("renders branded Menuly Pure Veg HTML email templates", () => {
+  it("renders professional Menuly HTML email templates", () => {
     const email = renderOtpEmail({
       otp: "582910",
       email: "diner@example.com",
@@ -75,7 +75,7 @@ describe("Custom Authentication & Security Suite", () => {
     });
 
     expect(email.subject).toContain("582910");
-    expect(email.html).toContain("100% PURE VEG PLATFORM");
+    expect(email.html).toContain("SECURE VERIFICATION");
     expect(email.html).toContain("582910");
     expect(email.html).toContain("menulyoffcial@gmail.com");
   });

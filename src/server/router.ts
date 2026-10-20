@@ -92,7 +92,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const dbStatus = await checkDatabaseConnection();
       return json({
         status: "ok",
-        platform: "Menuly Pure Veg",
+        platform: "Menuly",
         timestamp: new Date().toISOString(),
         database: dbStatus,
         smtp: {

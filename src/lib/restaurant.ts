@@ -28,7 +28,7 @@ export const INITIAL_DEMO_MENU: FullMenu = {
   restaurant: {
     id: "demo-rest-01",
     owner_id: "demo-user-01",
-    name: "Royal Spice Pure Veg",
+    name: "Royal Spice Restaurant",
     slug: "royal-spice-veg",
     address: "14, MG Road, Indiranagar, Bengaluru",
     phone: "+91 98765 43210",

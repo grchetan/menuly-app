@@ -1,6 +1,6 @@
 /**
  * Menuly Branded HTML Email Templates for OTP Authentication
- * Features: Pure Veg green palette, responsive design, 6-digit OTP display, security alerts.
+ * Professional, high-converting, mobile-responsive design with security notices.
  */
 
 export type EmailTemplateType = "SIGNUP" | "PASSWORD_RESET" | "LOGIN";
@@ -20,7 +20,7 @@ export function renderOtpEmail({
 }: EmailTemplateOptions): { subject: string; html: string; text: string } {
   let title = "Verify Your Email";
   let heading = "Welcome to Menuly!";
-  let subtitle = "Digital QR Menus for Pure Veg Restaurants";
+  let subtitle = "Digital QR Menus for Restaurants & Cafes";
   let description =
     "Thank you for signing up. Please enter the verification code below on the signup page to activate your restaurant menu account:";
 
@@ -184,7 +184,7 @@ export function renderOtpEmail({
     <div class="container">
       <!-- Header -->
       <div class="header">
-        <div class="logo-badge">🌱 100% PURE VEG PLATFORM</div>
+        <div class="logo-badge">🔐 SECURE VERIFICATION</div>
         <h1 class="brand-title">Menuly</h1>
         <p class="brand-subtitle">${subtitle}</p>
       </div>

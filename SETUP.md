@@ -24,7 +24,7 @@ This comprehensive guide walks you through setting up **Menuly** with **Supabase
 - **Database**: Supabase Hosted PostgreSQL with Prisma ORM.
 - **Custom Auth System**: No third-party auth lock-in (zero Supabase Auth/Firebase Auth reliance).
 - **OTP Delivery**: Native Nodemailer transport using Gmail SMTP (`menuly@gmail.com`).
-- **Templates**: Custom Menuly branded responsive HTML emails with Pure Veg green badges.
+- **Templates**: Custom Menuly branded responsive HTML emails with professional security badges.
 - **Security**: 
   - Passwords hashed with `bcryptjs` (salt rounds: 10).
   - OTPs hashed with `bcryptjs` before database persistence (raw OTPs never stored in plaintext).
@@ -111,7 +111,7 @@ SMTP_PORT=465
 SMTP_SECURE=true
 SMTP_USER="menulyoffcial@gmail.com"
 SMTP_PASS="abcdefghijklmnop" # <-- Paste your 16-char Gmail App Password here
-SMTP_FROM_NAME="Menuly Pure Veg"
+SMTP_FROM_NAME="Menuly"
 SMTP_FROM_EMAIL="menulyoffcial@gmail.com"
 
 # ==============================================================================
@@ -219,7 +219,7 @@ Response:
 ```json
 {
   "status": "ok",
-  "platform": "Menuly Pure Veg",
+  "platform": "Menuly",
   "timestamp": "2026-10-20T...",
   "database": { "connected": true },
   "smtp": { "user": "menulyoffcial@gmail.com", "configured": true }

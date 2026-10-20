@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { QrCode, Smartphone, RefreshCw, ArrowRight, Leaf, MessageCircle, Palette, Check, Star } from "lucide-react";
+import { QrCode, Smartphone, RefreshCw, ArrowRight, Sparkles, MessageCircle, Palette, Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SitePage } from "@/components/SiteLayout";
 import { HowSteps } from "@/components/HowSteps";
@@ -22,7 +22,7 @@ const features = [
   { icon: Smartphone, title: "Made for phones", text: "Opens instantly after a scan — no app download for customers." },
   { icon: RefreshCw, title: "Update anytime", text: "Change prices, add dishes or mark items sold out in seconds." },
   { icon: QrCode, title: "Branded QR code", text: "Your logo in the centre, your colours. PNG, SVG and print-ready." },
-  { icon: Leaf, title: "100% Pure Veg", text: "Clean and pure vegetarian menu presentation so guests dine with complete trust." },
+  { icon: Sparkles, title: "Instant QR Menus", text: "Crisp, interactive digital menu presentation so guests browse dishes with complete ease." },
   { icon: MessageCircle, title: "WhatsApp & Call", text: "Customers reach you with one tap right from the menu." },
   { icon: Palette, title: "Beautiful by default", text: "Photos, categories and a sticky menu bar that looks premium." },
 ];

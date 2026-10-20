@@ -246,7 +246,7 @@ function Dashboard() {
               {completenessScore}%
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground truncate">
-              {total} Pure Veg Dishes Live
+              {total} Dishes Live
             </p>
           </div>
         </div>
@@ -356,7 +356,7 @@ function Dashboard() {
                     value={form.name}
                     onChange={set("name")}
                     required
-                    placeholder="e.g. Royal Spice Pure Veg"
+                    placeholder="e.g. Royal Spice Restaurant"
                     className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-card/60 focus:bg-card focus:ring-2 focus:ring-primary/20"
                   />
                 </div>

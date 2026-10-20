@@ -615,7 +615,7 @@ function QrPage() {
 <body>
   <div class="sheet">
     <div>
-      <div class="badge">🌱 100% Pure Veg • Contactless Dining</div>
+      <div class="badge">Scan to View Menu • Contactless Dining</div>
       <div class="rest-name">${esc(r.name)}</div>
       ${r.address ? `<div style="font-size:8.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
     </div>
@@ -673,7 +673,7 @@ function QrPage() {
         <div class="page">
           <div class="sheet">
             <div>
-              <div class="badge">🌱 100% Pure Veg • Contactless Dining</div>
+              <div class="badge">Scan to View Menu • Contactless Dining</div>
               <div class="rest-name">${esc(r.name)}</div>
               ${r.address ? `<div style="font-size:8.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
             </div>

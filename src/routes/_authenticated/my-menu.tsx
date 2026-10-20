@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_authenticated/my-menu")({
   head: () => ({
     meta: [
       { title: "Easy Menu Setup — Menuly" },
-      { name: "description", content: "Create and manage your 100% Pure Veg digital restaurant menu." },
+      { name: "description", content: "Create and manage your digital restaurant QR menu." },
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(myMenuQuery),
@@ -382,7 +382,7 @@ function MyMenu() {
             <div className="flex items-center gap-2">
               <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">2</span>
               <span className="font-bold text-foreground">Dishes:</span>
-              <span className="text-muted-foreground">{data.items.length} Pure Veg items live</span>
+              <span className="text-muted-foreground">{data.items.length} dishes live</span>
             </div>
             <Link to="/qr" className="flex items-center gap-1.5 font-bold text-primary hover:underline self-start sm:self-auto">
               <QrCode className="size-3.5" /> Step 3: Print Table QR →
@@ -665,8 +665,8 @@ function MyMenu() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-bold text-sm sm:text-base text-foreground truncate">{i.name}</span>
-                                  <span className="rounded-full bg-veg/10 px-2 py-0.2 text-[9px] font-bold text-veg">
-                                    Pure Veg
+                                  <span className="rounded-full bg-primary/10 px-2 py-0.2 text-[9px] font-bold text-primary">
+                                    Menu Item
                                   </span>
                                 </div>
                                 {i.description && (
@@ -869,7 +869,7 @@ function MyMenu() {
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Dish Name *
                   </Label>
-                  <span className="text-[11px] font-semibold text-primary">Pure Veg</span>
+                  <span className="text-[11px] font-semibold text-muted-foreground">Dish Details</span>
                 </div>
                 <Input
                   value={draft.name}

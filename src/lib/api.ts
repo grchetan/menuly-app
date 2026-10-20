@@ -56,7 +56,7 @@ const DEFAULT_PLANS: PlatformPlan[] = [
     analytics_enabled: true,
     photo_uploads: true,
     features: [
-      "Up to 15 Pure Veg Dishes",
+      "Up to 15 Dishes",
       "1 Master QR Code",
       "WebP Image Auto-Compression",
       "Standard Mobile Theme",

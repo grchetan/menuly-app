@@ -40,8 +40,8 @@ export async function getOrCreateUserRestaurant(userId: string, userEmail: strin
     }
 
     const defaultName = userFullName
-      ? `${userFullName}'s Pure Veg`
-      : "My Pure Veg Restaurant";
+      ? `${userFullName}'s Restaurant`
+      : "My Restaurant";
 
     restaurant = await prisma.restaurant.create({
       data: {

@@ -464,7 +464,7 @@ function AuthPage() {
             </h1>
             <p className="mt-1 text-xs text-muted-foreground">
               {mode === "signup"
-                ? "Start your digital Pure Veg menu in 2 minutes."
+                ? "Start your digital restaurant menu in 2 minutes."
                 : "Log in to manage your menu, tables & QR codes."}
             </p>
 

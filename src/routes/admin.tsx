@@ -136,7 +136,7 @@ const DEFAULT_SETTINGS: PlatformSettings = {
   supportWhatsApp: "919876543210",
   supportEmail: "support@menuly.com",
   currency: "₹ (INR)",
-  announcementTicker: "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 100% Pure Veg 💥 Zero reprinting",
+  announcementTicker: "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   allowNewSignups: true,
 };
 
@@ -153,7 +153,7 @@ const DEFAULT_ADMIN_PLANS: AdminPlan[] = [
     prioritySupport: false,
     activeSubscribers: 1,
     features: [
-      "Up to 15 Pure Veg Dishes",
+      "Up to 15 Menu Dishes",
       "1 Master QR Code",
       "WebP Image Auto-Compression",
       "Standard Mobile Theme",
@@ -289,7 +289,7 @@ function AdminPage() {
             name: u.fullName || u.email.split("@")[0],
             email: u.email,
             phone: "+91 98765 00000",
-            restaurantName: u.role === "SUPER_ADMIN" ? "Menuly Platform HQ" : "Pure Veg Restaurant",
+            restaurantName: u.role === "SUPER_ADMIN" ? "Menuly Platform HQ" : "Partner Restaurant",
             restaurantSlug: u.role === "SUPER_ADMIN" ? "platform" : "pure-veg",
             plan: "starter",
             role: u.role === "SUPER_ADMIN" ? "super_admin" : "owner",
@@ -662,7 +662,7 @@ function AdminPage() {
               <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-soft">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Pure Veg Menus
+                    Active Menus
                   </span>
                   <span className="rounded-full bg-veg/10 p-1.5 sm:p-2 text-veg">
                     <UtensilsCrossed className="size-3.5 sm:size-4" />
@@ -828,11 +828,10 @@ function AdminPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">52% of total daily scans occur here</p>
                   </div>
 
-                  <div className="rounded-xl bg-veg/10 p-3 border border-veg/20 text-veg">
-                    <p className="text-xs font-bold uppercase">100% Pure Veg Engagement</p>
+                  <div className="rounded-xl bg-primary/10 p-3 border border-primary/20 text-primary">
+                    <p className="text-xs font-bold uppercase">Customer Engagement & Retention</p>
                     <p className="text-xs text-foreground mt-1">
-                      Pure Veg digital menus have a <strong>4.8/5 satisfaction rate</strong> and 0 customer
-                      allergens confusion.
+                      Digital menus boast a <strong>4.8/5 satisfaction rate</strong> with instant mobile ordering convenience.
                     </p>
                   </div>
                 </div>
@@ -855,7 +854,7 @@ function AdminPage() {
                         <div>
                           <p className="font-bold text-sm text-foreground">{r.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {r.city} · {r.dishCount} Pure Veg Dishes
+                            {r.city} · {r.dishCount} Dishes
                           </p>
                         </div>
                       </div>
@@ -1038,7 +1037,7 @@ function AdminPage() {
                   <tr>
                     <th className="px-5 py-3.5">Restaurant</th>
                     <th className="px-5 py-3.5">Owner & City</th>
-                    <th className="px-5 py-3.5">Pure Veg Dishes</th>
+                    <th className="px-5 py-3.5">Dishes</th>
                     <th className="px-5 py-3.5">QR Scans</th>
                     <th className="px-5 py-3.5">Status</th>
                     <th className="px-5 py-3.5 text-right">Actions</th>
@@ -1399,9 +1398,9 @@ function AdminPage() {
 
                 <div className="flex items-center justify-between p-4 rounded-xl border border-border/70 bg-background/50">
                   <div>
-                    <p className="text-sm font-bold text-foreground">100% Pure Veg Strict Mode</p>
+                    <p className="text-sm font-bold text-foreground">Dietary Tag Indicators</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Enforce vegetarian dietary guarantees across all menus and customer QR displays
+                      Enable dietary tags across all menus and customer QR displays
                     </p>
                   </div>
                   <button
@@ -1410,11 +1409,11 @@ function AdminPage() {
                       const updated = { ...settings, strictVegOnly: !settings.strictVegOnly };
                       setSettings(updated);
                       localStorage.setItem("menuly_platform_settings", JSON.stringify(updated));
-                      toast.success(updated.strictVegOnly ? "Strict Pure Veg Policy ACTIVE" : "Policy relaxed");
+                      toast.success(updated.strictVegOnly ? "Dietary Tags ACTIVE" : "Dietary Tags Disabled");
                     }}
                     className={cn(
                       "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-                      settings.strictVegOnly ? "bg-veg text-white" : "bg-muted text-muted-foreground"
+                      settings.strictVegOnly ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     )}
                   >
                     {settings.strictVegOnly ? "✓ Enforced" : "Disabled"}

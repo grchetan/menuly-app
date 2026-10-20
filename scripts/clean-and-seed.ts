@@ -46,7 +46,7 @@ async function main() {
       analyticsEnabled: true,
       photoUploads: true,
       features: [
-        "Up to 20 Pure Veg Dishes",
+        "Up to 20 Dishes",
         "1 Master QR Code",
         "Instant Sold-Out Toggle",
         "WebP Image Compression",
@@ -62,7 +62,7 @@ async function main() {
       analyticsEnabled: true,
       photoUploads: true,
       features: [
-        "Up to 100 Pure Veg Dishes",
+        "Up to 100 Dishes",
         "15 Table-Specific QRs",
         "Custom Logo in QR Center",
         "Weekly Scan Trends",
