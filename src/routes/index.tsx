@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SitePage } from "@/components/SiteLayout";
 import { HowSteps } from "@/components/HowSteps";
 import { AnimatedQR } from "@/components/AnimatedQR";
-import hero from "@/assets/hero.jpg";
+import hero from "@/assets/hero.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({

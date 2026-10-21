@@ -2,9 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { QrCode, Lock, Clock, PackageCheck, Truck, ShieldCheck, ArrowRight, Sparkles } from "lucide-react";
 import { SitePage } from "@/components/SiteLayout";
 import { Button } from "@/components/ui/button";
-import stand from "@/assets/shop-stand.jpg";
-import poster from "@/assets/shop-poster.jpg";
-import sticker from "@/assets/shop-sticker.jpg";
+import stand from "@/assets/shop-stand.png";
+import poster from "@/assets/shop-poster.png";
+import sticker from "@/assets/shop-sticker.png";
 
 export const Route = createFileRoute("/shop")({
   head: () => ({

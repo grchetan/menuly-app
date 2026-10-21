@@ -26,10 +26,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { SitePage } from "@/components/SiteLayout";
 import { AnimatedQR } from "@/components/AnimatedQR";
-import hero from "@/assets/hero.jpg";
-import shopStand from "@/assets/shop-stand.jpg";
-import shopSticker from "@/assets/shop-sticker.jpg";
-import shopPoster from "@/assets/shop-poster.jpg";
+import hero from "@/assets/hero.png";
+import shopStand from "@/assets/shop-stand.png";
+import shopSticker from "@/assets/shop-sticker.png";
+import shopPoster from "@/assets/shop-poster.png";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
