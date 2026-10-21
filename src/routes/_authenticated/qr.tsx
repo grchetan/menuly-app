@@ -901,34 +901,34 @@ function QrPage() {
       }
     >
       {/* Mode Switcher Pill */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card p-3 shadow-soft">
-        <div className="flex items-center gap-2">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 rounded-2xl border border-border/80 bg-card p-2 sm:p-3 shadow-soft min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setViewTab("master")}
             className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all",
               viewTab === "master"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             )}
           >
-            <QrIcon className="size-4" /> Master Brand QR
+            <QrIcon className="size-4 shrink-0" /> Master Brand QR
           </button>
           <button
             type="button"
             onClick={() => setViewTab("tables")}
             className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all",
               viewTab === "tables"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             )}
           >
-            <Layers className="size-4" /> Multi-Table QRs
+            <Layers className="size-4 shrink-0" /> Multi-Table QRs
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-extrabold",
+                "rounded-full px-1.5 py-0.2 text-[10px] font-extrabold",
                 viewTab === "tables" ? "bg-white/20 text-white" : "bg-muted text-foreground"
               )}
             >
@@ -1015,7 +1015,7 @@ function QrPage() {
               </div>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-w-0">
               {tables.map((tbl) => {
                 const tableUrl = `${url}?table=${tbl.table_number}`;
                 return (
@@ -1105,11 +1105,11 @@ function QrPage() {
           )}
         </div>
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6 lg:gap-8 lg:grid-cols-[1.1fr_0.9fr] min-w-0">
         {/* Left Column: Customizer & Template Previews */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Customizer Panel */}
-          <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
+          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft min-w-0">
             <div className="flex items-center justify-between border-b border-border/60 pb-4">
               <h2 className="font-display text-lg font-bold">Customize Styling</h2>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-veg">
@@ -1255,18 +1255,18 @@ function QrPage() {
           </div>
 
           {/* Print Ready Templates Panel */}
-          <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
               <div>
-                <h2 className="font-display text-lg font-bold">Print Ready Templates</h2>
+                <h2 className="font-display text-base sm:text-lg font-bold">Print Ready Templates</h2>
                 <p className="text-xs text-muted-foreground">Instant A5 table cards & A4 entrance posters.</p>
               </div>
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 text-xs">
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 text-xs self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setTemplateTab("A5")}
                   className={cn(
-                    "rounded-md px-3 py-1 font-semibold transition-all",
+                    "rounded-md px-2.5 sm:px-3 py-1 font-semibold transition-all text-xs",
                     templateTab === "A5" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -1276,7 +1276,7 @@ function QrPage() {
                   type="button"
                   onClick={() => setTemplateTab("A4")}
                   className={cn(
-                    "rounded-md px-3 py-1 font-semibold transition-all",
+                    "rounded-md px-2.5 sm:px-3 py-1 font-semibold transition-all text-xs",
                     templateTab === "A4" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -1286,9 +1286,9 @@ function QrPage() {
             </div>
 
             {/* Template Card Visual Preview */}
-            <div className="mt-5 rounded-2xl border border-dashed border-border/80 bg-muted/20 p-5 text-center">
+            <div className="mt-5 rounded-2xl border border-dashed border-border/80 bg-muted/20 p-3 sm:p-5 text-center min-w-0">
               <div
-                className="mx-auto max-w-xs rounded-2xl border border-border bg-white p-6 shadow-lift text-center"
+                className="mx-auto w-full max-w-[270px] sm:max-w-xs rounded-2xl border border-border bg-white p-4 sm:p-6 shadow-lift text-center"
                 style={{ color: "#1a1f1c" }}
               >
                 {r.logo_url ? (
@@ -1314,9 +1314,9 @@ function QrPage() {
                   style={{ backgroundColor: bg }}
                 >
                   {qrDataUrl ? (
-                    <img src={qrDataUrl} alt="QR Code" className="size-36 object-contain" />
+                    <img src={qrDataUrl} alt="QR Code" className="size-32 sm:size-36 object-contain" />
                   ) : (
-                    <div className="size-36 grid place-items-center text-xs text-muted-foreground">Generating...</div>
+                    <div className="size-32 sm:size-36 grid place-items-center text-xs text-muted-foreground">Generating...</div>
                   )}
                 </div>
 
@@ -1326,19 +1326,19 @@ function QrPage() {
                 {r.address && <p className="mt-1 text-[10px] text-muted-foreground">{r.address}</p>}
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <div className="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 w-full">
                 <Button
                   onClick={() => printTemplate(templateTab)}
-                  className="gap-2 shadow-soft font-semibold"
+                  className="w-full sm:w-auto gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10"
                 >
-                  <Printer className="size-4" /> Print {templateTab === "A5" ? "Table Card (A5)" : "Wall Poster (A4)"}
+                  <Printer className="size-4 shrink-0" /> Print {templateTab === "A5" ? "Table Card (A5)" : "Wall Poster (A4)"}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => printTemplate(templateTab === "A5" ? "A4" : "A5")}
-                  className="gap-2"
+                  className="w-full sm:w-auto gap-2 text-xs sm:text-sm h-10"
                 >
-                  <Printer className="size-4" /> Switch to {templateTab === "A5" ? "A4" : "A5"}
+                  <Printer className="size-4 shrink-0" /> Switch to {templateTab === "A5" ? "A4" : "A5"}
                 </Button>
               </div>
             </div>
@@ -1346,9 +1346,9 @@ function QrPage() {
         </div>
 
         {/* Right Column: Live QR Code & Download Sizes */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Live Code Box */}
-          <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
+          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft min-w-0">
             <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
               <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Live QR Preview</h2>
               <span className="flex items-center gap-1.5 text-xs font-bold text-veg">
@@ -1358,15 +1358,18 @@ function QrPage() {
 
             {/* Canvas Box */}
             <div
-              className="mt-5 flex min-h-[340px] items-center justify-center rounded-2xl border border-border/80 p-6 shadow-inner"
+              className="mt-5 flex min-h-[250px] sm:min-h-[340px] items-center justify-center rounded-2xl border border-border/80 p-3 sm:p-6 shadow-inner min-w-0 overflow-hidden"
               style={{ backgroundColor: bg }}
             >
-              <div ref={box} className="overflow-hidden rounded-xl [&>canvas]:max-w-full" style={{ width: 320, maxWidth: "100%" }} />
+              <div
+                ref={box}
+                className="w-full max-w-[250px] sm:max-w-[320px] mx-auto overflow-hidden rounded-xl flex items-center justify-center [&>canvas]:!w-full [&>canvas]:!h-auto [&>canvas]:!max-w-full [&>canvas]:aspect-square [&>canvas]:block"
+              />
             </div>
 
             {/* Menu Link Row */}
-            <div className="mt-5 rounded-xl border border-border/70 bg-muted/40 p-2.5 ps-3.5 flex items-center gap-2">
-              <span className="flex-1 truncate text-xs font-medium font-mono text-muted-foreground" title={url}>
+            <div className="mt-5 rounded-xl border border-border/70 bg-muted/40 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center gap-2 min-w-0">
+              <span className="flex-1 min-w-0 truncate text-[11px] sm:text-xs font-medium font-mono text-muted-foreground" title={url}>
                 {url}
               </span>
               <button
@@ -1393,7 +1396,7 @@ function QrPage() {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Download High-Res Formats
               </Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 {PNG_SIZES.map((s) => {
                   const active = pngSize === s.px;
                   return (
@@ -1402,25 +1405,25 @@ function QrPage() {
                       type="button"
                       onClick={() => setPngSize(s.px)}
                       className={cn(
-                        "flex flex-col items-start rounded-xl border p-2.5 text-left transition-all",
+                        "flex flex-col items-start rounded-xl border p-2 sm:p-2.5 text-left transition-all min-w-0",
                         active
                           ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
                           : "border-border hover:bg-secondary text-foreground"
                       )}
                     >
-                      <span className="text-xs font-bold">{s.label}</span>
-                      <span className="text-[10px] text-muted-foreground">{s.px} px</span>
+                      <span className="text-[11px] sm:text-xs font-bold truncate w-full">{s.label}</span>
+                      <span className="text-[9px] sm:text-[10px] text-muted-foreground">{s.px} px</span>
                     </button>
                   );
                 })}
               </div>
 
-              <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
-                <Button onClick={() => downloadPng(pngSize)} className="w-full gap-2 shadow-soft font-semibold">
-                  <Download className="size-4" /> Download PNG ({pngSize}px)
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <Button onClick={() => downloadPng(pngSize)} className="w-full gap-1.5 sm:gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10">
+                  <Download className="size-4 shrink-0" /> Download PNG ({pngSize}px)
                 </Button>
-                <Button variant="outline" onClick={downloadSvg} className="w-full gap-2 font-semibold">
-                  <Download className="size-4" /> Download Vector SVG
+                <Button variant="outline" onClick={downloadSvg} className="w-full gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm h-10">
+                  <Download className="size-4 shrink-0" /> Download Vector SVG
                 </Button>
               </div>
 

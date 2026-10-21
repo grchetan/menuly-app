@@ -296,9 +296,9 @@ function Dashboard() {
         </div>
 
         {/* Clean 2-Column Section */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] lg:grid-cols-[minmax(0,1fr)_320px] min-w-0">
           {/* Left Column: Weekly Activity Trend + Restaurant Profile Form */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {/* Weekly Diner Visits Trend Chart (Clean & Simple) */}
             <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-3.5">
@@ -472,7 +472,7 @@ function Dashboard() {
           </div>
 
           {/* Right Column: Clean Live Menu Address & Direct Navigation */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {/* Live Menu URL Card (Simple & Focused) */}
             <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-5 shadow-xs">
               <div className="flex items-center justify-between">

@@ -80,8 +80,8 @@ function MyMenuSkeleton() {
         </div>
 
         {/* Main Grid Skeleton */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          <div className="space-y-4">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0">
+          <div className="min-w-0 space-y-4">
             <div className="h-11 rounded-xl bg-muted/60 animate-pulse" />
             <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3">
               <div className="h-5 w-40 rounded bg-muted animate-pulse" />
@@ -683,7 +683,7 @@ function MyMenu() {
             </span>
           </div>
 
-          <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.8fr_120px_1.4fr_auto] gap-3">
+          <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.8fr)_110px_minmax(0,1.4fr)_auto] gap-2.5 sm:gap-3 min-w-0">
             <Input
               placeholder="Dish Name (e.g. Masala Dosa, Paneer Tikka)"
               value={quickName}
@@ -773,9 +773,9 @@ function MyMenu() {
         </div>
 
         {/* Main Grid: Menu Management + Live Customer Phone Preview */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0">
           {/* Left Column: Categories & Dishes */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {/* Search Input Row */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="relative flex-1">
@@ -1031,7 +1031,7 @@ function MyMenu() {
           </div>
 
           {/* Right Column: Sticky Live Customer Phone Preview */}
-          <div className="hidden lg:block">
+          <div className="hidden lg:block min-w-0">
             <div className="sticky top-20 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -1048,11 +1048,11 @@ function MyMenu() {
               </div>
 
               {/* Realistic Smartphone Device Chassis */}
-              <div className="relative mx-auto h-[min(580px,calc(100vh-150px))] w-full max-w-[310px] rounded-[2.8rem] border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden">
+              <div className="relative mx-auto h-[min(600px,calc(100vh-140px))] w-full max-w-[300px] xl:max-w-[320px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden">
                 {/* Top Status Bar & Dynamic Island */}
-                <div className="flex-none bg-background px-5 pt-3 pb-1 flex items-center justify-between text-[10px] font-bold text-foreground/80 z-20 border-b border-border/40 select-none">
+                <div className="flex-none bg-background px-4 pt-3 pb-1.5 flex items-center justify-between text-[10px] font-bold text-foreground/80 z-20 border-b border-border/40 select-none">
                   <span>9:41</span>
-                  <div className="h-3.5 w-20 rounded-full bg-foreground flex items-center justify-center">
+                  <div className="h-3.5 w-16 xl:w-20 rounded-full bg-foreground flex items-center justify-center">
                     <span className="size-1 rounded-full bg-primary/70 inline-block mr-1"></span>
                   </div>
                   <div className="flex items-center gap-1 text-[9px] font-mono">
@@ -1061,13 +1061,17 @@ function MyMenu() {
                   </div>
                 </div>
 
-                {/* Scrollable Customer Menu Screen */}
-                <div className="flex-1 overflow-y-auto no-scrollbar">
+                {/* Scrollable Customer Menu Screen with Smooth, Interactive Scrolling */}
+                <div
+                  tabIndex={0}
+                  aria-label="Scrollable live customer menu preview"
+                  className="flex-1 overflow-y-auto overscroll-contain scroll-smooth [scrollbar-width:thin] focus:outline-none"
+                >
                   <MenuView menu={data} compact />
                 </div>
 
                 {/* Bottom Home Indicator Bar */}
-                <div className="flex-none bg-background/95 py-1.5 flex justify-center z-20 border-t border-border/40 select-none">
+                <div className="flex-none bg-background/95 py-2 flex justify-center z-20 border-t border-border/40 select-none">
                   <div className="h-1 w-24 rounded-full bg-foreground/30" />
                 </div>
               </div>
@@ -1107,7 +1111,7 @@ function MyMenu() {
               Close
             </Button>
           </div>
-          <div className="max-h-[calc(90vh-60px)] overflow-y-auto no-scrollbar pb-6">
+          <div className="max-h-[calc(90vh-60px)] overflow-y-auto overscroll-contain scroll-smooth [scrollbar-width:thin] pb-6">
             <MenuView menu={data} compact />
           </div>
         </DialogContent>

@@ -140,7 +140,7 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-background text-foreground pt-16 sm:pt-[70px]">
+    <div className="flex min-h-screen w-full flex-col bg-background text-foreground pt-16 sm:pt-[70px] overflow-x-clip">
       {/* Top Header — Identical to Home (SiteHeader, Fixed & Frosted) */}
       <header
         className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/70 bg-background/95 backdrop-blur-md shadow-xs"
@@ -309,8 +309,8 @@ export function AppShell({
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1">
-        <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
+      <main className="flex-1 w-full min-w-0 overflow-x-clip">
+        <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 py-5 sm:py-6 md:px-6 md:py-8 min-w-0">
           {/* Page Top Bar if title or actions provided */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">{title}</h1>
