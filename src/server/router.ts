@@ -13,6 +13,7 @@ import {
 import { verifyAccessToken } from "./auth/security";
 import { userStore } from "./auth/store";
 import { checkDatabaseConnection, prisma } from "./db";
+import { getPlatformSettings, updatePlatformSettings } from "./platform/service";
 import {
   getOrCreateUserRestaurant,
   updateRestaurant,
@@ -106,6 +107,37 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           user: process.env["SMTP_USER"] || "menulyoffcial@gmail.com",
           configured: Boolean(process.env["SMTP_PASS"] && process.env["SMTP_PASS"] !== ""),
         },
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // PLATFORM SETTINGS (Public GET / Protected POST): /api/platform/settings
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/platform/settings" && request.method === "GET") {
+      const settings = await getPlatformSettings();
+      return json({
+        success: true,
+        settings,
+      });
+    }
+
+    if (pathname === "/api/platform/settings" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Unauthorized. Super Admin authentication token required." }, 401);
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || payload.role !== "SUPER_ADMIN") {
+        return json({ error: "Forbidden. Super Admin access privileges required." }, 403);
+      }
+
+      const body = await request.json().catch(() => ({}));
+      const settingsToUpdate = body.settings || body;
+      const updated = await updatePlatformSettings(settingsToUpdate);
+      return json({
+        success: true,
+        message: "Platform settings updated and persisted to PostgreSQL",
+        settings: updated,
       });
     }
 
@@ -664,6 +696,18 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           data: { isActive: !current.isActive },
         });
         return json({ success: true, status: updated.isActive ? "active" : "suspended" });
+      }
+
+      // POST /api/admin/settings
+      if (pathname === "/api/admin/settings" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const settingsToUpdate = body.settings || body;
+        const updated = await updatePlatformSettings(settingsToUpdate);
+        return json({
+          success: true,
+          message: "Platform settings updated and persisted to PostgreSQL",
+          settings: updated,
+        });
       }
 
       // Default Admin Route

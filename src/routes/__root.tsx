@@ -1,9 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -16,6 +17,7 @@ import appCss from "../styles.css?url";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "@/components/ui/sonner";
+import { MaintenanceScreen } from "@/components/MaintenanceScreen";
 
 function NotFoundComponent() {
   return (
@@ -261,12 +263,47 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RootInner() {
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
+
+  // Digital restaurant menus (/menu/*), Admin console (/admin*), and API routes are strictly exempt
+  const isExempt =
+    pathname.startsWith("/menu/") ||
+    pathname === "/menu" ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/");
+
+  const { data: platformData } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/platform/settings");
+        if (!res.ok) return null;
+        return res.json();
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 6_000,
+    refetchInterval: 10_000,
+  });
+
+  const isMaintenance = Boolean(platformData?.settings?.maintenanceMode);
+
+  if (isMaintenance && !isExempt) {
+    return <MaintenanceScreen settings={platformData?.settings} />;
+  }
+
+  return <Outlet />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <RootInner />
       <Toaster position="bottom-right" closeButton />
     </QueryClientProvider>
   );

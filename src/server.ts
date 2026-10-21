@@ -3,6 +3,8 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { handleApiRoute } from "./server/router";
+import { isMaintenanceModeActive, getPlatformSettings } from "./server/platform/service";
+import { renderMaintenanceHtml } from "./server/platform/html";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -48,11 +50,43 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      // 1. Intercept and handle /api/* REST endpoints (Custom Auth, OTP, Admin)
+      // 1. Intercept and handle /api/* REST endpoints (Custom Auth, OTP, Admin, Platform Settings)
       const apiResponse = await handleApiRoute(request);
       if (apiResponse) return apiResponse;
 
-      // 2. Delegate SSR and page requests to TanStack Start
+      // 2. Intercept page requests when Platform Maintenance Mode is active
+      const url = new URL(request.url);
+      const pathname = url.pathname;
+
+      // CRITICAL EXEMPTIONS:
+      // - Restaurant QR Menus (/menu/*) MUST NEVER GO DOWN! Diners seated at tables can always view menus.
+      // - Master Admin Suite (/admin*) must remain open so admins can manage and turn off maintenance.
+      // - Static assets, Vite build files, and client scripts must pass through.
+      const isExempt =
+        pathname.startsWith("/menu/") ||
+        pathname === "/menu" ||
+        pathname.startsWith("/admin") ||
+        pathname.startsWith("/_build/") ||
+        pathname.startsWith("/assets/") ||
+        pathname.startsWith("/@") ||
+        pathname.includes(".");
+
+      if (!isExempt) {
+        const inMaintenance = await isMaintenanceModeActive();
+        if (inMaintenance) {
+          const settings = await getPlatformSettings();
+          return new Response(renderMaintenanceHtml(settings), {
+            status: 503,
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Retry-After": "120",
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+          });
+        }
+      }
+
+      // 3. Delegate SSR and page requests to TanStack Start
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

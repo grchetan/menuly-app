@@ -44,6 +44,8 @@ import {
   ShieldAlert,
   LogOut,
   Layers,
+  Wrench,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -225,10 +227,23 @@ function AdminPage() {
   const [plans, setPlans] = useState<AdminPlan[]>(DEFAULT_ADMIN_PLANS);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [ticketFilter, setTicketFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "owner" | "super_admin">("all");
+
+  // Load live platform settings from PostgreSQL
+  useEffect(() => {
+    fetch("/api/platform/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data.settings) {
+          setSettings(data.settings);
+        }
+      })
+      .catch((err) => console.error("Failed to load platform settings:", err));
+  }, []);
 
   // Current Authenticated Admin User
   const [currentAdminUser, setCurrentAdminUser] = useState<{
@@ -349,8 +364,12 @@ function AdminPage() {
       fetch("/api/admin/tickets", {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => res.json()),
+      fetch("/api/platform/settings").then((res) => res.json()),
     ])
-      .then(([userData, restData, ticketData]) => {
+      .then(([userData, restData, ticketData, settingsData]) => {
+        if (settingsData?.success && settingsData.settings) {
+          setSettings(settingsData.settings);
+        }
         if (userData?.success && userData.users) {
           const mappedUsers: AdminUser[] = userData.users.map((u: any) => ({
             id: u.id,
@@ -670,6 +689,55 @@ function AdminPage() {
       toast.error(err.message || "Failed to delete restaurant");
     } finally {
       setDeletingRestaurantLoading(false);
+    }
+  };
+
+  const savePlatformSettings = async (updated: PlatformSettings, actionToast?: string) => {
+    setSettings(updated);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("menuly_platform_settings", JSON.stringify(updated));
+    }
+
+    const token = typeof localStorage !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) {
+      toast.error("Admin authentication token missing. Please sign in again.");
+      return;
+    }
+
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/platform/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ settings: updated }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (updated.maintenanceMode !== settings.maintenanceMode) {
+          if (updated.maintenanceMode) {
+            toast.warning("🚨 Maintenance Mode is ACTIVE on PostgreSQL! QR digital menus remain 100% operational.", {
+              duration: 6000,
+            });
+          } else {
+            toast.success("✅ Normal Live Mode Restored! Platform is open to all visitors.", {
+              duration: 5000,
+            });
+          }
+        } else {
+          toast.success(actionToast || "Platform settings saved and synced to PostgreSQL");
+        }
+      } else {
+        toast.error(data.error || "Failed to save settings to database");
+      }
+    } catch (err: any) {
+      console.error("Save platform settings error:", err);
+      toast.error("Network error saving settings to database");
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -1036,6 +1104,40 @@ function AdminPage() {
                 </div>
               </div>
             </div>
+
+        {/* Global Maintenance Alert Banner */}
+        {settings.maintenanceMode && (
+          <div className="rounded-2xl border-2 border-amber-500/50 bg-amber-500/10 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                <Wrench className="size-5 animate-pulse" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-amber-500 animate-ping" />
+                  <h4 className="text-sm font-bold text-foreground">
+                    Platform Maintenance Mode is Currently ACTIVE
+                  </h4>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Public website visitors are seeing the scheduled upgrades notice. Active restaurant QR digital menus remain 100% operational and live.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={savingSettings}
+              onClick={() => {
+                savePlatformSettings({ ...settings, maintenanceMode: false });
+              }}
+              className="shrink-0 font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 gap-1.5"
+            >
+              {savingSettings ? <RotateCw className="size-3.5 animate-spin" /> : null}
+              Disable Maintenance Mode
+            </Button>
+          </div>
+        )}
 
         {/* Tab Switcher - 6 Core Pillars */}
         <div className="flex items-center gap-2 border-b pb-3 overflow-x-auto no-scrollbar flex-nowrap">
@@ -1800,11 +1902,10 @@ function AdminPage() {
                   </div>
                   <button
                     type="button"
+                    disabled={savingSettings}
                     onClick={() => {
                       const updated = { ...settings, strictVegOnly: !settings.strictVegOnly };
-                      setSettings(updated);
-                      localStorage.setItem("menuly_platform_settings", JSON.stringify(updated));
-                      toast.success(updated.strictVegOnly ? "Dietary Tags ACTIVE" : "Dietary Tags Disabled");
+                      savePlatformSettings(updated, updated.strictVegOnly ? "Dietary Tags ACTIVE" : "Dietary Tags Disabled");
                     }}
                     className={cn(
                       "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
@@ -1819,23 +1920,23 @@ function AdminPage() {
                   <div>
                     <p className="text-sm font-bold text-foreground">Maintenance Mode</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Temporarily pause live public access for database upgrades and scheduled maintenance
+                      Temporarily pause live public access for database upgrades and scheduled maintenance (Active QR digital menus remain unaffected)
                     </p>
                   </div>
                   <button
                     type="button"
+                    disabled={savingSettings}
                     onClick={() => {
                       const updated = { ...settings, maintenanceMode: !settings.maintenanceMode };
-                      setSettings(updated);
-                      localStorage.setItem("menuly_platform_settings", JSON.stringify(updated));
-                      toast.info(updated.maintenanceMode ? "Maintenance Mode ENABLED" : "Live mode restored");
+                      savePlatformSettings(updated);
                     }}
                     className={cn(
-                      "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-                      settings.maintenanceMode ? "bg-destructive text-white" : "bg-muted text-muted-foreground"
+                      "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all inline-flex items-center gap-1.5",
+                      settings.maintenanceMode ? "bg-destructive text-white shadow-md animate-pulse" : "bg-muted text-muted-foreground"
                     )}
                   >
-                    {settings.maintenanceMode ? "Active" : "Normal Live"}
+                    {savingSettings ? <RotateCw className="size-3 animate-spin" /> : null}
+                    {settings.maintenanceMode ? "🚨 Maintenance Active" : "Normal Live"}
                   </button>
                 </div>
               </div>
@@ -1891,13 +1992,14 @@ function AdminPage() {
               {/* Save Settings Button */}
               <div className="flex justify-end pt-2">
                 <Button
+                  disabled={savingSettings}
                   onClick={() => {
-                    localStorage.setItem("menuly_platform_settings", JSON.stringify(settings));
-                    toast.success("Platform settings saved and synced");
+                    savePlatformSettings(settings, "Platform settings successfully saved to PostgreSQL database");
                   }}
                   className="h-11 px-6 rounded-xl font-bold bg-primary text-primary-foreground shadow-xs gap-2"
                 >
-                  <Save className="size-4" /> Save Platform Settings
+                  {savingSettings ? <RotateCw className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  {savingSettings ? "Saving to PostgreSQL..." : "Save Platform Settings"}
                 </Button>
               </div>
             </div>
