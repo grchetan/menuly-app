@@ -301,11 +301,8 @@ export function SiteFooter() {
         </div>
         <div className="w-28 animate-float"><AnimatedQR /></div>
       </div>
-      <div className="relative border-t border-primary-foreground/15 py-5 text-center text-xs opacity-70 flex items-center justify-center gap-2">
+      <div className="relative border-t border-primary-foreground/15 py-5 text-center text-xs opacity-70">
         <span>© {new Date().getFullYear()} {APP_NAME}. Digital QR menus crafted for restaurants, cafes & food businesses.</span>
-        <Link to="/admin" title="Staff Access" className="opacity-25 hover:opacity-100 transition-opacity ml-1 text-[11px]">
-          🔒
-        </Link>
       </div>
     </footer>
   );

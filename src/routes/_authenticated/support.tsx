@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Mail, MessageCircle, Send, CheckCircle2, Shield, LifeBuoy, Clock, ArrowRight } from "lucide-react";
+import { Mail, MessageCircle, Send, CheckCircle2, LifeBuoy, Clock, ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +81,7 @@ function Support() {
 
       const ticketId = resData.ticket.id;
       setSubmittedId(ticketId);
-      toast.success(`Support Ticket #${ticketId} created! Super Admin will review it.`);
+      toast.success(`Support Ticket #${ticketId} created! Our team will review it.`);
       setSubject("");
       setDescription("");
     } catch (err: unknown) {
@@ -112,16 +112,11 @@ function Support() {
               <CheckCircle2 className="mx-auto size-12 text-veg" />
               <h3 className="mt-3 text-lg font-bold text-foreground">Ticket #{submittedId} Submitted!</h3>
               <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-                Your ticket has been sent directly to the Admin Master Desk. We usually inspect and resolve issues within a few hours.
+                Your ticket has been sent to our customer care team. We usually inspect and resolve issues within a few hours.
               </p>
-              <div className="mt-5 flex flex-wrap justify-center gap-3">
-                <Button size="sm" onClick={() => setSubmittedId(null)}>
+              <div className="mt-5 flex justify-center">
+                <Button size="sm" onClick={() => setSubmittedId(null)} className="shadow-soft font-semibold">
                   Submit Another Ticket
-                </Button>
-                <Button size="sm" variant="outline" asChild className="gap-1.5">
-                  <Link to="/admin">
-                    <Shield className="size-3.5 text-primary" /> View in Admin Portal
-                  </Link>
                 </Button>
               </div>
             </div>
@@ -179,7 +174,7 @@ function Support() {
               </div>
 
               <Button type="submit" size="lg" disabled={isSubmitting} className="w-full gap-2 shadow-soft font-semibold">
-                <Send className="size-4" /> {isSubmitting ? "Submitting to Super Admin..." : "Submit Support Ticket"}
+                <Send className="size-4" /> {isSubmitting ? "Submitting Ticket..." : "Submit Support Ticket"}
               </Button>
             </form>
           )}
