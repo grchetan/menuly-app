@@ -7,6 +7,7 @@ export interface PlatformSettingsData {
   supportEmail: string;
   currency: string;
   announcementTicker: string;
+  announcementTickerEnabled: boolean;
   allowNewSignups: boolean;
 }
 
@@ -18,6 +19,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   currency: "₹ (INR)",
   announcementTicker:
     "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
+  announcementTickerEnabled: true,
   allowNewSignups: true,
 };
 
@@ -67,6 +69,11 @@ export async function getPlatformSettings(): Promise<PlatformSettingsData> {
         : map.has("announcementTicker")
         ? String(map.get("announcementTicker"))
         : DEFAULT_PLATFORM_SETTINGS.announcementTicker,
+      announcementTickerEnabled: map.has("announcement_ticker_enabled")
+        ? Boolean(map.get("announcement_ticker_enabled"))
+        : map.has("announcementTickerEnabled")
+        ? Boolean(map.get("announcementTickerEnabled"))
+        : DEFAULT_PLATFORM_SETTINGS.announcementTickerEnabled,
       allowNewSignups: map.has("allow_new_signups")
         ? Boolean(map.get("allow_new_signups"))
         : map.has("allowNewSignups")
@@ -99,6 +106,7 @@ export async function updatePlatformSettings(
     ["supportEmail", "support_email"],
     ["currency", "currency"],
     ["announcementTicker", "announcement_ticker"],
+    ["announcementTickerEnabled", "announcement_ticker_enabled"],
     ["allowNewSignups", "allow_new_signups"],
   ];
 

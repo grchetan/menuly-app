@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Shield,
@@ -46,12 +47,15 @@ import {
   Layers,
   Wrench,
   RotateCw,
+  Megaphone,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AnnouncementMarquee } from "@/components/AnnouncementMarquee";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
@@ -104,6 +108,7 @@ export type PlatformSettings = {
   supportEmail: string;
   currency: string;
   announcementTicker: string;
+  announcementTickerEnabled: boolean;
   allowNewSignups: boolean;
 };
 
@@ -182,6 +187,7 @@ const DEFAULT_SETTINGS: PlatformSettings = {
   supportEmail: "menulyofficial@gmail.com",
   currency: "₹ (INR)",
   announcementTicker: "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
+  announcementTickerEnabled: true,
   allowNewSignups: true,
 };
 
@@ -252,6 +258,7 @@ const DEFAULT_RESTAURANTS: AdminRestaurant[] = [];
 const DEFAULT_TICKETS: SupportTicket[] = [];
 
 function AdminPage() {
+  const queryClient = useQueryClient();
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -756,6 +763,7 @@ function AdminPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
+        queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
         if (updated.maintenanceMode !== settings.maintenanceMode) {
           if (updated.maintenanceMode) {
             toast.warning("🚨 Maintenance Mode is ACTIVE on PostgreSQL! QR digital menus remain 100% operational.", {
@@ -2024,18 +2032,163 @@ function AdminPage() {
               </div>
 
               {/* Live Announcement Marquee Ticker */}
-              <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-3">
-                <h3 className="text-sm font-bold text-foreground border-b border-border/60 pb-2">
-                  Homepage Announcement Ticker (Live Marquee)
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Text displayed in the black scrolling banner at the top of the homepage:
-                </p>
-                <Input
-                  value={settings.announcementTicker}
-                  onChange={(e) => setSettings({ ...settings, announcementTicker: e.target.value })}
-                  className="h-11 px-4 text-sm font-semibold rounded-xl border-border bg-background"
-                />
+              <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-foreground">
+                        Homepage Announcement Ticker (Live Marquee)
+                      </h3>
+                      {settings.announcementTickerEnabled ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Live on Site
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-muted text-muted-foreground border border-border">
+                          <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+                          Disabled
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Controls the black continuous scrolling announcement ribbon at the top of the homepage & public pages
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={savingSettings}
+                    onClick={() => {
+                      const updated = {
+                        ...settings,
+                        announcementTickerEnabled: !settings.announcementTickerEnabled,
+                      };
+                      savePlatformSettings(
+                        updated,
+                        updated.announcementTickerEnabled
+                          ? "🟢 Live Marquee turned ON and published"
+                          : "⚪ Live Marquee turned OFF"
+                      );
+                    }}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0",
+                      settings.announcementTickerEnabled
+                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                        : "bg-secondary text-secondary-foreground hover:bg-muted border border-border"
+                    )}
+                  >
+                    {savingSettings ? (
+                      <RotateCw className="size-3.5 animate-spin" />
+                    ) : settings.announcementTickerEnabled ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Radio className="size-3.5" />
+                    )}
+                    {settings.announcementTickerEnabled ? "Marquee ON (Click to Disable)" : "Turn ON Marquee"}
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Announcement Ticker Text
+                    </Label>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span>Quick separators:</span>
+                      {["💥", "•", "✨", "🔥"].map((sep) => (
+                        <button
+                          key={sep}
+                          type="button"
+                          onClick={() =>
+                            setSettings({
+                              ...settings,
+                              announcementTicker: `${settings.announcementTicker.trim()} ${sep} `,
+                            })
+                          }
+                          className="px-1.5 py-0.5 rounded bg-secondary hover:bg-muted font-bold text-xs cursor-pointer"
+                          title={`Insert ${sep}`}
+                        >
+                          {sep}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Input
+                    value={settings.announcementTicker}
+                    onChange={(e) => setSettings({ ...settings, announcementTicker: e.target.value })}
+                    className="h-11 px-4 text-sm font-semibold rounded-xl border-border bg-background"
+                    placeholder="e.g. Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap"
+                  />
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    One-Tap Presets:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          announcementTicker:
+                            "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
+                        })
+                      }
+                      className="text-xs px-2.5 py-1 rounded-lg bg-secondary/70 hover:bg-secondary text-secondary-foreground font-medium transition-colors cursor-pointer border border-border/50"
+                    >
+                      🚀 Platform Features
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          announcementTicker:
+                            "100% Pure Veg 💥 Pure Veg Kitchen 💥 Scan the QR 💥 Fast & Responsive 💥 No Non-Veg Allowed",
+                        })
+                      }
+                      className="text-xs px-2.5 py-1 rounded-lg bg-secondary/70 hover:bg-secondary text-secondary-foreground font-medium transition-colors cursor-pointer border border-border/50"
+                    >
+                      🥗 Pure Veg Special
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          announcementTicker:
+                            "Special Weekend Offer 💥 Fresh Chef Specials 💥 Scan QR on your table to view full live menu",
+                        })
+                      }
+                      className="text-xs px-2.5 py-1 rounded-lg bg-secondary/70 hover:bg-secondary text-secondary-foreground font-medium transition-colors cursor-pointer border border-border/50"
+                    >
+                      🎉 Weekend Special Offer
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-foreground flex items-center gap-1.5">
+                      <Eye className="size-3.5 text-primary" /> Live Ticker Preview:
+                    </span>
+                    {!settings.announcementTickerEnabled && (
+                      <span className="text-[11px] text-amber-500 font-semibold">
+                        (Preview only — currently hidden from public)
+                      </span>
+                    )}
+                  </div>
+                  <div className="rounded-xl overflow-hidden border border-border/80 shadow-inner">
+                    <AnnouncementMarquee
+                      text={settings.announcementTicker || "Sample announcement ticker text..."}
+                      enabled={true}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Save Settings Button */}

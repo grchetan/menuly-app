@@ -138,7 +138,9 @@ header.fixed {
 @utility glass-nav { background: color-mix(in oklab, var(--card) 72%, transparent); backdrop-filter: blur(16px) saturate(1.4); }
 
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-@utility animate-marquee { animation: marquee 28s linear infinite; }
+@utility animate-marquee { animation: marquee 28s linear infinite; will-change: transform; }
+.marquee-track { animation: marquee 28s linear infinite; will-change: transform; }
+.marquee-track:hover { animation-play-state: paused; }
 
 @keyframes auth-fade-slide {
   from {

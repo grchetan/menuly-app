@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.2.1";
 export const BUILD_TIMESTAMP = 1792582800000; // Static reference timestamp for release 1.2.0
 
 /**

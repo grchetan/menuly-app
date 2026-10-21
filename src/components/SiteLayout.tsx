@@ -1,10 +1,12 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { AnimatedQR } from "./AnimatedQR";
+import { AnnouncementMarquee } from "./AnnouncementMarquee";
 import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
 import { isDemoMode } from "@/lib/restaurant";
 
@@ -26,12 +28,48 @@ const authenticatedLinks = [
 
 let lastPublicNavPill: { left: number; width: number; show: boolean; to: string } | null = null;
 
+interface PlatformSettingsResponse {
+  success?: boolean;
+  settings?: {
+    maintenanceMode?: boolean;
+    strictVegOnly?: boolean;
+    supportWhatsApp?: string;
+    supportEmail?: string;
+    currency?: string;
+    announcementTicker?: string;
+    announcementTickerEnabled?: boolean;
+    allowNewSignups?: boolean;
+  };
+}
+
+export function usePlatformSettings() {
+  return useQuery<PlatformSettingsResponse | null>({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/platform/settings");
+        if (!res.ok) return null;
+        return res.json();
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 6_000,
+  });
+}
+
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
+
+  const { data: platformData } = usePlatformSettings();
+
+  const ticker = platformData?.settings?.announcementTicker ?? "";
+  const tickerEnabled = Boolean(platformData?.settings?.announcementTickerEnabled ?? true);
+  const showTicker = tickerEnabled && Boolean(ticker.trim());
 
   const [blob, setBlob] = useState<{ left: number; width: number; show: boolean }>(() => {
     if (lastPublicNavPill) {
@@ -111,6 +149,7 @@ export function SiteHeader() {
       className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/70 bg-background/95 backdrop-blur-md shadow-xs"
       style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50 }}
     >
+      {showTicker && <AnnouncementMarquee text={ticker} enabled={tickerEnabled} />}
       <div className="px-3 sm:px-6 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <Link to="/" className="group flex items-center gap-2 rounded-2xl px-2 py-1.5 transition-all">
@@ -309,8 +348,18 @@ export function SiteFooter() {
 }
 
 export function SitePage({ children }: { children: ReactNode }) {
+  const { data: platformData } = usePlatformSettings();
+  const ticker = platformData?.settings?.announcementTicker ?? "";
+  const tickerEnabled = Boolean(platformData?.settings?.announcementTickerEnabled ?? true);
+  const showTicker = tickerEnabled && Boolean(ticker.trim());
+
   return (
-    <div className="min-h-screen bg-hero pt-16 sm:pt-[70px]">
+    <div
+      className={cn(
+        "min-h-screen bg-hero transition-all duration-300",
+        showTicker ? "pt-24 sm:pt-[106px]" : "pt-16 sm:pt-[70px]"
+      )}
+    >
       <SiteHeader />
       {children}
       <SiteFooter />
