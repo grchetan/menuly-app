@@ -447,8 +447,14 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
-    // 9. SUPER ADMIN PROTECTED APIS
+    // 9. SUPER ADMIN SEED & PROTECTED APIS
     // --------------------------------------------------------------------------
+    // POST /api/admin/seed (Bootstrap/seed Super Admin)
+    if (pathname === "/api/admin/seed" && request.method === "POST") {
+      const admin = await seedSuperAdmin();
+      return json({ success: true, message: `Super admin ready: ${admin.email}` });
+    }
+
     if (pathname.startsWith("/api/admin/")) {
       const token = extractBearerToken(request);
       if (!token) {
@@ -542,12 +548,6 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           data: { isActive: !current.isActive },
         });
         return json({ success: true, status: updated.isActive ? "active" : "suspended" });
-      }
-
-      // POST /api/admin/seed
-      if (pathname === "/api/admin/seed" && request.method === "POST") {
-        const admin = await seedSuperAdmin();
-        return json({ success: true, message: `Super admin ready: ${admin.email}` });
       }
 
       // Default Admin Route

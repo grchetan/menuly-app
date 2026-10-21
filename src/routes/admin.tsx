@@ -253,6 +253,28 @@ function AdminPage() {
           }
         }
 
+        // Check if database user was updated to SUPER_ADMIN
+        if (token) {
+          fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then((r) => r.json())
+            .then((res) => {
+              if (res?.success && res.data?.user) {
+                const u = res.data.user;
+                if (res.data.token) {
+                  localStorage.setItem("menuly_token", res.data.token);
+                }
+                localStorage.setItem("menuly_user", JSON.stringify(u));
+                if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
+                  sessionStorage.setItem("menuly_admin_auth", "true");
+                  setIsAdminAuth(true);
+                }
+              }
+            })
+            .catch(() => {});
+        }
+
         const authed = sessionStorage.getItem("menuly_admin_auth") === "true";
         if (authed) {
           setIsAdminAuth(true);
@@ -348,6 +370,9 @@ function AdminPage() {
       // Store credentials and auth flag
       localStorage.setItem("menuly_token", data.token);
       localStorage.setItem("menuly_user", JSON.stringify(data.user));
+      if (typeof document !== "undefined") {
+        document.cookie = `menuly_token=${encodeURIComponent(data.token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+      }
       sessionStorage.setItem("menuly_admin_auth", "true");
       setIsAdminAuth(true);
       toast.success(`Welcome to Executive Command Center, ${data.user.fullName || data.user.email}!`);
@@ -545,7 +570,7 @@ function AdminPage() {
                 <Input
                   id="admin-email"
                   type="email"
-                  placeholder="admin@menuly.com"
+                  placeholder="menulyofficial@gmail.com"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   className="pl-9 bg-background"

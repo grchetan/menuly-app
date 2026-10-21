@@ -513,7 +513,7 @@ export async function resetPassword(params: {
  */
 export async function getCurrentUser(
   token?: string | null
-): Promise<ServiceResult<{ user: TokenPayload }>> {
+): Promise<ServiceResult<{ user: TokenPayload; token?: string }>> {
   if (!token) {
     return { success: false, status: 401, error: "Not authenticated. Missing token." };
   }
@@ -528,6 +528,14 @@ export async function getCurrentUser(
     return { success: false, status: 404, error: "User no longer exists." };
   }
 
+  const freshPayload: TokenPayload = {
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    fullName: user.fullName,
+  };
+  const freshToken = signAccessToken(freshPayload);
+
   return {
     success: true,
     status: 200,
@@ -538,6 +546,7 @@ export async function getCurrentUser(
         role: user.role,
         fullName: user.fullName,
       },
+      token: freshToken,
     },
   };
 }
@@ -658,7 +667,7 @@ export async function changeUserPassword(params: {
  * Safe script helper to create or update the initial Super Admin.
  */
 export async function seedSuperAdmin(
-  adminEmail = process.env["SUPER_ADMIN_EMAIL"] || "admin@menuly.com",
+  adminEmail = process.env["SUPER_ADMIN_EMAIL"] || "menulyofficial@gmail.com",
   adminPassword = process.env["SUPER_ADMIN_PASSWORD"] || "AdminPassword123!"
 ): Promise<StoredUser> {
   const normalized = adminEmail.toLowerCase().trim();
