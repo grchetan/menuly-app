@@ -361,21 +361,24 @@ function AdminPage() {
         return;
       }
 
-      if (data.user?.role !== "SUPER_ADMIN") {
+      const userData = data.data?.user || data.user;
+      const authToken = data.data?.token || data.token;
+
+      if (!userData || userData.role !== "SUPER_ADMIN") {
         toast.error("Access Restricted: This account does not have Super Admin privileges.");
         setLoginLoading(false);
         return;
       }
 
       // Store credentials and auth flag
-      localStorage.setItem("menuly_token", data.token);
-      localStorage.setItem("menuly_user", JSON.stringify(data.user));
+      localStorage.setItem("menuly_token", authToken);
+      localStorage.setItem("menuly_user", JSON.stringify(userData));
       if (typeof document !== "undefined") {
-        document.cookie = `menuly_token=${encodeURIComponent(data.token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+        document.cookie = `menuly_token=${encodeURIComponent(authToken)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
       }
       sessionStorage.setItem("menuly_admin_auth", "true");
       setIsAdminAuth(true);
-      toast.success(`Welcome to Executive Command Center, ${data.user.fullName || data.user.email}!`);
+      toast.success(`Welcome to Executive Command Center, ${userData.fullName || userData.email}!`);
     } catch {
       toast.error("Network error during login. Please try again.");
     } finally {
@@ -616,9 +619,9 @@ function AdminPage() {
             </Button>
           </form>
 
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center">
-            <p className="text-[11px] text-amber-500 font-medium">
-              🔒 256-Bit Encrypted Session. Super Admin credentials are cryptographically verified against PostgreSQL.
+          <div className="rounded-xl border border-border/60 bg-muted/40 p-2.5 text-center">
+            <p className="text-xs text-muted-foreground font-medium flex items-center justify-center gap-1.5">
+              <Shield className="size-3.5 text-primary" /> Authorized Platform Admins Only
             </p>
           </div>
 
