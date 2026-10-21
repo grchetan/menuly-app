@@ -37,6 +37,10 @@ import {
   Check,
   Save,
   UserCheck,
+  UserPlus,
+  UserMinus,
+  ShieldCheck,
+  Trash2,
   ShieldAlert,
   Layers,
 } from "lucide-react";
@@ -225,6 +229,15 @@ function AdminPage() {
   const [ticketFilter, setTicketFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "owner" | "super_admin">("all");
 
+  // User Management State
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
+  const [deletingUserLoading, setDeletingUserLoading] = useState(false);
+
+  // Restaurant Management State
+  const [restaurantToDelete, setRestaurantToDelete] = useState<AdminRestaurant | null>(null);
+  const [deletingRestaurantLoading, setDeletingRestaurantLoading] = useState(false);
+
   // New Ticket Dialog State
   const [createTicketOpen, setCreateTicketOpen] = useState(false);
   const [newRestName, setNewRestName] = useState("");
@@ -309,17 +322,24 @@ function AdminPage() {
     ])
       .then(([userData, restData, ticketData]) => {
         if (userData?.success && userData.users) {
-          const mappedUsers: AdminUser[] = userData.users.map((u: { id: string; email: string; role: string; fullName: string | null; createdAt: string }) => ({
+          const mappedUsers: AdminUser[] = userData.users.map((u: any) => ({
             id: u.id,
             name: u.fullName || u.email.split("@")[0],
             email: u.email,
-            phone: "+91 98765 00000",
-            restaurantName: u.role === "SUPER_ADMIN" ? "Menuly Platform HQ" : "Partner Restaurant",
-            restaurantSlug: u.role === "SUPER_ADMIN" ? "platform" : "pure-veg",
+            phone: u.phone || "+91 98765 00000",
+            restaurantName:
+              u.role === "SUPER_ADMIN"
+                ? "Platform Administration"
+                : u.restaurant?.name || "No Restaurant Set",
+            restaurantSlug: u.role === "SUPER_ADMIN" ? "" : u.restaurant?.slug || "",
             plan: "starter",
             role: u.role === "SUPER_ADMIN" ? "super_admin" : "owner",
             status: "active",
-            joinedDate: new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+            joinedDate: new Date(u.createdAt).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
           }));
           setUsers(mappedUsers);
         }
@@ -513,6 +533,94 @@ function AdminPage() {
       } catch (err) {
         console.error("Failed to sync restaurant status to DB:", err);
       }
+    }
+  };
+
+  const handleToggleUserRole = async (user: AdminUser) => {
+    if (user.email === "menulyofficial@gmail.com") {
+      toast.error("Master Administrator role cannot be modified.");
+      return;
+    }
+    const nextRole = user.role === "super_admin" ? "owner" : "super_admin";
+    const dbRole = nextRole === "super_admin" ? "SUPER_ADMIN" : "RESTAURANT_OWNER";
+    setUpdatingRoleUserId(user.id);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/users/update-role", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: user.id, role: dbRole }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update role");
+      }
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, role: nextRole } : u))
+      );
+      toast.success(`${user.name} is now ${nextRole === "super_admin" ? "an Admin" : "a Member / Owner"}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update user role");
+    } finally {
+      setUpdatingRoleUserId(null);
+    }
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setDeletingUserLoading(true);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/users/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: userToDelete.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete user");
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+      setRestaurants((prev) => prev.filter((r) => r.ownerEmail !== userToDelete.email));
+      toast.success(`Account for ${userToDelete.name} deleted.`);
+      setUserToDelete(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete user");
+    } finally {
+      setDeletingUserLoading(false);
+    }
+  };
+
+  const confirmDeleteRestaurant = async () => {
+    if (!restaurantToDelete) return;
+    setDeletingRestaurantLoading(true);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/restaurants/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: restaurantToDelete.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete restaurant");
+      }
+      setRestaurants((prev) => prev.filter((r) => r.id !== restaurantToDelete.id));
+      toast.success(`${restaurantToDelete.name} deleted from platform.`);
+      setRestaurantToDelete(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete restaurant");
+    } finally {
+      setDeletingRestaurantLoading(false);
     }
   };
 
@@ -1277,6 +1385,16 @@ function AdminPage() {
                               <Eye className="size-3.5" /> View
                             </a>
                           </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setRestaurantToDelete(res)}
+                            title="Delete Restaurant"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -1459,8 +1577,22 @@ function AdminPage() {
                           </td>
 
                           <td className="px-5 py-4">
-                            <div className="font-semibold text-foreground text-xs">{u.restaurantName}</div>
-                            <div className="text-[11px] font-mono text-muted-foreground">/menu/{u.restaurantSlug}</div>
+                            {u.restaurantSlug ? (
+                              <>
+                                <a
+                                  href={`/menu/${u.restaurantSlug}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-semibold text-foreground text-xs hover:underline flex items-center gap-1"
+                                >
+                                  {u.restaurantName}
+                                  <ExternalLink className="size-3 text-muted-foreground" />
+                                </a>
+                                <div className="text-[11px] font-mono text-muted-foreground">/menu/{u.restaurantSlug}</div>
+                              </>
+                            ) : (
+                              <div className="font-medium text-muted-foreground text-xs">{u.restaurantName}</div>
+                            )}
                           </td>
 
                           <td className="px-5 py-4">
@@ -1479,16 +1611,22 @@ function AdminPage() {
                           </td>
 
                           <td className="px-5 py-4">
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
-                                u.role === "super_admin"
-                                  ? "bg-purple-100 text-purple-900 border border-purple-200"
-                                  : "bg-muted text-foreground"
-                              )}
-                            >
-                              {u.role === "super_admin" ? "Super Admin" : "Owner"}
-                            </span>
+                            {u.email === "menulyofficial@gmail.com" ? (
+                              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
+                                <ShieldCheck className="size-3" /> Master Admin
+                              </span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                                  u.role === "super_admin"
+                                    ? "bg-purple-100 text-purple-900 border border-purple-200"
+                                    : "bg-muted text-foreground"
+                                )}
+                              >
+                                {u.role === "super_admin" ? "Admin" : "Owner"}
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-5 py-4">
@@ -1498,27 +1636,60 @@ function AdminPage() {
                           </td>
 
                           <td className="px-5 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <a
-                                href={`https://wa.me/${u.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
-                                  u.name
-                                )},%20this%20is%20Menuly%20Executive%20Support:`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex size-7 items-center justify-center rounded-lg bg-veg/10 text-veg hover:bg-veg hover:text-white transition-colors"
-                                title="Chat on WhatsApp"
-                              >
-                                <MessageCircle className="size-3.5" />
-                              </a>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Direct WhatsApp Contact */}
+                              {u.phone && (
+                                <a
+                                  href={`https://wa.me/${u.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
+                                    u.name
+                                  )},%20this%20is%20Menuly%20Executive%20Support:`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex size-7 items-center justify-center rounded-lg bg-veg/10 text-veg hover:bg-veg hover:text-white transition-colors"
+                                  title="Chat on WhatsApp"
+                                >
+                                  <MessageCircle className="size-3.5" />
+                                </a>
+                              )}
 
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs h-7 gap-1"
-                                onClick={() => toast.success(`Simulating owner session for ${u.name}`)}
-                              >
-                                View Menu
-                              </Button>
+                              {/* Role Toggle Button (Disabled for Master Admin) */}
+                              {u.email !== "menulyofficial@gmail.com" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs h-7 gap-1 px-2.5 font-bold"
+                                  disabled={updatingRoleUserId === u.id}
+                                  onClick={() => handleToggleUserRole(u)}
+                                  title={u.role === "super_admin" ? "Demote to Member" : "Promote to Admin"}
+                                >
+                                  {updatingRoleUserId === u.id ? (
+                                    <RefreshCw className="size-3 animate-spin" />
+                                  ) : u.role === "super_admin" ? (
+                                    <>
+                                      <UserMinus className="size-3 text-amber-600" />
+                                      <span>Make Owner</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ShieldCheck className="size-3 text-primary" />
+                                      <span>Make Admin</span>
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+
+                              {/* Delete User Button (Disabled for Master Admin) */}
+                              {u.email !== "menulyofficial@gmail.com" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => setUserToDelete(u)}
+                                  title="Delete User Account"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1659,6 +1830,104 @@ function AdminPage() {
             </div>
           </div>
         )}
+        {/* Delete User Confirmation Dialog */}
+        <Dialog open={Boolean(userToDelete)} onOpenChange={(open) => !open && setUserToDelete(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="size-5" /> Delete User Account
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-foreground">
+                Are you sure you want to permanently delete user account{" "}
+                <span className="font-bold text-foreground underline">{userToDelete?.name}</span> (
+                {userToDelete?.email})?
+              </p>
+              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+                ⚠️ This will permanently remove their credentials, linked restaurants, menu dishes, and QR codes from PostgreSQL.
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUserToDelete(null)}
+                  disabled={deletingUserLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={confirmDeleteUser}
+                  disabled={deletingUserLoading}
+                  className="gap-1.5 font-bold"
+                >
+                  {deletingUserLoading ? (
+                    <>
+                      <RefreshCw className="size-3.5 animate-spin" /> Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="size-3.5" /> Confirm Delete
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Restaurant Confirmation Dialog */}
+        <Dialog open={Boolean(restaurantToDelete)} onOpenChange={(open) => !open && setRestaurantToDelete(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="size-5" /> Delete Restaurant
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-foreground">
+                Are you sure you want to permanently delete restaurant{" "}
+                <span className="font-bold text-foreground underline">{restaurantToDelete?.name}</span>?
+              </p>
+              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+                ⚠️ All dishes, categories, QR codes, tables, and scan records for this restaurant will be deleted.
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRestaurantToDelete(null)}
+                  disabled={deletingRestaurantLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={confirmDeleteRestaurant}
+                  disabled={deletingRestaurantLoading}
+                  className="gap-1.5 font-bold"
+                >
+                  {deletingRestaurantLoading ? (
+                    <>
+                      <RefreshCw className="size-3.5 animate-spin" /> Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="size-3.5" /> Confirm Delete
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
         </>
         )}
       </main>

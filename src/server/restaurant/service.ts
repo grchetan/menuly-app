@@ -15,7 +15,12 @@ export interface RestaurantPayload {
   qrCorner?: string;
 }
 
-export async function getOrCreateUserRestaurant(userId: string, userEmail: string, userFullName?: string | null) {
+export async function getOrCreateUserRestaurant(
+  userId: string,
+  userEmail: string,
+  userFullName?: string | null,
+  role?: string
+) {
   let restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
     include: {
@@ -29,6 +34,21 @@ export async function getOrCreateUserRestaurant(userId: string, userEmail: strin
   });
 
   if (!restaurant) {
+    if (role === "SUPER_ADMIN") {
+      return {
+        restaurant: null,
+        categories: [],
+        items: [],
+        analytics: {
+          totalScans: 0,
+          scansToday: 0,
+          tableScans: 0,
+          directVisits: 0,
+          scansThisWeek: 0,
+          weeklyScans: [],
+        },
+      };
+    }
     // Generate unique slug
     const cleanBase = slugify(userFullName || userEmail.split("@")[0] || "pureveg") || "pureveg";
     const randomSuffix = Math.random().toString(36).slice(2, 6);
@@ -424,6 +444,7 @@ export async function addCategory(userId: string, name: string) {
   if (!restaurant) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const full = await getOrCreateUserRestaurant(userId, user?.email || "owner@menuly.app", user?.fullName);
+    if (!full.restaurant) throw new Error("Restaurant not found.");
     restaurant = await prisma.restaurant.findUnique({ where: { id: full.restaurant.id } });
   }
   if (!restaurant) throw new Error("Restaurant not found.");
@@ -501,6 +522,7 @@ export async function addDish(
   if (!restaurant) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const full = await getOrCreateUserRestaurant(userId, user?.email || "owner@menuly.app", user?.fullName);
+    if (!full.restaurant) throw new Error("Restaurant not found.");
     restaurant = await prisma.restaurant.findUnique({ where: { id: full.restaurant.id } });
   }
   if (!restaurant) throw new Error("Restaurant not found.");

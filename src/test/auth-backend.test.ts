@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
+import { prisma } from "../server/db";
 import {
   hashPassword,
   comparePassword,
@@ -203,4 +204,23 @@ describe("Custom Authentication & Security Suite", () => {
       expect(newLogin.success).toBe(true);
     }
   }, 45000);
+
+  afterAll(async () => {
+    try {
+      const testUsers = await prisma.user.findMany({
+        where: {
+          OR: [
+            { email: { endsWith: "@testrestaurant.in" } },
+            { email: { endsWith: "@restaurant.com" } },
+          ],
+        },
+      });
+      for (const tu of testUsers) {
+        await prisma.restaurant.deleteMany({ where: { ownerId: tu.id } });
+        await prisma.user.delete({ where: { id: tu.id } });
+      }
+    } catch {
+      // ignore cleanup errors in test
+    }
+  });
 });

@@ -271,7 +271,32 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 1. GET /api/restaurant/my-menu
       if (pathname === "/api/restaurant/my-menu" && request.method === "GET") {
-        const menu = await getOrCreateUserRestaurant(auth.userId, auth.email, auth.fullName);
+        if (auth.role === "SUPER_ADMIN") {
+          const existing = await prisma.restaurant.findFirst({
+            where: { ownerId: auth.userId },
+            include: {
+              categories: { orderBy: { position: "asc" } },
+              menuItems: { orderBy: { position: "asc" } },
+            },
+          });
+          if (!existing) {
+            return json({
+              success: true,
+              restaurant: null,
+              categories: [],
+              items: [],
+              analytics: {
+                totalScans: 0,
+                scansToday: 0,
+                tableScans: 0,
+                directVisits: 0,
+                scansThisWeek: 0,
+                weeklyScans: [],
+              },
+            });
+          }
+        }
+        const menu = await getOrCreateUserRestaurant(auth.userId, auth.email, auth.fullName, auth.role);
         return json({ success: true, ...menu });
       }
 
@@ -471,7 +496,22 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // GET /api/admin/users
       if (pathname === "/api/admin/users" && request.method === "GET") {
-        const users = await userStore.getAllUsers();
+        const users = await prisma.user.findMany({
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            fullName: true,
+            phone: true,
+            isVerified: true,
+            createdAt: true,
+            restaurants: {
+              select: { id: true, name: true, slug: true, isActive: true },
+              take: 1,
+            },
+          },
+        });
         return json({
           success: true,
           users: users.map((u) => ({
@@ -479,10 +519,74 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
             email: u.email,
             role: u.role,
             fullName: u.fullName,
+            phone: u.phone,
             isVerified: u.isVerified,
             createdAt: u.createdAt,
+            restaurant: u.restaurants[0] || null,
           })),
         });
+      }
+
+      // POST /api/admin/users/update-role
+      if (pathname === "/api/admin/users/update-role" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.userId || !body.role) {
+          return json({ error: "User ID and target role required" }, 400);
+        }
+        if (body.role !== "SUPER_ADMIN" && body.role !== "RESTAURANT_OWNER") {
+          return json({ error: "Invalid role specified" }, 400);
+        }
+        const target = await prisma.user.findUnique({ where: { id: body.userId } });
+        if (!target) return json({ error: "User not found" }, 404);
+
+        if (target.email === "menulyofficial@gmail.com" && body.role !== "SUPER_ADMIN") {
+          return json({ error: "Primary Platform Administrator cannot be demoted." }, 403);
+        }
+
+        const updated = await prisma.user.update({
+          where: { id: body.userId },
+          data: { role: body.role },
+        });
+
+        return json({ success: true, user: updated });
+      }
+
+      // POST /api/admin/users/delete
+      if (pathname === "/api/admin/users/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.userId) return json({ error: "User ID required" }, 400);
+
+        const target = await prisma.user.findUnique({ where: { id: body.userId } });
+        if (!target) return json({ error: "User not found" }, 404);
+
+        if (target.email === "menulyofficial@gmail.com") {
+          return json({ error: "Primary Platform Administrator cannot be deleted." }, 403);
+        }
+        if (target.id === payload.userId) {
+          return json({ error: "You cannot delete your own logged-in admin account." }, 403);
+        }
+
+        // Delete restaurants owned by this user
+        const userRests = await prisma.restaurant.findMany({ where: { ownerId: body.userId } });
+        for (const r of userRests) {
+          await prisma.restaurant.delete({ where: { id: r.id } });
+        }
+        await prisma.session.deleteMany({ where: { userId: body.userId } });
+        await prisma.user.delete({ where: { id: body.userId } });
+
+        return json({ success: true, message: "User entry deleted successfully" });
+      }
+
+      // POST /api/admin/restaurants/delete
+      if (pathname === "/api/admin/restaurants/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.id) return json({ error: "Restaurant ID required" }, 400);
+
+        const target = await prisma.restaurant.findUnique({ where: { id: body.id } });
+        if (!target) return json({ error: "Restaurant not found" }, 404);
+
+        await prisma.restaurant.delete({ where: { id: body.id } });
+        return json({ success: true, message: "Restaurant deleted successfully" });
       }
 
       // GET /api/admin/restaurants
