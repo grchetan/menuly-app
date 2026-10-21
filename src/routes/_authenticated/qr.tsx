@@ -141,10 +141,6 @@ function QrPage() {
     }
   }, [r]);
 
-  if (isLoading || !r) {
-    return <QrSkeleton />;
-  }
-
   // Multi-table QR state
   const [viewTab, setViewTab] = useState<"master" | "tables">("master");
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -156,6 +152,7 @@ function QrPage() {
 
   useEffect(() => {
     let alive = true;
+    if (!r?.id) return;
     getRestaurantTables(r.id).then((t) => {
       if (alive) {
         setTables(t);
@@ -165,22 +162,22 @@ function QrPage() {
     return () => {
       alive = false;
     };
-  }, [r.id]);
+  }, [r?.id]);
 
   const box = useRef<HTMLDivElement>(null);
   const qr = useRef<QRCodeStylingType | null>(null);
 
-  const url = typeof window !== "undefined" ? `${window.location.origin}/menu/${r.slug}` : "";
-  const name = slugify(r.name) || "menu";
+  const url = typeof window !== "undefined" && r?.slug ? `${window.location.origin}/menu/${r.slug}` : "";
+  const name = slugify(r?.name || "") || "menu";
 
   const options = useMemo<Options>(
     () => ({
       width: 320,
       height: 320,
       type: "canvas",
-      data: url,
+      data: url || "https://menuly.app",
       margin: 8,
-      ...(showLogo && r.logo_url && !r.id.startsWith("demo-") ? { image: r.logo_url } : {}),
+      ...(showLogo && r?.logo_url && !r?.id?.startsWith("demo-") ? { image: r.logo_url } : {}),
       qrOptions: { errorCorrectionLevel: "H" },
       imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.3, hideBackgroundDots: true },
       dotsOptions: { color: fg, type: corners[corner].dots },
@@ -188,11 +185,12 @@ function QrPage() {
       cornersDotOptions: { color: fg, type: corners[corner].dot },
       backgroundOptions: { color: bg },
     }),
-    [url, r.id, r.logo_url, showLogo, fg, bg, corner]
+    [url, r?.id, r?.logo_url, showLogo, fg, bg, corner]
   );
 
   useEffect(() => {
     let alive = true;
+    if (!r) return;
     import("qr-code-styling").then(({ default: QRCodeStyling }) => {
       if (!alive || !box.current) return;
       if (!qr.current) {
@@ -214,7 +212,11 @@ function QrPage() {
     return () => {
       alive = false;
     };
-  }, [options]);
+  }, [options, r]);
+
+  if (isLoading || !r) {
+    return <QrSkeleton />;
+  }
 
   const copyLink = async () => {
     try {

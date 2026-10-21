@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -132,16 +132,10 @@ function MyMenu() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
 
-  if (isLoading || !data?.restaurant) {
-    return <MyMenuSkeleton />;
-  }
-
-  const rid = data.restaurant.id;
-
   // Quick Add State (Single line entry)
   const [quickName, setQuickName] = useState("");
   const [quickPrice, setQuickPrice] = useState("");
-  const [quickCatId, setQuickCatId] = useState(data.categories[0]?.id || "");
+  const [quickCatId, setQuickCatId] = useState(data?.categories?.[0]?.id || "");
   const [isQuickAdding, setIsQuickAdding] = useState(false);
 
   // Category and Item states
@@ -152,7 +146,7 @@ function MyMenu() {
   const [q, setQ] = useState("");
   const [activeCatTab, setActiveCatTab] = useState<string>("all");
   const [filter, setFilter] = useState<"all" | "soldout">("all");
-  const [showPresets, setShowPresets] = useState(data.items.length === 0);
+  const [showPresets, setShowPresets] = useState(Boolean(data?.items?.length === 0));
 
   // Custom Dialog States (No Native Browser prompt/confirm)
   const [renamingCat, setRenamingCat] = useState<Category | null>(null);
@@ -173,6 +167,27 @@ function MyMenu() {
   const [confirmingPreset, setConfirmingPreset] = useState<string | null>(null);
   const [applyingPresetId, setApplyingPresetId] = useState<string | null>(null);
   const [dishPhotoSummary, setDishPhotoSummary] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data?.items && data.items.length === 0) {
+      setShowPresets(true);
+    }
+  }, [data?.items?.length]);
+
+  useEffect(() => {
+    if (data && data.categories.length > 0 && !quickCatId) {
+      const firstCat = data.categories[0];
+      if (firstCat) {
+        setQuickCatId(firstCat.id);
+      }
+    }
+  }, [data?.categories, quickCatId]);
+
+  if (isLoading || !data || !data.restaurant) {
+    return <MyMenuSkeleton />;
+  }
+
+  const rid = data.restaurant.id;
 
   const soldOut = data.items.filter((i) => !i.available).length;
 
