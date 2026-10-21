@@ -42,6 +42,7 @@ import {
   ShieldCheck,
   Trash2,
   ShieldAlert,
+  LogOut,
   Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -229,6 +230,27 @@ function AdminPage() {
   const [ticketFilter, setTicketFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "owner" | "super_admin">("all");
 
+  // Current Authenticated Admin User
+  const [currentAdminUser, setCurrentAdminUser] = useState<{
+    id?: string;
+    email?: string;
+    fullName?: string | null;
+    role?: string;
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const uStr = localStorage.getItem("menuly_user");
+      return uStr ? JSON.parse(uStr) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const isMasterAdmin = currentAdminUser?.email === "menulyofficial@gmail.com";
+  const adminDisplayName =
+    currentAdminUser?.fullName ||
+    (currentAdminUser?.email ? currentAdminUser.email.split("@")[0] : "Administrator");
+
   // User Management State
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
@@ -251,6 +273,12 @@ function AdminPage() {
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
+        // If console was explicitly locked by the admin, do NOT auto-unlock!
+        if (sessionStorage.getItem("menuly_console_locked") === "true") {
+          setIsAdminAuth(false);
+          return;
+        }
+
         const token = localStorage.getItem("menuly_token");
         const userStr = localStorage.getItem("menuly_user");
         if (token && userStr) {
@@ -258,6 +286,7 @@ function AdminPage() {
             const u = JSON.parse(userStr);
             if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
               sessionStorage.setItem("menuly_admin_auth", "true");
+              setCurrentAdminUser(u);
               setIsAdminAuth(true);
               return;
             }
@@ -281,6 +310,7 @@ function AdminPage() {
                 localStorage.setItem("menuly_user", JSON.stringify(u));
                 if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
                   sessionStorage.setItem("menuly_admin_auth", "true");
+                  setCurrentAdminUser(u);
                   setIsAdminAuth(true);
                 }
               }
@@ -396,7 +426,9 @@ function AdminPage() {
       if (typeof document !== "undefined") {
         document.cookie = `menuly_token=${encodeURIComponent(authToken)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
       }
+      sessionStorage.removeItem("menuly_console_locked");
       sessionStorage.setItem("menuly_admin_auth", "true");
+      setCurrentAdminUser(userData);
       setIsAdminAuth(true);
       toast.success(`Welcome to Executive Command Center, ${userData.fullName || userData.email}!`);
     } catch {
@@ -407,9 +439,26 @@ function AdminPage() {
   };
 
   const handleLock = () => {
+    sessionStorage.setItem("menuly_console_locked", "true");
     sessionStorage.removeItem("menuly_admin_auth");
     setIsAdminAuth(false);
-    toast.info("Super Admin console locked");
+    toast.info("Super Admin console locked. Password required to re-open.");
+  };
+
+  const handleSignOut = () => {
+    sessionStorage.removeItem("menuly_admin_auth");
+    sessionStorage.removeItem("menuly_console_locked");
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("menuly_token");
+      localStorage.removeItem("menuly_user");
+    }
+    if (typeof document !== "undefined") {
+      document.cookie = "menuly_token=; path=/; max-age=0; SameSite=Lax";
+    }
+    setCurrentAdminUser(null);
+    setIsAdminAuth(false);
+    setAdminPassword("");
+    toast.success("Successfully signed out of Admin Console.");
   };
 
   const updateTicketStatus = async (ticketId: string, newStatus: SupportTicket["status"]) => {
@@ -755,12 +804,24 @@ function AdminPage() {
             <Link to="/" className="flex items-center gap-2 hover:opacity-85 transition-opacity">
               <Logo />
             </Link>
-            <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-              <Shield className="size-3.5" /> Founder & Admin Suite
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold tracking-tight text-primary flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5 text-primary" />
+                <span>{adminDisplayName}</span>
+                {isMasterAdmin ? (
+                  <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 bg-primary text-primary-foreground rounded-full">
+                    Master Admin
+                  </span>
+                ) : (
+                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded-full">
+                    Admin
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" asChild className="gap-1.5 text-xs font-semibold">
               <Link to="/">
                 <ExternalLink className="size-3.5" /> Public Site
@@ -768,11 +829,21 @@ function AdminPage() {
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               onClick={handleLock}
               className="gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              title="Lock console without signing out"
             >
               <Lock className="size-3.5" /> Lock Console
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleSignOut}
+              className="gap-1.5 text-xs font-semibold"
+              title="Completely sign out of admin account"
+            >
+              <LogOut className="size-3.5" /> Sign Out
             </Button>
           </div>
         </div>
@@ -1386,15 +1457,17 @@ function AdminPage() {
                             </a>
                           </Button>
 
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setRestaurantToDelete(res)}
-                            title="Delete Restaurant"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
+                          {isMasterAdmin && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setRestaurantToDelete(res)}
+                              title="Delete Restaurant"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1652,8 +1725,8 @@ function AdminPage() {
                                 </a>
                               )}
 
-                              {/* Role Toggle Button (Disabled for Master Admin) */}
-                              {u.email !== "menulyofficial@gmail.com" && (
+                              {/* Role Toggle Button (ONLY visible to Master Admin) */}
+                              {isMasterAdmin && u.email !== "menulyofficial@gmail.com" && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1678,8 +1751,8 @@ function AdminPage() {
                                 </Button>
                               )}
 
-                              {/* Delete User Button (Disabled for Master Admin) */}
-                              {u.email !== "menulyofficial@gmail.com" && (
+                              {/* Delete User Button (ONLY visible to Master Admin) */}
+                              {isMasterAdmin && u.email !== "menulyofficial@gmail.com" && (
                                 <Button
                                   size="sm"
                                   variant="ghost"

@@ -529,6 +529,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // POST /api/admin/users/update-role
       if (pathname === "/api/admin/users/update-role" && request.method === "POST") {
+        if (payload.email !== "menulyofficial@gmail.com") {
+          return json({ error: "Access Denied: Only the Master Platform Administrator can assign or modify administrative roles." }, 403);
+        }
+
         const body = await request.json().catch(() => ({}));
         if (!body.userId || !body.role) {
           return json({ error: "User ID and target role required" }, 400);
@@ -553,6 +557,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // POST /api/admin/users/delete
       if (pathname === "/api/admin/users/delete" && request.method === "POST") {
+        if (payload.email !== "menulyofficial@gmail.com") {
+          return json({ error: "Access Denied: Only the Master Platform Administrator can delete user accounts." }, 403);
+        }
+
         const body = await request.json().catch(() => ({}));
         if (!body.userId) return json({ error: "User ID required" }, 400);
 
@@ -579,6 +587,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // POST /api/admin/restaurants/delete
       if (pathname === "/api/admin/restaurants/delete" && request.method === "POST") {
+        if (payload.email !== "menulyofficial@gmail.com") {
+          return json({ error: "Access Denied: Only the Master Platform Administrator can delete restaurants." }, 403);
+        }
+
         const body = await request.json().catch(() => ({}));
         if (!body.id) return json({ error: "Restaurant ID required" }, 400);
 
