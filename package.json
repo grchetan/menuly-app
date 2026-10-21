@@ -1,5 +1,6 @@
 {
   "name": "menuly",
+  "version": "1.2.0",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -8,6 +9,8 @@
     "build": "prisma generate && vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "deploy-check": "vitest run && tsc --noEmit",
+    "release": "node scripts/release.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

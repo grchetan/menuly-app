@@ -138,6 +138,43 @@ export type SupportTicket = {
 
 const DEFAULT_USERS: AdminUser[] = [];
 
+const safeStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      return typeof window !== "undefined" ? localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, val: string): void => {
+    try {
+      if (typeof window !== "undefined") localStorage.setItem(key, val);
+    } catch {}
+  },
+  removeItem: (key: string): void => {
+    try {
+      if (typeof window !== "undefined") localStorage.removeItem(key);
+    } catch {}
+  },
+  getSessionItem: (key: string): string | null => {
+    try {
+      return typeof window !== "undefined" ? sessionStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  },
+  setSessionItem: (key: string, val: string): void => {
+    try {
+      if (typeof window !== "undefined") sessionStorage.setItem(key, val);
+    } catch {}
+  },
+  removeSessionItem: (key: string): void => {
+    try {
+      if (typeof window !== "undefined") sessionStorage.removeItem(key);
+    } catch {}
+  },
+};
+
 const DEFAULT_SETTINGS: PlatformSettings = {
   maintenanceMode: false,
   strictVegOnly: true,
@@ -254,7 +291,7 @@ function AdminPage() {
   } | null>(() => {
     if (typeof window === "undefined") return null;
     try {
-      const uStr = localStorage.getItem("menuly_user");
+      const uStr = safeStorage.getItem("menuly_user");
       return uStr ? JSON.parse(uStr) : null;
     } catch {
       return null;
@@ -289,18 +326,18 @@ function AdminPage() {
     try {
       if (typeof window !== "undefined") {
         // If console was explicitly locked by the admin, do NOT auto-unlock!
-        if (sessionStorage.getItem("menuly_console_locked") === "true") {
+        if (safeStorage.getSessionItem("menuly_console_locked") === "true") {
           setIsAdminAuth(false);
           return;
         }
 
-        const token = localStorage.getItem("menuly_token");
-        const userStr = localStorage.getItem("menuly_user");
+        const token = safeStorage.getItem("menuly_token");
+        const userStr = safeStorage.getItem("menuly_user");
         if (token && userStr) {
           try {
             const u = JSON.parse(userStr);
             if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
-              sessionStorage.setItem("menuly_admin_auth", "true");
+              safeStorage.setSessionItem("menuly_admin_auth", "true");
               setCurrentAdminUser(u);
               setIsAdminAuth(true);
               return;
@@ -320,11 +357,11 @@ function AdminPage() {
               if (res?.success && res.data?.user) {
                 const u = res.data.user;
                 if (res.data.token) {
-                  localStorage.setItem("menuly_token", res.data.token);
+                  safeStorage.setItem("menuly_token", res.data.token);
                 }
-                localStorage.setItem("menuly_user", JSON.stringify(u));
+                safeStorage.setItem("menuly_user", JSON.stringify(u));
                 if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
-                  sessionStorage.setItem("menuly_admin_auth", "true");
+                  safeStorage.setSessionItem("menuly_admin_auth", "true");
                   setCurrentAdminUser(u);
                   setIsAdminAuth(true);
                 }
@@ -333,7 +370,7 @@ function AdminPage() {
             .catch(() => {});
         }
 
-        const authed = sessionStorage.getItem("menuly_admin_auth") === "true";
+        const authed = safeStorage.getSessionItem("menuly_admin_auth") === "true";
         if (authed) {
           setIsAdminAuth(true);
         }
@@ -411,8 +448,11 @@ function AdminPage() {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminEmail.trim() || !adminPassword.trim()) {
-      toast.error("Please enter your Super Admin email and password");
+    const cleanEmail = adminEmail.trim().toLowerCase();
+    const cleanPassword = adminPassword.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      toast.error("Please enter both Super Admin email and password");
       return;
     }
 
@@ -421,11 +461,11 @@ function AdminPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: adminEmail.trim(), password: adminPassword }),
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        toast.error(data.error || "Authentication failed");
+        toast.error(data.error || "Authentication failed. Please verify credentials.");
         setLoginLoading(false);
         return;
       }
@@ -439,38 +479,37 @@ function AdminPage() {
         return;
       }
 
-      // Store credentials and auth flag
-      localStorage.setItem("menuly_token", authToken);
-      localStorage.setItem("menuly_user", JSON.stringify(userData));
+      // Store credentials and auth flag safely
+      safeStorage.setItem("menuly_token", authToken);
+      safeStorage.setItem("menuly_user", JSON.stringify(userData));
       if (typeof document !== "undefined") {
         document.cookie = `menuly_token=${encodeURIComponent(authToken)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
       }
-      sessionStorage.removeItem("menuly_console_locked");
-      sessionStorage.setItem("menuly_admin_auth", "true");
+      safeStorage.removeSessionItem("menuly_console_locked");
+      safeStorage.setSessionItem("menuly_admin_auth", "true");
       setCurrentAdminUser(userData);
       setIsAdminAuth(true);
       toast.success(`Welcome to Executive Command Center, ${userData.fullName || userData.email}!`);
-    } catch {
-      toast.error("Network error during login. Please try again.");
+    } catch (err) {
+      console.error("Admin login error:", err);
+      toast.error("Network error during login. Please check connection and try again.");
     } finally {
       setLoginLoading(false);
     }
   };
 
   const handleLock = () => {
-    sessionStorage.setItem("menuly_console_locked", "true");
-    sessionStorage.removeItem("menuly_admin_auth");
+    safeStorage.setSessionItem("menuly_console_locked", "true");
+    safeStorage.removeSessionItem("menuly_admin_auth");
     setIsAdminAuth(false);
     toast.info("Super Admin console locked. Password required to re-open.");
   };
 
   const handleSignOut = () => {
-    sessionStorage.removeItem("menuly_admin_auth");
-    sessionStorage.removeItem("menuly_console_locked");
-    if (typeof localStorage !== "undefined") {
-      localStorage.removeItem("menuly_token");
-      localStorage.removeItem("menuly_user");
-    }
+    safeStorage.removeSessionItem("menuly_admin_auth");
+    safeStorage.removeSessionItem("menuly_console_locked");
+    safeStorage.removeItem("menuly_token");
+    safeStorage.removeItem("menuly_user");
     if (typeof document !== "undefined") {
       document.cookie = "menuly_token=; path=/; max-age=0; SameSite=Lax";
     }
@@ -794,16 +833,20 @@ function AdminPage() {
             <div className="space-y-1.5">
               <Label htmlFor="admin-email">Super Admin Email</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="admin-email"
                   type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="email"
+                  spellCheck={false}
                   placeholder="admin@example.com"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  className="pl-9 bg-background"
+                  className="pl-9 bg-background h-11 text-base sm:text-sm"
                   required
-                  autoFocus
                 />
               </div>
             </div>
@@ -811,20 +854,24 @@ function AdminPage() {
             <div className="space-y-1.5">
               <Label htmlFor="admin-password">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="admin-password"
                   type={showPassword ? "text" : "password"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="current-password"
+                  spellCheck={false}
                   placeholder="••••••••••••"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  className="pl-9 pr-10 bg-background"
+                  className="pl-9 pr-10 bg-background h-11 text-base sm:text-sm"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
@@ -861,27 +908,27 @@ function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 pt-16">
-      {/* Top Admin Navigation Header */}
+    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 pt-20 sm:pt-24">
+      {/* Top Admin Navigation Header (Mobile Responsive) */}
       <header
         className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur-md"
         style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50 }}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2 hover:opacity-85 transition-opacity">
-              <Logo />
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link to="/" className="flex items-center gap-2 hover:opacity-85 transition-opacity shrink-0">
+              <Logo small />
             </Link>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold tracking-tight text-primary flex items-center gap-1.5">
-                <ShieldCheck className="size-3.5 text-primary" />
-                <span>{adminDisplayName}</span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2 sm:px-3 py-1 text-xs font-bold tracking-tight text-primary flex items-center gap-1 truncate">
+                <ShieldCheck className="size-3.5 text-primary shrink-0" />
+                <span className="truncate max-w-[85px] sm:max-w-none">{adminDisplayName}</span>
                 {isMasterAdmin ? (
-                  <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 bg-primary text-primary-foreground rounded-full">
-                    Master Admin
+                  <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.5 bg-primary text-primary-foreground rounded-full shrink-0">
+                    Master
                   </span>
                 ) : (
-                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded-full">
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded-full shrink-0">
                     Admin
                   </span>
                 )}
@@ -889,8 +936,8 @@ function AdminPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" asChild className="gap-1.5 text-xs font-semibold">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button size="sm" variant="outline" asChild className="hidden sm:inline-flex gap-1.5 text-xs font-semibold h-8 px-2.5">
               <Link to="/">
                 <ExternalLink className="size-3.5" /> Public Site
               </Link>
@@ -899,25 +946,27 @@ function AdminPage() {
               size="sm"
               variant="outline"
               onClick={handleLock}
-              className="gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground h-8 px-2 sm:px-2.5"
               title="Lock console without signing out"
             >
-              <Lock className="size-3.5" /> Lock Console
+              <Lock className="size-3.5" />
+              <span className="hidden sm:inline">Lock Console</span>
             </Button>
             <Button
               size="sm"
               variant="destructive"
               onClick={handleSignOut}
-              className="gap-1.5 text-xs font-semibold"
+              className="gap-1 text-xs font-semibold h-8 px-2 sm:px-2.5"
               title="Completely sign out of admin account"
             >
-              <LogOut className="size-3.5" /> Sign Out
+              <LogOut className="size-3.5" />
+              <span className="hidden sm:inline">Sign Out</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8 animate-rise">
+      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-rise">
         {/* Page Title & Quick Actions */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-6">
           <div>
@@ -1712,7 +1761,7 @@ function AdminPage() {
             {/* Users Table */}
             <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full min-w-[620px] text-left text-sm">
                   <thead className="bg-secondary/50 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b">
                     <tr>
                       <th className="px-5 py-3">User & Contact</th>

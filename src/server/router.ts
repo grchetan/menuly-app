@@ -14,6 +14,7 @@ import { verifyAccessToken } from "./auth/security";
 import { userStore } from "./auth/store";
 import { checkDatabaseConnection, prisma } from "./db";
 import { getPlatformSettings, updatePlatformSettings } from "./platform/service";
+import { APP_VERSION, BUILD_TIMESTAMP } from "../lib/version";
 import {
   getOrCreateUserRestaurant,
   updateRestaurant,
@@ -107,6 +108,17 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           user: process.env["SMTP_USER"] || "menulyoffcial@gmail.com",
           configured: Boolean(process.env["SMTP_PASS"] && process.env["SMTP_PASS"] !== ""),
         },
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // VERSION & UPDATE DISCOVERY: /api/version
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/version" && request.method === "GET") {
+      return json({
+        success: true,
+        version: APP_VERSION,
+        timestamp: BUILD_TIMESTAMP,
       });
     }
 

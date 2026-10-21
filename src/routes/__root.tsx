@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "@/components/ui/sonner";
 import { MaintenanceScreen } from "@/components/MaintenanceScreen";
+import { AutoUpdateDetector } from "@/components/AutoUpdateDetector";
+import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
 
 function NotFoundComponent() {
   return (
@@ -303,6 +305,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AutoUpdateDetector />
+      <NetworkStatusIndicator />
       <RootInner />
       <Toaster position="bottom-right" closeButton />
     </QueryClientProvider>
