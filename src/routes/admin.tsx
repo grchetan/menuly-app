@@ -798,7 +798,7 @@ function AdminPage() {
                 <Input
                   id="admin-email"
                   type="email"
-                  placeholder="menulyofficial@gmail.com"
+                  placeholder="admin@example.com"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   className="pl-9 bg-background"
