@@ -156,6 +156,34 @@ header.fixed {
   animation: auth-fade-slide 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Custom Cursor Desktop Click Ripple & Pointer Hiding */
+@keyframes cursor-ripple {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.35);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+@utility animate-cursor-ripple {
+  animation: cursor-ripple 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (pointer: fine) and (hover: hover) {
+  html.has-custom-cursor,
+  html.has-custom-cursor body,
+  html.has-custom-cursor a,
+  html.has-custom-cursor button,
+  html.has-custom-cursor [role="button"],
+  html.has-custom-cursor [type="button"],
+  html.has-custom-cursor [type="submit"],
+  html.has-custom-cursor label {
+    cursor: none !important;
+  }
+}
+
 /* =========================================================
    CUSTOM BESPOKE TOAST NOTIFICATION (WARM ARTISAN PALETTE)
    - Bottom-right anchored
