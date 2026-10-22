@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import cursorImg from "@/assets/Forest Green QR Cursor Icon.png";
 import { cn } from "@/lib/utils";
 
@@ -8,14 +9,54 @@ interface Ripple {
   y: number;
 }
 
-// Exact Arrow Tip hotspot offset in 1335x1178 image:
-// x = 447px (33.48%), y = 208px (17.66%)
-// At width = 52px, height = 45.88px:
-// offsetX = 52 * 0.3348 = 17.4px
-// offsetY = 45.88 * 0.1766 = 8.1px
-const CURSOR_WIDTH = 52;
-const HOTSPOT_OFFSET_X = 17.4;
-const HOTSPOT_OFFSET_Y = 8.1;
+// Exact Arrow Tip hotspot offset in 1335x1178 source image:
+// Arrow Tip: x = 447px (33.4831%), y = 208px (17.6570%)
+// At width = 62px, height = 54.71px:
+// offsetX = 62 * (447 / 1335) = 20.76px
+// offsetY = 54.71 * (208 / 1178) = 9.66px
+const CURSOR_WIDTH = 62;
+const CURSOR_HEIGHT = Math.round(CURSOR_WIDTH * (1178 / 1335) * 100) / 100; // 54.71px
+const HOTSPOT_OFFSET_X = Math.round(CURSOR_WIDTH * (447 / 1335) * 100) / 100; // 20.76px
+const HOTSPOT_OFFSET_Y = Math.round(CURSOR_HEIGHT * (208 / 1178) * 100) / 100; // 9.66px
+
+// Strict mobile / touch screen detector
+function isTouchOrMobileDevice(): boolean {
+  if (typeof window === "undefined") return true;
+
+  // 1. Mobile & tablet user agent check
+  const isMobileUA =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(
+      navigator.userAgent
+    );
+
+  // 2. Hardware touch detection
+  const hasTouchScreen =
+    "ontouchstart" in window ||
+    (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+    // @ts-expect-error legacy touch points
+    Boolean(navigator.msMaxTouchPoints && navigator.msMaxTouchPoints > 0);
+
+  // 3. Screen width check (phones and tablets <= 1024px)
+  const isMobileViewport = window.innerWidth <= 1024;
+
+  // 4. Pointer capability media queries
+  const hasCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const hasNoHover = window.matchMedia("(hover: none)").matches;
+  const hasFinePointer = window.matchMedia("(pointer: fine) and (hover: hover)").matches;
+
+  // If any mobile characteristic is present, disable custom cursor completely
+  if (
+    isMobileUA ||
+    hasCoarsePointer ||
+    hasNoHover ||
+    (hasTouchScreen && isMobileViewport) ||
+    !hasFinePointer
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 export function CustomCursor() {
   const [enabled, setEnabled] = useState(false);
@@ -23,22 +64,19 @@ export function CustomCursor() {
   const [isHovered, setIsHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
   const [ripples, setRipples] = useState<Ripple[]>([]);
+  const [mounted, setMounted] = useState(false);
 
   // Ref to outer container: handles real-time position with ZERO transition lag
   const cursorContainerRef = useRef<HTMLDivElement>(null);
 
   // 1. Detect desktop fine pointer vs touch/mobile device
   useEffect(() => {
+    setMounted(true);
     if (typeof window === "undefined") return;
 
-    const checkFinePointer = () => {
-      const finePointer = window.matchMedia("(pointer: fine) and (hover: hover)").matches;
-      const isTouch =
-        "ontouchstart" in window ||
-        navigator.maxTouchPoints > 0 ||
-        window.matchMedia("(pointer: coarse)").matches;
-
-      const isDesktop = finePointer && !isTouch;
+    const checkDevice = () => {
+      const isMobile = isTouchOrMobileDevice();
+      const isDesktop = !isMobile;
       setEnabled(isDesktop);
 
       if (isDesktop) {
@@ -48,11 +86,11 @@ export function CustomCursor() {
       }
     };
 
-    checkFinePointer();
-    window.addEventListener("resize", checkFinePointer);
+    checkDevice();
+    window.addEventListener("resize", checkDevice);
 
     return () => {
-      window.removeEventListener("resize", checkFinePointer);
+      window.removeEventListener("resize", checkDevice);
       document.documentElement.classList.remove("has-custom-cursor");
     };
   }, []);
@@ -74,6 +112,12 @@ export function CustomCursor() {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      // Strictly ignore any touch event (mobile touches)
+      if (e.pointerType === "touch") {
+        setIsVisible(false);
+        return;
+      }
+
       targetX = e.clientX;
       targetY = e.clientY;
 
@@ -100,6 +144,7 @@ export function CustomCursor() {
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       setIsPressed(true);
 
       // Spawn orange click ripple centered directly on the arrow tip click point
@@ -114,11 +159,13 @@ export function CustomCursor() {
       }, 450);
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       setIsPressed(false);
     };
 
-    const onPointerEnter = () => {
+    const onPointerEnter = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       setIsVisible(true);
     };
 
@@ -129,7 +176,7 @@ export function CustomCursor() {
     window.addEventListener("pointermove", onPointerMove, { passive: true });
     window.addEventListener("pointerdown", onPointerDown, { passive: true });
     window.addEventListener("pointerup", onPointerUp, { passive: true });
-    document.addEventListener("pointerenter", onPointerEnter);
+    document.addEventListener("pointerenter", onPointerEnter as EventListener);
     document.addEventListener("pointerleave", onPointerLeave);
 
     return () => {
@@ -137,20 +184,29 @@ export function CustomCursor() {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointerenter", onPointerEnter);
+      document.removeEventListener("pointerenter", onPointerEnter as EventListener);
       document.removeEventListener("pointerleave", onPointerLeave);
     };
   }, [enabled]);
 
-  // If mobile/touch or disabled, render nothing
-  if (!enabled || !isVisible) {
+  // If mobile/touch, unmounted, or hidden, render nothing
+  if (!mounted || !enabled || !isVisible || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  // Render directly into document.body with max z-index (2147483647)
+  // so the cursor ALWAYS floats on top of toasts, modals, sheets, and popovers
+  return createPortal(
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[999999] overflow-hidden select-none"
+      className="menuly-custom-cursor-layer select-none pointer-events-none"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2147483647,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
     >
       {/* 1. Orange Click Ripples */}
       {ripples.map((ripple) => (
@@ -180,7 +236,7 @@ export function CustomCursor() {
             isPressed
               ? "scale-90 rotate-[-1deg]"
               : isHovered
-              ? "scale-[1.14] rotate-[-3deg]"
+              ? "scale-[1.12] rotate-[-3deg]"
               : "scale-100 rotate-0"
           )}
         >
@@ -188,17 +244,18 @@ export function CustomCursor() {
             src={cursorImg}
             alt=""
             width={CURSOR_WIDTH}
-            height={46}
+            height={Math.round(CURSOR_HEIGHT)}
             style={{
               width: `${CURSOR_WIDTH}px`,
               height: "auto",
               transform: `translate(-${HOTSPOT_OFFSET_X}px, -${HOTSPOT_OFFSET_Y}px)`,
             }}
-            className="object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] select-none pointer-events-none"
+            className="object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.32)] select-none pointer-events-none"
             draggable={false}
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

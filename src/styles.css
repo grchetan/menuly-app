@@ -171,7 +171,7 @@ header.fixed {
   animation: cursor-ripple 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@media (pointer: fine) and (hover: hover) {
+@media (pointer: fine) and (hover: hover) and (min-width: 1025px) {
   html.has-custom-cursor,
   html.has-custom-cursor body,
   html.has-custom-cursor a,
@@ -182,6 +182,16 @@ header.fixed {
   html.has-custom-cursor label {
     cursor: none !important;
   }
+}
+
+/* Ensure Menuly Custom Cursor always floats on top of all modals, sheets, and toast notifications */
+.menuly-custom-cursor-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  user-select: none !important;
 }
 
 /* =========================================================
@@ -198,6 +208,7 @@ header.fixed {
   --normal-bg: #FEF9C3;
   --normal-border: #FCD34D;
   --normal-text: #451A03;
+  z-index: 9999999 !important;
 }
 
 /* Base Toast Card */
