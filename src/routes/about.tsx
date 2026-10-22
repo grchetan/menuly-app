@@ -292,11 +292,11 @@ function About() {
 
         <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 items-stretch">
           {/* 1. Traditional Printed Menu Card */}
-          <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-rose-200/80 bg-gradient-to-b from-rose-50/70 via-card to-rose-50/30 p-6 sm:p-8 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-rose-300 motion-reduce:transform-none dark:border-rose-950/50 dark:from-rose-950/20 dark:via-card dark:to-rose-950/10">
+          <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-rose-200/80 bg-gradient-to-b from-rose-50/70 via-card to-rose-50/30 p-5 sm:p-7 lg:p-8 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-rose-300 motion-reduce:transform-none dark:border-rose-950/50 dark:from-rose-950/20 dark:via-card dark:to-rose-950/10">
             <div>
-              {/* Illustration Top Area (180-220px, object-contain, suitable padding) */}
-              <div className="relative mb-6 flex h-48 sm:h-52 md:h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-rose-200/60 bg-gradient-to-b from-rose-100/60 to-rose-50/40 p-3 sm:p-4 dark:border-rose-900/40 dark:from-rose-950/40 dark:to-rose-950/20">
-                <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 border border-rose-500/20">
+              {/* Illustration Top Area (240–300px height on desktop, filling 90–100% width, object-contain) */}
+              <div className="relative mb-6 flex h-60 sm:h-68 md:h-72 lg:h-[290px] w-full items-center justify-center overflow-hidden rounded-2xl border border-rose-200/60 bg-gradient-to-b from-rose-100/50 via-rose-50/30 to-transparent p-1.5 sm:p-2 dark:border-rose-900/40 dark:from-rose-950/40 dark:to-rose-950/20">
+                <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 border border-rose-500/25 shadow-xs backdrop-blur-xs">
                   Outdated Model
                 </div>
                 <img
@@ -357,7 +357,7 @@ function About() {
           </div>
 
           {/* 2. Menuly Digital Menu Card */}
-          <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-primary/45 bg-gradient-to-b from-primary/[0.04] via-card to-primary/[0.02] p-6 sm:p-8 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift hover:border-primary/70 motion-reduce:transform-none">
+          <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-primary/45 bg-gradient-to-b from-primary/[0.04] via-card to-primary/[0.02] p-5 sm:p-7 lg:p-8 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift hover:border-primary/70 motion-reduce:transform-none">
             {/* Small MODERN SOLUTION badge */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-10 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-xs">
               <Sparkles className="size-3 text-accent fill-accent" />
@@ -365,8 +365,8 @@ function About() {
             </div>
 
             <div>
-              {/* Illustration Top Area (180-220px, object-contain, suitable padding) */}
-              <div className="relative mb-6 flex h-48 sm:h-52 md:h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent p-3 sm:p-4">
+              {/* Illustration Top Area (240–300px height on desktop, filling 90–100% width, object-contain) */}
+              <div className="relative mb-6 flex h-60 sm:h-68 md:h-72 lg:h-[290px] w-full items-center justify-center overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent p-1.5 sm:p-2">
                 <img
                   src={digitalMenuImg}
                   alt="Happy chef showcasing live digital QR menu on smartphone with real-time updates"
