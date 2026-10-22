@@ -476,12 +476,15 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
-    // 8. PUBLIC OR AUTHENTICATED SUPPORT TICKET SUBMISSION
+    // 8. PUBLIC CONTACT & SUPPORT TICKET SUBMISSION
     // --------------------------------------------------------------------------
-    if (pathname === "/api/support/ticket" && request.method === "POST") {
+    if ((pathname === "/api/support/ticket" || pathname === "/api/contact/submit") && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
-      if (!body.subject?.trim() || !body.description?.trim()) {
-        return json({ error: "Subject and description are required" }, 400);
+      const messageContent = (body.description || body.message || "").trim();
+      const subjectContent = (body.subject || body.category || "General Support Inquiry").trim();
+
+      if (!messageContent) {
+        return json({ error: "Message content is required" }, 400);
       }
 
       const token = extractBearerToken(request);
@@ -497,23 +500,109 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       }
 
       const ticketId = `TKT-${Math.floor(1000 + Math.random() * 9000)}`;
+      const combinedDescription = body.additionalInfo?.trim()
+        ? `${messageContent}\n\n[Additional Context]\n${body.additionalInfo.trim()}`
+        : messageContent;
+
       const ticket = await prisma.supportTicket.create({
         data: {
           id: ticketId,
           userId,
           restaurantId,
-          restaurantName: body.restaurantName?.trim() || "Menuly Dining Partner",
-          ownerEmail: body.ownerEmail?.trim() || "menulyofficial@gmail.com",
-          ownerPhone: body.ownerPhone?.trim() || null,
-          category: body.category || "QR Code",
-          subject: body.subject.trim(),
-          description: body.description.trim(),
+          restaurantName: body.restaurantName?.trim() || body.restaurant?.trim() || "Menuly Guest / Partner",
+          ownerEmail: body.ownerEmail?.trim() || body.email?.trim() || "menulyofficial@gmail.com",
+          ownerPhone: body.ownerPhone?.trim() || body.phone?.trim() || null,
+          category: body.category || "General Support",
+          subject: subjectContent,
+          description: combinedDescription,
           priority: body.priority || "medium",
           status: "open",
         },
       });
 
-      return json({ success: true, ticket });
+      return json({
+        success: true,
+        ticketId: ticket.id,
+        ticket,
+        message: "Your message has been received! Our support team will get back to you shortly.",
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 8.1 PUBLIC CUSTOMER FEEDBACK SUBMISSION
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/feedback/submit" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      const message = (body.message || body.feedback || "").trim();
+      const rating = Math.min(5, Math.max(1, Number(body.rating) || 5));
+
+      if (!message && !body.rating) {
+        return json({ error: "Please provide a rating or feedback message" }, 400);
+      }
+
+      const feedbackId = `FB-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+      const feedbackItem = {
+        id: feedbackId,
+        name: body.name?.trim() || "Verified Diner / Partner",
+        email: body.email?.trim() || null,
+        phone: body.phone?.trim() || null,
+        restaurantName: body.restaurantName?.trim() || body.restaurant?.trim() || "Menuly Hospitality",
+        rating,
+        category: body.category || "Overall Experience",
+        message: message || "No written remarks provided.",
+        recommend: body.recommend !== false,
+        createdAt: new Date().toISOString(),
+      };
+
+      // 1. Store in PlatformSetting under key "menuly_feedbacks"
+      let existingFeedbacks: any[] = [];
+      try {
+        const setting = await prisma.platformSetting.findUnique({
+          where: { key: "menuly_feedbacks" },
+        });
+        if (setting && Array.isArray(setting.value)) {
+          existingFeedbacks = setting.value;
+        }
+      } catch (err) {
+        console.error("Error loading feedbacks from platformSetting:", err);
+      }
+
+      const updatedFeedbacks = [feedbackItem, ...existingFeedbacks];
+      await prisma.platformSetting.upsert({
+        where: { key: "menuly_feedbacks" },
+        create: {
+          key: "menuly_feedbacks",
+          value: updatedFeedbacks,
+        },
+        update: {
+          value: updatedFeedbacks,
+        },
+      });
+
+      // 2. Also register a record in support tickets so it shows in support metrics
+      try {
+        await prisma.supportTicket.create({
+          data: {
+            id: `TKT-${feedbackId.slice(-6)}`,
+            restaurantName: feedbackItem.restaurantName,
+            ownerEmail: feedbackItem.email || "feedback@menuly.app",
+            ownerPhone: feedbackItem.phone,
+            category: "Customer Feedback",
+            subject: `[${rating}★ Feedback] ${feedbackItem.category}`,
+            description: `Rating: ${rating}/5 Stars\nWould Recommend: ${feedbackItem.recommend ? "Yes" : "No"}\n\nFeedback:\n${feedbackItem.message}`,
+            priority: rating <= 2 ? "high" : "low",
+            status: "resolved",
+          },
+        });
+      } catch (err) {
+        console.error("Error creating feedback support ticket mirror:", err);
+      }
+
+      return json({
+        success: true,
+        feedbackId,
+        message: "Thank you for sharing your feedback! We truly appreciate your support.",
+      });
     }
 
     // --------------------------------------------------------------------------
@@ -696,6 +785,63 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           },
         });
         return json({ success: true, ticket: updated });
+      }
+
+      // GET /api/admin/feedbacks
+      if (pathname === "/api/admin/feedbacks" && request.method === "GET") {
+        let feedbacks: any[] = [];
+        try {
+          const setting = await prisma.platformSetting.findUnique({
+            where: { key: "menuly_feedbacks" },
+          });
+          if (setting && Array.isArray(setting.value)) {
+            feedbacks = setting.value;
+          }
+        } catch (err) {
+          console.error("Error fetching feedbacks:", err);
+        }
+
+        // Calculate analytics
+        const total = feedbacks.length;
+        const sumRatings = feedbacks.reduce((acc, f) => acc + (Number(f.rating) || 5), 0);
+        const avgRating = total > 0 ? (sumRatings / total).toFixed(1) : "5.0";
+        const recommendCount = feedbacks.filter((f) => f.recommend !== false).length;
+        const recommendPercent = total > 0 ? Math.round((recommendCount / total) * 100) : 100;
+
+        return json({
+          success: true,
+          feedbacks,
+          stats: {
+            total,
+            avgRating,
+            recommendPercent,
+            distribution: {
+              5: feedbacks.filter((f) => Number(f.rating) === 5).length,
+              4: feedbacks.filter((f) => Number(f.rating) === 4).length,
+              3: feedbacks.filter((f) => Number(f.rating) === 3).length,
+              2: feedbacks.filter((f) => Number(f.rating) === 2).length,
+              1: feedbacks.filter((f) => Number(f.rating) === 1).length,
+            },
+          },
+        });
+      }
+
+      // POST /api/admin/feedback/delete
+      if (pathname === "/api/admin/feedback/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.id) return json({ error: "Feedback ID required" }, 400);
+
+        const setting = await prisma.platformSetting.findUnique({
+          where: { key: "menuly_feedbacks" },
+        });
+        if (setting && Array.isArray(setting.value)) {
+          const filtered = setting.value.filter((f: any) => f.id !== body.id);
+          await prisma.platformSetting.update({
+            where: { key: "menuly_feedbacks" },
+            data: { value: filtered },
+          });
+        }
+        return json({ success: true, message: "Feedback deleted successfully" });
       }
 
       // POST /api/admin/restaurant/toggle-status

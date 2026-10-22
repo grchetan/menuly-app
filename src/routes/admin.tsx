@@ -49,6 +49,10 @@ import {
   RotateCw,
   Megaphone,
   Radio,
+  Star,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquareText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,6 +143,31 @@ export type SupportTicket = {
   status: "open" | "in_progress" | "resolved";
   createdAt: string;
   adminNote?: string;
+};
+
+export type CustomerFeedbackItem = {
+  id: string;
+  name: string;
+  email: string;
+  restaurantName?: string;
+  rating: number;
+  category: string;
+  message: string;
+  wouldRecommend: boolean;
+  createdAt: string;
+};
+
+export type FeedbackStats = {
+  total: number;
+  averageRating: number;
+  recommendPercent: number;
+  stars?: {
+    5?: number;
+    4?: number;
+    3?: number;
+    2?: number;
+    1?: number;
+  };
 };
 
 const DEFAULT_USERS: AdminUser[] = [];
@@ -266,15 +295,19 @@ function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "analytics" | "settings">("restaurants");
+  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "settings">("restaurants");
   const [restaurants, setRestaurants] = useState<AdminRestaurant[]>([]);
   const [plans, setPlans] = useState<AdminPlan[]>(DEFAULT_ADMIN_PLANS);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [feedbacks, setFeedbacks] = useState<CustomerFeedbackItem[]>([]);
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [ticketFilter, setTicketFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
+  const [feedbackRatingFilter, setFeedbackRatingFilter] = useState<"all" | "5" | "4" | "3" | "1-2">("all");
+  const [feedbackTopicFilter, setFeedbackTopicFilter] = useState<string>("all");
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "owner" | "super_admin">("all");
 
   // Load live platform settings from PostgreSQL
@@ -409,8 +442,13 @@ function AdminPage() {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => res.json()),
       fetch("/api/platform/settings").then((res) => res.json()),
+      fetch("/api/admin/feedbacks", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
     ])
-      .then(([userData, restData, ticketData, settingsData]) => {
+      .then(([userData, restData, ticketData, settingsData, feedbackData]) => {
         if (settingsData?.success && settingsData.settings) {
           setSettings(settingsData.settings);
         }
@@ -443,6 +481,13 @@ function AdminPage() {
 
         if (ticketData?.success && ticketData.tickets) {
           setTickets(ticketData.tickets);
+        }
+
+        if (feedbackData?.success && Array.isArray(feedbackData.feedbacks)) {
+          setFeedbacks(feedbackData.feedbacks);
+          if (feedbackData.stats) {
+            setFeedbackStats(feedbackData.stats);
+          }
         }
       })
       .catch((err) => {
@@ -619,6 +664,32 @@ function AdminPage() {
     setNewSubject("");
     setNewPhone("");
     setNewDescription("");
+  };
+
+  const handleDeleteFeedback = async (id: string) => {
+    if (typeof window !== "undefined" && !window.confirm("Are you sure you want to permanently delete this customer feedback?")) {
+      return;
+    }
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    try {
+      const res = await fetch("/api/admin/feedback/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Feedback deleted successfully");
+        setFeedbacks((prev) => prev.filter((f) => f.id !== id));
+      } else {
+        toast.error(data.error || "Failed to delete feedback");
+      }
+    } catch {
+      toast.error("Network error while deleting feedback");
+    }
   };
 
   const toggleRestaurantStatus = async (id: string) => {
@@ -803,6 +874,24 @@ function AdminPage() {
       t.restaurantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
+  const filteredFeedbacks = feedbacks.filter((f) => {
+    if (feedbackRatingFilter === "5" && f.rating !== 5) return false;
+    if (feedbackRatingFilter === "4" && f.rating !== 4) return false;
+    if (feedbackRatingFilter === "3" && f.rating !== 3) return false;
+    if (feedbackRatingFilter === "1-2" && f.rating > 2) return false;
+    if (feedbackTopicFilter !== "all" && f.category !== feedbackTopicFilter) return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      f.name.toLowerCase().includes(q) ||
+      f.email.toLowerCase().includes(q) ||
+      (f.restaurantName && f.restaurantName.toLowerCase().includes(q)) ||
+      f.message.toLowerCase().includes(q) ||
+      f.category.toLowerCase().includes(q) ||
+      f.id.toLowerCase().includes(q)
     );
   });
 
@@ -1247,6 +1336,18 @@ function AdminPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab("feedbacks")}
+            className={cn(
+              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
+              activeTab === "feedbacks"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-foreground hover:bg-secondary/80"
+            )}
+          >
+            <Star className="size-4 text-amber-400 fill-amber-400" /> Customer Feedback ({feedbacks.length})
+          </button>
+
+          <button
             onClick={() => setActiveTab("analytics")}
             className={cn(
               "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
@@ -1502,6 +1603,207 @@ function AdminPage() {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: CUSTOMER FEEDBACK & REVIEWS */}
+        {activeTab === "feedbacks" && (
+          <div className="space-y-6">
+            {/* KPI Cards Header */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-2xl border bg-card p-5 shadow-soft space-y-1.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Total Feedback</span>
+                  <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <MessageSquareText className="size-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-bold font-display text-foreground">
+                  {feedbackStats?.total ?? feedbacks.length}
+                </div>
+                <p className="text-xs text-muted-foreground">User ratings and platform reviews</p>
+              </div>
+
+              <div className="rounded-2xl border bg-card p-5 shadow-soft space-y-1.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Average Rating</span>
+                  <div className="size-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                    <Star className="size-4 fill-amber-500" />
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-bold font-display text-foreground">
+                    {feedbackStats?.averageRating ??
+                      (feedbacks.length > 0
+                        ? (feedbacks.reduce((a, b) => a + b.rating, 0) / feedbacks.length).toFixed(1)
+                        : "5.0")}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">/ 5.0</span>
+                  <div className="flex items-center gap-0.5 ml-1">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        className={cn(
+                          "size-3.5",
+                          s <= Math.round(Number(feedbackStats?.averageRating || 5))
+                            ? "text-amber-400 fill-amber-400"
+                            : "text-muted-foreground/30"
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {feedbacks.filter((f) => f.rating >= 4).length} positive reviews (4-5 stars)
+                </p>
+              </div>
+
+              <div className="rounded-2xl border bg-card p-5 shadow-soft space-y-1.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Would Recommend</span>
+                  <div className="size-8 rounded-lg bg-veg/10 text-veg flex items-center justify-center">
+                    <ThumbsUp className="size-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-bold font-display text-foreground">
+                  {feedbackStats?.recommendPercent ?? 100}%
+                </div>
+                <p className="text-xs text-muted-foreground">Clients recommending Menuly to colleagues</p>
+              </div>
+            </div>
+
+            {/* Filters Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border bg-card p-3 shadow-soft">
+              <div className="relative flex-1 sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  className="pl-9 bg-background h-9 text-xs"
+                  placeholder="Search reviews, customer name, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground mr-1 hidden lg:inline">Rating:</span>
+                {(
+                  [
+                    { id: "all", label: "All" },
+                    { id: "5", label: "5 Stars" },
+                    { id: "4", label: "4 Stars" },
+                    { id: "3", label: "3 Stars" },
+                    { id: "1-2", label: "1-2 Stars" },
+                  ] as const
+                ).map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setFeedbackRatingFilter(r.id)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                      feedbackRatingFilter === r.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-foreground hover:bg-secondary/80"
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Feedbacks Grid */}
+            <div className="space-y-3">
+              {filteredFeedbacks.length === 0 ? (
+                <div className="rounded-2xl border bg-card p-12 text-center text-muted-foreground space-y-2">
+                  <div className="size-12 rounded-full bg-secondary flex items-center justify-center mx-auto text-muted-foreground">
+                    <MessageSquareText className="size-6" />
+                  </div>
+                  <h4 className="font-semibold text-foreground text-sm">No feedback matches your filter</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Customer reviews submitted via the Contact page or feedback modals will show up here.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredFeedbacks.map((f) => (
+                    <div
+                      key={f.id}
+                      className="rounded-2xl border border-border/80 bg-card p-5 shadow-soft flex flex-col justify-between space-y-3"
+                    >
+                      <div className="space-y-2.5">
+                        {/* Rating row with badges and delete */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex items-center gap-0.5 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={cn(
+                                    "size-3",
+                                    s <= f.rating
+                                      ? "text-amber-400 fill-amber-400"
+                                      : "text-muted-foreground/30"
+                                  )}
+                                />
+                              ))}
+                              <span className="text-xs font-bold text-amber-500 ml-1">
+                                {f.rating}.0
+                              </span>
+                            </div>
+
+                            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-foreground">
+                              {f.category}
+                            </span>
+
+                            {f.wouldRecommend ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-veg/10 px-2.5 py-0.5 text-[11px] font-semibold text-veg">
+                                <ThumbsUp className="size-3" /> Recommends
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                <ThumbsDown className="size-3" /> Neutral / No
+                              </span>
+                            )}
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteFeedback(f.id)}
+                            className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            title="Delete Feedback"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+
+                        {/* Customer feedback message */}
+                        <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed break-words">
+                          "{f.message}"
+                        </p>
+                      </div>
+
+                      {/* Footer: User Details and Timestamp */}
+                      <div className="border-t pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-foreground truncate">{f.name}</div>
+                          <div className="truncate text-muted-foreground text-[11px]">
+                            {f.email}
+                            {f.restaurantName ? ` • ${f.restaurantName}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 text-[11px]">
+                          <span>{f.createdAt}</span>
+                          <span className="font-mono bg-secondary px-1.5 py-0.5 rounded text-[10px]">
+                            {f.id}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
