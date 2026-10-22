@@ -319,9 +319,13 @@ function QrPage() {
     }
   };
 
-  // Clean print helper using a hidden iframe on the same origin (completely strips about:blank & browser headers)
+  // Clean print helper using an iframe sized for layout (completely strips about:blank & browser headers)
   const printCleanHtml = (htmlContent: string) => {
     if (typeof window === "undefined") return;
+
+    // Temporarily clear host document title so Chromium cannot print host title in header
+    const originalHostTitle = document.title;
+    document.title = "";
 
     const frameId = "menuly-clean-print-frame";
     const existing = document.getElementById(frameId);
@@ -329,9 +333,10 @@ function QrPage() {
 
     const iframe = document.createElement("iframe");
     iframe.id = frameId;
+    // Must have real viewport dimensions (not 1px/hidden) so Chromium evaluates @page rules properly
     iframe.setAttribute(
       "style",
-      "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;opacity:0;"
+      "position:fixed;top:0;left:0;width:100vw;height:100vh;border:none;z-index:-999999;opacity:0.001;pointer-events:none;"
     );
     document.body.appendChild(iframe);
 
@@ -346,8 +351,10 @@ function QrPage() {
         setTimeout(() => {
           w.focus();
           w.print();
+          document.title = originalHostTitle;
         }, 400);
       } else {
+        document.title = originalHostTitle;
         toast.error("Please allow pop-ups to open the print dialog");
       }
       return;
@@ -374,6 +381,10 @@ function QrPage() {
             w.print();
           }, 400);
         }
+      } finally {
+        setTimeout(() => {
+          document.title = originalHostTitle;
+        }, 3000);
       }
     }, 450);
   };
@@ -762,10 +773,12 @@ function QrPage() {
   const printTemplate = async (format: "A5" | "A4") => {
     toast.info(`Preparing clean print sheet for ${format}...`);
     const { default: QRCodeStyling } = await import("qr-code-styling");
+    const isA4 = format === "A4";
+
     const blob = (await new QRCodeStyling({
       ...options,
-      width: format === "A4" ? 1400 : 900,
-      height: format === "A4" ? 1400 : 900,
+      width: isA4 ? 1400 : 900,
+      height: isA4 ? 1400 : 900,
     }).getRawData("png")) as Blob;
 
     const dataUrl = await new Promise<string>((res) => {
@@ -777,18 +790,16 @@ function QrPage() {
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-    const isA4 = format === "A4";
-
     const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: ${format} portrait;
+      size: auto;
       margin: 0mm !important;
     }
     @page :first { margin: 0mm !important; }
@@ -824,131 +835,200 @@ function QrPage() {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: ${isA4 ? "12mm 10mm" : "8mm 6mm"};
+      padding: ${isA4 ? "12mm 10mm" : "10mm 8mm"};
       background: #ffffff;
+      box-sizing: border-box;
     }
 
     .sheet {
-      width: 100%;
-      height: 100%;
+      width: ${isA4 ? "190mm" : "138mm"};
+      height: ${isA4 ? "272mm" : "196mm"};
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
       text-align: center;
-      border: 1.5px dashed #94a3b8 !important;
-      border-radius: 6mm;
+      border: ${isA4 ? "2.5px solid #0f5132" : "2px dashed #0f5132"} !important;
+      border-radius: 8mm;
       padding: ${isA4 ? "14mm 12mm" : "9mm 8mm"};
       background: #ffffff !important;
       position: relative;
+      margin: 0 auto !important;
+    }
+
+    .header-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
 
     .top-badge {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       background: #ecfdf5 !important;
       color: #047857 !important;
-      padding: ${isA4 ? "6px 18px" : "4px 14px"};
+      padding: ${isA4 ? "6px 20px" : "4px 14px"};
       border-radius: 999px;
       font-size: ${isA4 ? "10pt" : "8pt"};
       font-weight: 800;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      border: 1px solid #a7f3d0 !important;
-      margin-bottom: ${isA4 ? "5mm" : "3mm"};
+      border: 1.5px solid #a7f3d0 !important;
+      margin: 0 auto ${isA4 ? "5mm" : "3.5mm"} auto;
     }
 
-    .logo-img {
-      width: ${isA4 ? "30mm" : "22mm"};
-      height: ${isA4 ? "30mm" : "22mm"};
-      border-radius: 6mm;
-      object-fit: cover;
-      margin-bottom: ${isA4 ? "4mm" : "3mm"};
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-
-    .logo-placeholder {
-      width: ${isA4 ? "30mm" : "22mm"};
-      height: ${isA4 ? "30mm" : "22mm"};
-      border-radius: 6mm;
-      background: ${fg} !important;
-      color: #ffffff !important;
+    .logo-container {
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: ${isA4 ? "18pt" : "13pt"};
-      margin-bottom: ${isA4 ? "4mm" : "3mm"};
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin: 0 auto ${isA4 ? "4mm" : "3mm"} auto;
     }
 
-    h1 {
+    .logo-img {
+      width: ${isA4 ? "34mm" : "26mm"};
+      height: ${isA4 ? "34mm" : "26mm"};
+      border-radius: 7mm;
+      object-fit: cover;
+      display: block !important;
+      margin: 0 auto !important;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+
+    .logo-placeholder {
+      width: ${isA4 ? "34mm" : "26mm"};
+      height: ${isA4 ? "34mm" : "26mm"};
+      border-radius: 7mm;
+      background: ${fg} !important;
+      color: #ffffff !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
       font-family: 'Fraunces', Georgia, serif;
-      font-size: ${isA4 ? "34pt" : "22pt"};
+      font-weight: 800;
+      font-size: ${isA4 ? "20pt" : "15pt"};
+      margin: 0 auto !important;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+
+    h1.rest-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: ${isA4 ? "34pt" : "23pt"};
       font-weight: 800;
       color: ${fg} !important;
       line-height: 1.15;
-      margin-bottom: 1.5mm;
+      margin: 0 0 1.5mm 0;
+      width: 100%;
+      text-align: center;
     }
 
     .prompt {
-      font-size: ${isA4 ? "11pt" : "9pt"};
-      font-weight: 700;
-      letter-spacing: 0.12em;
+      font-size: ${isA4 ? "11.5pt" : "9pt"};
+      font-weight: 800;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
       color: #64748b !important;
-      margin-bottom: ${isA4 ? "6mm" : "4mm"};
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .qr-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: ${isA4 ? "5mm 0" : "3mm 0"};
     }
 
     .qr-frame {
       display: inline-flex;
+      align-items: center;
+      justify-content: center;
       padding: ${isA4 ? "5mm" : "3.5mm"};
       background: ${bg} !important;
-      border-radius: 6mm;
-      border: 1px solid #e2e8f0 !important;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-      margin-bottom: ${isA4 ? "6mm" : "4mm"};
+      border-radius: 7mm;
+      border: 2px solid #e2e8f0 !important;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08);
+      margin: 0 auto ${isA4 ? "4mm" : "2.5mm"} auto;
     }
 
     .qr-img {
-      width: ${isA4 ? "95mm" : "68mm"};
-      height: ${isA4 ? "95mm" : "68mm"};
+      width: ${isA4 ? "105mm" : "75mm"};
+      height: ${isA4 ? "105mm" : "75mm"};
       display: block;
+      margin: 0 auto;
     }
 
     .scan-msg {
-      font-size: ${isA4 ? "15pt" : "11.5pt"};
+      font-size: ${isA4 ? "16pt" : "12pt"};
       font-weight: 800;
       color: ${fg} !important;
-      margin-bottom: 1.5mm;
+      margin: 0 auto 1.5mm auto;
+      text-align: center;
     }
 
     .subtext {
-      font-size: ${isA4 ? "9.5pt" : "7.5pt"};
+      font-size: ${isA4 ? "10pt" : "8pt"};
+      font-weight: 600;
       color: #64748b !important;
-      max-width: 92%;
+      max-width: 95%;
       line-height: 1.4;
-      margin-bottom: 2mm;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .meta-details {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5mm;
+      margin-top: 2mm;
+    }
+
+    .meta-line {
+      font-size: ${isA4 ? "9pt" : "7.5pt"};
+      font-weight: 700;
+      color: #475569 !important;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .footer-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 2.5mm;
     }
 
     .footer-url {
-      font-size: ${isA4 ? "8pt" : "6.5pt"};
+      font-size: ${isA4 ? "8.5pt" : "7pt"};
       font-family: monospace;
       color: #94a3b8 !important;
+      margin-bottom: 1.5mm;
     }
 
     .cut-guide {
-      font-size: 6.5pt;
+      font-size: 7pt;
+      font-weight: 700;
       color: #94a3b8;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 1.5mm;
+      letter-spacing: 0.08em;
     }
 
     @media print {
       @page {
-        size: ${format} portrait;
+        size: auto;
         margin: 0mm !important;
       }
       html, body {
@@ -959,11 +1039,11 @@ function QrPage() {
         background: #ffffff !important;
       }
       .page-wrap {
-        padding: ${isA4 ? "10mm 8mm" : "6mm 5mm"} !important;
+        padding: ${isA4 ? "10mm 8mm" : "8mm 6mm"} !important;
         height: 100vh !important;
       }
       .sheet {
-        border: 1.5px dashed #cbd5e1 !important;
+        box-shadow: none !important;
       }
     }
   </style>
@@ -971,32 +1051,41 @@ function QrPage() {
 <body>
   <div class="page-wrap">
     <div class="sheet">
-      <div>
+      <div class="header-box">
         <div class="top-badge">✦ Contactless Dining Menu ✦</div>
-        ${
-          r.logo_url
-            ? `<img class="logo-img" src="${esc(r.logo_url)}" alt="${esc(r.name)}" />`
-            : `<div class="logo-placeholder">${esc(r.name.slice(0, 2).toUpperCase())}</div>`
-        }
-        <h1>${esc(r.name)}</h1>
+        <div class="logo-container">
+          ${
+            r.logo_url
+              ? `<img class="logo-img" src="${esc(r.logo_url)}" alt="${esc(r.name)}" />`
+              : `<div class="logo-placeholder">${esc(r.name.slice(0, 2).toUpperCase())}</div>`
+          }
+        </div>
+        <h1 class="rest-name">${esc(r.name)}</h1>
         <div class="prompt">Scan to View Menu & Prices</div>
       </div>
 
-      <div>
+      <div class="qr-box">
         <div class="qr-frame">
           <img class="qr-img" src="${dataUrl}" alt="QR Code" />
         </div>
         <div class="scan-msg">Point your phone camera to scan</div>
         <div class="subtext">
-          No app download required • Fast & interactive mobile dining
-          ${r.hours ? `<br><span>${esc(r.hours)}</span>` : ""}
-          ${r.address ? `<br><span>${esc(r.address)}</span>` : ""}
+          No app download required • Instant mobile dining menu
         </div>
+        ${
+          r.hours || r.address
+            ? `
+        <div class="meta-details">
+          ${r.hours ? `<div class="meta-line">🕒 ${esc(r.hours)}</div>` : ""}
+          ${r.address ? `<div class="meta-line">📍 ${esc(r.address)}</div>` : ""}
+        </div>`
+            : ""
+        }
       </div>
 
-      <div>
+      <div class="footer-box">
         <div class="footer-url">${esc(url)}</div>
-        <div class="cut-guide">✂ Cut along dashed line for ${format} display stand</div>
+        <div class="cut-guide">✂ Cut along the line for ${format} display stand</div>
       </div>
     </div>
   </div>
@@ -1096,10 +1185,10 @@ function QrPage() {
   <meta charset="utf-8">
   <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: A5 portrait;
+      size: auto;
       margin: 0mm !important;
     }
     @page :first { margin: 0mm !important; }
@@ -1135,57 +1224,73 @@ function QrPage() {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 8mm 6mm;
+      padding: 10mm 8mm;
       background: #ffffff;
+      box-sizing: border-box;
     }
 
     .sheet {
-      width: 100%;
-      height: 100%;
+      width: 138mm;
+      height: 196mm;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
       text-align: center;
-      border: 1.5px dashed #0f5132 !important;
-      border-radius: 6mm;
+      border: 2px dashed #0f5132 !important;
+      border-radius: 8mm;
       padding: 9mm 8mm;
       background: #ffffff !important;
       position: relative;
+      margin: 0 auto !important;
+    }
+
+    .header-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       background: #ecfdf5 !important;
       color: #047857 !important;
-      padding: 4px 14px;
+      padding: 4px 16px;
       border-radius: 999px;
       font-size: 8pt;
       font-weight: 800;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      border: 1px solid #a7f3d0 !important;
-      margin-bottom: 2mm;
+      border: 1.5px solid #a7f3d0 !important;
+      margin: 0 auto 2.5mm auto;
     }
 
     .rest-name {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 20pt;
+      font-size: 21pt;
       font-weight: 800;
       color: ${fg} !important;
-      margin-bottom: 1mm;
+      margin: 0 auto 1mm auto;
+      text-align: center;
+      width: 100%;
     }
 
     .table-banner {
       background: #1a1f1c !important;
       color: #ffffff !important;
-      padding: 5mm 14mm;
-      border-radius: 5mm;
-      margin: 2.5mm 0;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      width: 82%;
+      padding: 4.5mm 12mm;
+      border-radius: 6mm;
+      margin: 2.5mm auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      width: 85%;
+      text-align: center;
     }
 
     .table-num {
@@ -1199,57 +1304,85 @@ function QrPage() {
 
     .table-label {
       font-size: 8.5pt;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: #cbd5e1 !important;
       margin-top: 3px;
     }
 
+    .qr-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 2mm auto;
+    }
+
     .qr-frame {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       padding: 3.5mm;
       background: ${bg} !important;
-      border-radius: 6mm;
-      border: 1px solid #e2e8f0 !important;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-      margin: 2mm 0;
+      border-radius: 7mm;
+      border: 2px solid #e2e8f0 !important;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      margin: 0 auto 2mm auto;
     }
 
     .qr-img {
-      width: 68mm;
-      height: 68mm;
+      width: 72mm;
+      height: 72mm;
       display: block;
+      margin: 0 auto;
     }
 
     .instructions {
       font-size: 11pt;
       font-weight: 800;
       color: #1a1f1c !important;
-      margin-top: 2mm;
+      margin: 0 auto 1mm auto;
+      text-align: center;
     }
 
     .subtext {
       font-size: 7.5pt;
+      font-weight: 600;
       color: #64748b !important;
-      margin-top: 1mm;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .footer-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 2mm;
     }
 
     .footer-url {
       font-size: 6.5pt;
       font-family: monospace;
       color: #94a3b8 !important;
+      margin-bottom: 1mm;
     }
 
     .cut-guide {
       font-size: 6.5pt;
+      font-weight: 700;
       color: #94a3b8;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 1.5mm;
+      letter-spacing: 0.08em;
     }
 
     @media print {
       @page {
-        size: A5 portrait;
+        size: auto;
         margin: 0mm !important;
       }
       html, body {
@@ -1260,11 +1393,11 @@ function QrPage() {
         background: #ffffff !important;
       }
       .page-wrap {
-        padding: 6mm 5mm !important;
+        padding: 8mm 6mm !important;
         height: 100vh !important;
       }
       .sheet {
-        border: 1.5px dashed #0f5132 !important;
+        box-shadow: none !important;
       }
     }
   </style>
@@ -1272,10 +1405,10 @@ function QrPage() {
 <body>
   <div class="page-wrap">
     <div class="sheet">
-      <div>
+      <div class="header-box">
         <div class="badge">✦ Contactless Dining • Scan to Order ✦</div>
         <div class="rest-name">${esc(r.name)}</div>
-        ${r.address ? `<div style="font-size:7.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
+        ${r.address ? `<div style="font-size:7.5pt;color:#64748b;margin-top:0.5mm;">📍 ${esc(r.address)}</div>` : ""}
       </div>
 
       <div class="table-banner">
@@ -1283,7 +1416,7 @@ function QrPage() {
         ${tbl.label ? `<div class="table-label">${esc(tbl.label)}</div>` : ""}
       </div>
 
-      <div>
+      <div class="qr-box">
         <div class="qr-frame">
           <img class="qr-img" src="${tableDataUrl}" alt="Table ${esc(tbl.table_number)} QR" />
         </div>
@@ -1291,7 +1424,7 @@ function QrPage() {
         <div class="subtext">No app download needed • Instant mobile view</div>
       </div>
 
-      <div>
+      <div class="footer-box">
         <div class="footer-url">${esc(tableUrl)}</div>
         <div class="cut-guide">✂ Cut along dashed line for A5 table tent or acrylic stand</div>
       </div>
@@ -1332,10 +1465,10 @@ function QrPage() {
         return `
         <div class="page-wrap page-break">
           <div class="sheet">
-            <div>
+            <div class="header-box">
               <div class="badge">✦ Contactless Dining • Scan to Order ✦</div>
               <div class="rest-name">${esc(r.name)}</div>
-              ${r.address ? `<div style="font-size:7.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
+              ${r.address ? `<div style="font-size:7.5pt;color:#64748b;margin-top:0.5mm;">📍 ${esc(r.address)}</div>` : ""}
             </div>
 
             <div class="table-banner">
@@ -1343,7 +1476,7 @@ function QrPage() {
               ${tbl.label ? `<div class="table-label">${esc(tbl.label)}</div>` : ""}
             </div>
 
-            <div>
+            <div class="qr-box">
               <div class="qr-frame">
                 <img class="qr-img" src="${dataUrl}" alt="Table ${esc(tbl.table_number)}" />
               </div>
@@ -1351,7 +1484,7 @@ function QrPage() {
               <div class="subtext">No app download needed • Instant mobile view</div>
             </div>
 
-            <div>
+            <div class="footer-box">
               <div class="footer-url">${esc(tableUrl)}</div>
               <div class="cut-guide">✂ Cut along dashed line for A5 table tent or acrylic stand</div>
             </div>
@@ -1367,10 +1500,10 @@ function QrPage() {
   <meta charset="utf-8">
   <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: A5 portrait;
+      size: auto;
       margin: 0mm !important;
     }
     @page :first { margin: 0mm !important; }
@@ -1403,8 +1536,9 @@ function QrPage() {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 8mm 6mm;
+      padding: 10mm 8mm;
       background: #ffffff;
+      box-sizing: border-box;
     }
 
     .page-break {
@@ -1418,52 +1552,67 @@ function QrPage() {
     }
 
     .sheet {
-      width: 100%;
-      height: 100%;
+      width: 138mm;
+      height: 196mm;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
       text-align: center;
-      border: 1.5px dashed #0f5132 !important;
-      border-radius: 6mm;
+      border: 2px dashed #0f5132 !important;
+      border-radius: 8mm;
       padding: 9mm 8mm;
       background: #ffffff !important;
       position: relative;
+      margin: 0 auto !important;
+    }
+
+    .header-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       background: #ecfdf5 !important;
       color: #047857 !important;
-      padding: 4px 14px;
+      padding: 4px 16px;
       border-radius: 999px;
       font-size: 8pt;
       font-weight: 800;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      border: 1px solid #a7f3d0 !important;
-      margin-bottom: 2mm;
+      border: 1.5px solid #a7f3d0 !important;
+      margin: 0 auto 2.5mm auto;
     }
 
     .rest-name {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 20pt;
+      font-size: 21pt;
       font-weight: 800;
       color: ${fg} !important;
-      margin-bottom: 1mm;
+      margin: 0 auto 1mm auto;
+      text-align: center;
+      width: 100%;
     }
 
     .table-banner {
       background: #1a1f1c !important;
       color: #ffffff !important;
-      padding: 5mm 14mm;
-      border-radius: 5mm;
-      margin: 2.5mm 0;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      width: 82%;
+      padding: 4.5mm 12mm;
+      border-radius: 6mm;
+      margin: 2.5mm auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      width: 85%;
+      text-align: center;
     }
 
     .table-num {
@@ -1477,57 +1626,85 @@ function QrPage() {
 
     .table-label {
       font-size: 8.5pt;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: #cbd5e1 !important;
       margin-top: 3px;
     }
 
+    .qr-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 2mm auto;
+    }
+
     .qr-frame {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       padding: 3.5mm;
       background: ${bg} !important;
-      border-radius: 6mm;
-      border: 1px solid #e2e8f0 !important;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-      margin: 2mm 0;
+      border-radius: 7mm;
+      border: 2px solid #e2e8f0 !important;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      margin: 0 auto 2mm auto;
     }
 
     .qr-img {
-      width: 68mm;
-      height: 68mm;
+      width: 72mm;
+      height: 72mm;
       display: block;
+      margin: 0 auto;
     }
 
     .instructions {
       font-size: 11pt;
       font-weight: 800;
       color: #1a1f1c !important;
-      margin-top: 2mm;
+      margin: 0 auto 1mm auto;
+      text-align: center;
     }
 
     .subtext {
       font-size: 7.5pt;
+      font-weight: 600;
       color: #64748b !important;
-      margin-top: 1mm;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .footer-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 2mm;
     }
 
     .footer-url {
       font-size: 6.5pt;
       font-family: monospace;
       color: #94a3b8 !important;
+      margin-bottom: 1mm;
     }
 
     .cut-guide {
       font-size: 6.5pt;
+      font-weight: 700;
       color: #94a3b8;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 1.5mm;
+      letter-spacing: 0.08em;
     }
 
     @media print {
       @page {
-        size: A5 portrait;
+        size: auto;
         margin: 0mm !important;
       }
       html, body {
@@ -1538,11 +1715,11 @@ function QrPage() {
         background: #ffffff !important;
       }
       .page-wrap {
-        padding: 6mm 5mm !important;
+        padding: 8mm 6mm !important;
         height: 100vh !important;
       }
       .sheet {
-        border: 1.5px dashed #0f5132 !important;
+        box-shadow: none !important;
       }
     }
   </style>
@@ -2046,13 +2223,18 @@ function QrPage() {
                   </Button>
                 </div>
 
-                <div className="rounded-xl bg-muted/60 border border-border/80 px-3.5 py-2.5 text-left text-xs text-muted-foreground flex items-start gap-2.5">
-                  <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
-                  <div className="space-y-0.5 leading-relaxed">
-                    <p className="font-semibold text-foreground">Clean Print Engine Active</p>
-                    <p className="text-[11px]">
-                      Browser headers (time, URL, page numbers) are automatically stripped. For vibrant output, keep <strong>Background graphics</strong> enabled in your print dialog.
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-left text-xs text-muted-foreground flex items-start gap-2.5">
+                  <Sparkles className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1 leading-relaxed">
+                    <p className="font-semibold text-foreground">Print Quality Guide (Clean & Centered)</p>
+                    <p className="text-[11px] text-foreground/80 leading-normal">
+                      Print preview dialog me <strong>More settings</strong> open karein:
                     </p>
+                    <div className="text-[11px] space-y-0.5 text-foreground/75 pl-1">
+                      <div>• <strong>Headers and footers</strong>: <span className="font-semibold text-destructive">UNCHECK / OFF</span> (browser date, URL aur page number remove karne ke liye)</div>
+                      <div>• <strong>Background graphics</strong>: <span className="font-semibold text-veg">CHECK / ON</span> (rich logo & badge colors ke liye)</div>
+                      <div>• Ya direct <strong>Download HD Sheet</strong> button use karein — 100% clean 300 DPI PNG download hogi!</div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -195,6 +195,36 @@ header.fixed {
 }
 
 /* =========================================================
+   ZERO-MARGIN BROWSER PRINT CONFIGURATION
+   Forces browser print engine to zero margins so that Chrome/Edge
+   automatically suppress timestamps, URLs, page titles, and page numbers.
+   ========================================================= */
+@media print {
+  @page {
+    size: auto;
+    margin: 0mm !important;
+  }
+  @page :first { margin: 0mm !important; }
+  @page :left { margin: 0mm !important; }
+  @page :right { margin: 0mm !important; }
+
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* =========================================================
    CUSTOM BESPOKE TOAST NOTIFICATION (WARM ARTISAN PALETTE)
    - Bottom-right anchored
    - Crisp modern angular corners (NOT circular / pill)
