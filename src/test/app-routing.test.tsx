@@ -11,7 +11,12 @@ describe("App routing", () => {
     const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
 
     const matches = router.matchRoutes("/");
-
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
+
+    expect(router.matchRoutes("/privacy").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/terms").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/refund").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/shipping").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/cookies").at(-1)?.routeId).not.toBe(rootRouteId);
   });
 });

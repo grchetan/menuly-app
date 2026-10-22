@@ -319,7 +319,7 @@ export function SiteFooter() {
       <div className="pointer-events-none absolute -right-10 -top-10 size-64 rotate-12 opacity-15 animate-float">
         <AnimatedQR />
       </div>
-      <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-[1.4fr_1fr_1fr_auto]">
+      <div className="relative mx-auto grid max-w-6xl gap-8 px-5 py-14 sm:grid-cols-2 md:grid-cols-[1.3fr_0.9fr_1fr_0.9fr_auto]">
         <div>
           <span className="inline-flex items-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2"><Logo /></span>
           <p className="mt-4 max-w-xs text-sm opacity-80">Digital QR menus for restaurants, cafes and food stalls. Update anytime — no reprinting.</p>
@@ -332,16 +332,40 @@ export function SiteFooter() {
           </ul>
         </div>
         <div>
+          <p className="text-xs font-bold uppercase tracking-wider opacity-60">Legal & Trust</p>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li><Link to="/privacy" className="opacity-85 hover:opacity-100 hover:underline">Privacy Policy</Link></li>
+            <li><Link to="/terms" className="opacity-85 hover:opacity-100 hover:underline">Terms of Service</Link></li>
+            <li><Link to="/refund" className="opacity-85 hover:opacity-100 hover:underline">Refund Policy</Link></li>
+            <li><Link to="/shipping" className="opacity-85 hover:opacity-100 hover:underline">Shipping Policy</Link></li>
+            <li><Link to="/cookies" className="opacity-85 hover:opacity-100 hover:underline">Cookie Policy</Link></li>
+          </ul>
+        </div>
+        <div>
           <p className="text-xs font-bold uppercase tracking-wider opacity-60">Support</p>
           <ul className="mt-3 space-y-2 text-sm">
             <li><a href={whatsappLink(SUPPORT_WHATSAPP)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 opacity-85 hover:underline"><MessageCircle className="size-4" /> WhatsApp</a></li>
             <li><a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-2 opacity-85 hover:underline"><Mail className="size-4" /> {SUPPORT_EMAIL}</a></li>
+            <li><Link to="/contact" className="opacity-85 hover:opacity-100 hover:underline">Contact Desk</Link></li>
           </ul>
         </div>
-        <div className="w-28 animate-float"><AnimatedQR /></div>
+        <div className="w-28 animate-float hidden md:block"><AnimatedQR /></div>
       </div>
-      <div className="relative border-t border-primary-foreground/15 py-5 text-center text-xs opacity-70">
-        <span>© {new Date().getFullYear()} {APP_NAME}. Digital QR menus crafted for restaurants, cafes & food businesses.</span>
+      <div className="relative border-t border-primary-foreground/15 py-5 px-5 text-xs opacity-75">
+        <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <span>© {new Date().getFullYear()} {APP_NAME}. Digital QR menus crafted for restaurants, cafes & food businesses.</span>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-[11px]">
+            <Link to="/privacy" className="hover:underline">Privacy</Link>
+            <span>•</span>
+            <Link to="/terms" className="hover:underline">Terms</Link>
+            <span>•</span>
+            <Link to="/refund" className="hover:underline">Refunds</Link>
+            <span>•</span>
+            <Link to="/shipping" className="hover:underline">Shipping</Link>
+            <span>•</span>
+            <Link to="/cookies" className="hover:underline">Cookies</Link>
+          </div>
+        </div>
       </div>
     </footer>
   );
