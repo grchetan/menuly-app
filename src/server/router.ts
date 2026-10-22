@@ -265,6 +265,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         restaurantName: body.restaurantName,
         phone: body.phone,
         whatsapp: body.whatsapp,
+        logoUrl: body.logoUrl,
       });
       return json(res, res.status);
     }

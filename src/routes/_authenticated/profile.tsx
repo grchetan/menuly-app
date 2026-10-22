@@ -22,12 +22,15 @@ import {
   LayoutDashboard,
   UtensilsCrossed,
   Clock,
+  Upload,
+  Save,
+  Image as ImageIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { myMenuQuery, setDemoMode } from "@/lib/restaurant";
+import { myMenuQuery, setDemoMode, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +66,8 @@ function ProfilePage() {
   const [restaurantName, setRestaurantName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [logo, setLogo] = useState<string | null>(null);
+  const [logoSummary, setLogoSummary] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Form states: Password
@@ -95,8 +100,23 @@ function ProfilePage() {
     if (restaurant) {
       if (restaurant.name) setRestaurantName(restaurant.name);
       if (restaurant.phone) setPhone(restaurant.phone);
+      if (restaurant.logo_url) setLogo(restaurant.logo_url);
     }
   }, [restaurant]);
+
+  // Handle Logo Upload in Profile
+  async function onLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const res = await uploadImage(f, "logo");
+      setLogo(res.url);
+      setLogoSummary(res.summary);
+      toast.success(`Restaurant logo compressed & updated! (${res.summary})`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
 
   // Handle Profile Update
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -109,34 +129,44 @@ function ProfilePage() {
     setSavingProfile(true);
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
-      const res = await fetch("/api/auth/profile/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          fullName,
-          email,
-          restaurantName,
-          phone,
-        }),
+      if (token) {
+        const res = await fetch("/api/auth/profile/update", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fullName,
+            email,
+            restaurantName,
+            phone,
+            logoUrl: logo,
+          }),
+        });
+
+        const resData = await res.json();
+        if (!res.ok || !resData.success) {
+          throw new Error(resData.error || "Failed to update profile.");
+        }
+
+        // Update local storage with new token and user
+        if (resData.data?.token && typeof window !== "undefined") {
+          localStorage.setItem("menuly_token", resData.data.token);
+          localStorage.setItem("menuly_user", JSON.stringify(resData.data.user));
+          document.cookie = `menuly_token=${encodeURIComponent(resData.data.token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+          setCurrentUser(resData.data.user);
+        }
+      }
+
+      // Always sync linked restaurant details (including logo)
+      await updateRestaurantHelper({
+        name: restaurantName,
+        phone,
+        logoUrl: logo,
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Failed to update profile.");
-      }
-
-      // Update local storage with new token and user
-      if (resData.data?.token && typeof window !== "undefined") {
-        localStorage.setItem("menuly_token", resData.data.token);
-        localStorage.setItem("menuly_user", JSON.stringify(resData.data.user));
-        document.cookie = `menuly_token=${encodeURIComponent(resData.data.token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-        setCurrentUser(resData.data.user);
-      }
-
-      toast.success("Profile and restaurant details updated successfully!");
+      toast.success("Profile, restaurant details & logo saved successfully!");
       qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -392,11 +422,69 @@ function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="pt-2">
+                {/* Restaurant Brand Logo Upload */}
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <Label className="text-xs font-bold text-foreground flex items-center justify-between">
+                    <span>Restaurant Logo & Monogram</span>
+                    <span className="text-[10px] font-normal text-muted-foreground">Appears in QR Code, Menus & Posters</span>
+                  </Label>
+                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="relative shrink-0 mx-auto sm:mx-0">
+                      {logo ? (
+                        <img
+                          src={logo}
+                          alt="Restaurant Logo"
+                          className="size-16 rounded-xl object-cover border border-border/80 shadow-xs"
+                        />
+                      ) : (
+                        <div className="size-16 rounded-xl bg-primary/10 border border-primary/20 flex flex-col items-center justify-center text-primary font-bold text-lg">
+                          <ImageIcon className="size-6 text-primary/70 mb-0.5" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-1.5 text-center sm:text-left">
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                        <label className="cursor-pointer">
+                          <input type="file" accept="image/*" className="hidden" onChange={onLogo} />
+                          <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3.5 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
+                            <Upload className="size-3.5 text-primary" /> {logo ? "Change Logo" : "Upload Logo"}
+                          </span>
+                        </label>
+                        {logo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLogo(null);
+                              setLogoSummary(null);
+                            }}
+                            className="text-xs text-destructive hover:underline px-2 py-1 font-medium cursor-pointer"
+                          >
+                            Remove Logo
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-[11px] text-muted-foreground">
+                        <span>Auto-compressed with WebP for ultra-fast QR scan</span>
+                        {logoSummary && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-veg/10 px-2 py-0.5 font-bold text-veg">
+                            ✓ {logoSummary}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Save Action Bar */}
+                <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground text-center sm:text-left">
+                    Updates will sync across your live digital menu and QR templates.
+                  </p>
                   <Button
                     type="submit"
                     disabled={savingProfile}
-                    className="gap-2 rounded-xl h-11 px-6 font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
+                    className="w-full sm:w-auto gap-2 rounded-xl h-11 px-6 font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
                   >
                     {savingProfile ? (
                       <>
@@ -404,7 +492,7 @@ function ProfilePage() {
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="size-4" /> Save Profile Details
+                        <Save className="size-4" /> Save Profile Details
                       </>
                     )}
                   </Button>

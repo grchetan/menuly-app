@@ -243,6 +243,48 @@ export async function loadMyMenu(): Promise<FullMenu> {
   };
 }
 
+export async function updateRestaurantHelper(updates: {
+  name?: string;
+  slug?: string;
+  address?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  hours?: string | null;
+  logoUrl?: string | null;
+  qrFg?: string;
+  qrBg?: string;
+  qrCorner?: string;
+}): Promise<void> {
+  if (isDemoMode() && typeof window !== "undefined" && !localStorage.getItem("menuly_token")) {
+    const cur = getLocalDemoMenu();
+    cur.restaurant = {
+      ...cur.restaurant,
+      ...(updates.name ? { name: updates.name } : {}),
+      ...(updates.slug ? { slug: updates.slug } : {}),
+      ...(updates.address !== undefined ? { address: updates.address } : {}),
+      ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
+      ...(updates.whatsapp !== undefined ? { whatsapp: updates.whatsapp } : {}),
+      ...(updates.hours !== undefined ? { hours: updates.hours } : {}),
+      ...(updates.logoUrl !== undefined ? { logo_url: updates.logoUrl } : {}),
+      ...(updates.qrFg ? { qr_fg: updates.qrFg } : {}),
+      ...(updates.qrBg ? { qr_bg: updates.qrBg } : {}),
+      ...(updates.qrCorner ? { qr_corner: updates.qrCorner } : {}),
+    };
+    saveLocalDemoMenu(cur);
+    return;
+  }
+
+  const res = await fetch("/api/restaurant/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
+    body: JSON.stringify(updates),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || "Failed to update restaurant profile");
+  }
+}
+
 export const myMenuQuery = queryOptions({ queryKey: ["my-menu"], queryFn: loadMyMenu });
 
 export interface UploadImageResult {

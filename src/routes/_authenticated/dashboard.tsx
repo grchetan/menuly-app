@@ -20,12 +20,13 @@ import {
   ArrowRight,
   ShieldCheck,
   Users,
+  Save,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { myMenuQuery, uploadImage } from "@/lib/restaurant";
+import { myMenuQuery, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
 import { slugify } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
@@ -152,14 +153,8 @@ function Dashboard() {
       return;
     }
     setSaving(true);
-    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
-    const res = await fetch("/api/restaurant/update", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
+    try {
+      await updateRestaurantHelper({
         name: form.name.trim(),
         slug,
         address: form.address || null,
@@ -167,17 +162,15 @@ function Dashboard() {
         whatsapp: form.whatsapp || null,
         hours: form.hours || null,
         logoUrl: logo,
-      }),
-    });
-    const resData = await res.json();
-    if (!res.ok || !resData.success) {
+      });
+      toast.success("Restaurant details updated successfully");
+      qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
       setSaving(false);
-      toast.error(resData.error || "Failed to update restaurant profile");
-      return;
     }
-    setSaving(false);
-    toast.success("Restaurant details updated successfully");
-    qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
   }
 
   // Completeness Metrics
@@ -467,6 +460,21 @@ function Dashboard() {
                     className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-card/60 focus:bg-card focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
+              </div>
+
+              {/* Bottom Save Action Bar */}
+              <div className="pt-4 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground text-center sm:text-left">
+                  Make sure to save changes after updating details or your restaurant logo.
+                </p>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full sm:w-auto font-bold text-xs sm:text-sm h-11 px-6 rounded-xl shadow-soft gap-2 cursor-pointer"
+                >
+                  <Save className="size-4" />
+                  {saving ? "Saving Changes..." : "Save Changes"}
+                </Button>
               </div>
             </form>
           </div>

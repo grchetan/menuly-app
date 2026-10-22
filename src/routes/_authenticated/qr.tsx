@@ -22,6 +22,8 @@ import {
   Smartphone,
   Eye,
   FileText,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import type QRCodeStylingType from "qr-code-styling";
 import type { Options } from "qr-code-styling";
@@ -31,7 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { myMenuQuery } from "@/lib/restaurant";
+import { myMenuQuery, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
 import { slugify } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import {
@@ -251,7 +253,7 @@ function QrPage() {
       type: "canvas",
       data: url || "https://menuly.app",
       margin: 8,
-      ...(showLogo && r?.logo_url && !r?.id?.startsWith("demo-") ? { image: r.logo_url } : {}),
+      ...(showLogo && r?.logo_url ? { image: r.logo_url } : {}),
       qrOptions: { errorCorrectionLevel: "H" },
       imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.3, hideBackgroundDots: true },
       dotsOptions: { color: fg, type: corners[corner].dots },
@@ -347,22 +349,40 @@ function QrPage() {
 
   const saveStyle = async () => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
-      const res = await fetch("/api/restaurant/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ qrFg: fg, qrBg: bg, qrCorner: corner }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to save QR style");
+      await updateRestaurantHelper({ qrFg: fg, qrBg: bg, qrCorner: corner });
       toast.success("QR customization saved successfully");
       qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(msg);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      toast.info("Uploading & compressing restaurant logo...");
+      const res = await uploadImage(f, "logo");
+      await updateRestaurantHelper({ logoUrl: res.url });
+      setShowLogo(true);
+      qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+      toast.success("Restaurant logo embedded into QR Code!");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to upload logo: " + msg);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    try {
+      await updateRestaurantHelper({ logoUrl: null });
+      setShowLogo(false);
+      qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+      toast.success("Restaurant logo removed from QR code");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to remove logo: " + msg);
     }
   };
 
@@ -2351,33 +2371,74 @@ function QrPage() {
               </div>
             </div>
 
-            {/* Center Logo Toggle */}
-            <div className="mt-6 flex items-center justify-between rounded-xl border border-border/80 bg-muted/40 p-4">
-              <div>
-                <p className="text-xs font-bold">Restaurant Logo in Centre</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {r.logo_url
-                    ? "Using your uploaded restaurant logo with high error-correction."
-                    : "No logo uploaded yet. Upload a logo in Dashboard to display it."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLogo(!showLogo)}
-                disabled={!r.logo_url}
-                className={cn(
-                  "relative h-6 w-11 shrink-0 rounded-full border transition-colors",
-                  showLogo && r.logo_url ? "border-primary bg-primary" : "border-border bg-muted",
-                  !r.logo_url && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 size-[18px] rounded-full bg-white shadow-sm transition-all",
-                    showLogo && r.logo_url ? "left-[calc(100%-20px)]" : "left-0.5"
+            {/* Center Logo Section */}
+            <div className="mt-6 rounded-2xl border border-border/80 bg-muted/30 p-4 sm:p-5 space-y-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  {r.logo_url ? (
+                    <img
+                      src={r.logo_url}
+                      alt="Logo"
+                      className="size-12 rounded-xl object-cover border border-border/80 shadow-xs shrink-0"
+                    />
+                  ) : (
+                    <div className="size-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                      <ImageIcon className="size-5 text-primary/80" />
+                    </div>
                   )}
-                />
-              </button>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-foreground">Restaurant Logo in Centre</p>
+                    <p className="text-[11px] text-muted-foreground truncate sm:whitespace-normal">
+                      {r.logo_url
+                        ? (showLogo ? "Logo is embedded in QR center with Level H error-correction." : "Logo is uploaded but hidden in QR.")
+                        : "Upload your logo to embed directly in the center of your QR code."}
+                    </p>
+                  </div>
+                </div>
+
+                {r.logo_url && (
+                  <button
+                    type="button"
+                    onClick={() => setShowLogo(!showLogo)}
+                    title={showLogo ? "Hide logo in QR" : "Show logo in QR"}
+                    className={cn(
+                      "relative h-6 w-11 shrink-0 rounded-full border transition-colors cursor-pointer",
+                      showLogo ? "border-primary bg-primary" : "border-border bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 size-[18px] rounded-full bg-white shadow-sm transition-all",
+                        showLogo ? "left-[calc(100%-20px)]" : "left-0.5"
+                      )}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {/* Upload / Change / Remove Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-border/60">
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                    <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
+                      <Upload className="size-3.5 text-primary" /> {r.logo_url ? "Change Logo" : "Upload Logo to QR"}
+                    </span>
+                  </label>
+                  {r.logo_url && (
+                    <button
+                      type="button"
+                      onClick={handleLogoRemove}
+                      className="text-xs text-destructive hover:underline px-2 py-1 font-medium cursor-pointer"
+                    >
+                      Remove Logo
+                    </button>
+                  )}
+                </div>
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground">
+                  Auto-optimized for QR scanning
+                </span>
+              </div>
             </div>
           </div>
 

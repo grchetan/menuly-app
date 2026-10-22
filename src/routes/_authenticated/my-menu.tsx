@@ -788,7 +788,7 @@ function MyMenu() {
         </div>
 
         {/* Main Grid: Menu Management + Live Customer Phone Preview */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0 pb-28 lg:pb-8">
           {/* Left Column: Categories & Dishes */}
           <div className="min-w-0 space-y-4">
             {/* Search Input Row */}
@@ -867,38 +867,46 @@ function MyMenu() {
                 const categoryItems = data.items.filter((i) => i.category_id === c.id && match(i));
                 return (
                   <section key={c.id} className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden">
-                    {/* Category Header with Clean Padding */}
-                    <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-4 sm:px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm sm:text-base font-bold text-foreground">{c.name}</span>
-                        <span className="rounded-full bg-secondary px-2 py-0.2 text-[10px] font-bold text-muted-foreground">
+                    {/* Category Header with Clean Padding & Responsive Layout */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/60 bg-muted/20 px-3.5 sm:px-5 py-3">
+                      {/* Left: Category Title & Item Count Badge */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm sm:text-base font-bold text-foreground truncate">
+                          {c.name}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-secondary/80 border border-border/60 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
                           {data.items.filter((i) => i.category_id === c.id).length} items
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Rename"
-                          className="size-7 sm:size-8"
-                          onClick={() => startRenameCat(c)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Delete Category"
-                          className="size-7 sm:size-8 text-destructive hover:bg-destructive/10"
-                          onClick={() => startDeleteCat(c)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                      {/* Right: Category Operations & Add Dish */}
+                      <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t border-border/30 sm:border-t-0">
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Rename Category"
+                            className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1"
+                            onClick={() => startRenameCat(c)}
+                          >
+                            <Pencil className="size-3" />
+                            <span className="text-[11px] sm:hidden">Rename</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Delete Category"
+                            className="h-7 px-2 text-xs font-semibold text-destructive hover:bg-destructive/10 gap-1"
+                            onClick={() => startDeleteCat(c)}
+                          >
+                            <Trash2 className="size-3" />
+                            <span className="text-[11px] sm:hidden">Delete</span>
+                          </Button>
+                        </div>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs font-semibold gap-1 px-2.5"
+                          className="h-7 text-xs font-semibold gap-1 px-2.5 bg-background shadow-xs hover:bg-secondary"
                           onClick={() => openNew(c.id)}
                         >
                           <Plus className="size-3" /> Add Dish
@@ -1043,6 +1051,35 @@ function MyMenu() {
                   </section>
                 );
               })}
+
+            {/* Bottom Menu Help & Live Preview Card */}
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Smartphone className="size-3.5 text-primary" /> Live Customer Experience
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Test and preview how your live digital menu appears on customer phones when scanned.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={() => setPreview(true)}
+                  className="flex-1 sm:flex-none h-9 text-xs font-bold gap-1.5 shadow-soft"
+                >
+                  <Smartphone className="size-3.5 text-accent" /> Preview Live Menu
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-9 text-xs font-semibold gap-1.5 bg-card"
+                >
+                  <a href={`/menu/${data.restaurant.slug}`} target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-3.5" /> Full Tab
+                  </a>
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Sticky Live Customer Phone Preview */}
@@ -1104,10 +1141,10 @@ function MyMenu() {
         </div>
 
         {/* Mobile Floating Preview Button */}
-        <div className="fixed bottom-5 right-5 z-40 lg:hidden">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 lg:hidden">
           <Button
             onClick={() => setPreview(true)}
-            className="rounded-full shadow-lift gap-2 font-bold px-4 py-2.5 h-12 text-sm bg-foreground text-background border-2 border-primary/40 hover:bg-foreground/90"
+            className="rounded-full shadow-2xl gap-2 font-bold px-5 py-2.5 h-11 text-xs sm:text-sm bg-foreground text-background border-2 border-primary/40 hover:bg-foreground/90 active:scale-95 transition-all"
           >
             <Smartphone className="size-4 text-accent" />
             <span>Preview Live Menu</span>
