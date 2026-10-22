@@ -292,8 +292,475 @@ function QrPage() {
     }
   };
 
-  // Direct print window with A5 / A4 formatted template
+  // Safe canvas rounded rect helper
+  const drawRoundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius: number
+  ) => {
+    if (typeof ctx.roundRect === "function") {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, radius);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+  };
+
+  // Clean print helper using a hidden iframe on the same origin (completely strips about:blank & browser headers)
+  const printCleanHtml = (htmlContent: string) => {
+    if (typeof window === "undefined") return;
+
+    const frameId = "menuly-clean-print-frame";
+    const existing = document.getElementById(frameId);
+    if (existing) existing.remove();
+
+    const iframe = document.createElement("iframe");
+    iframe.id = frameId;
+    iframe.setAttribute(
+      "style",
+      "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;opacity:0;"
+    );
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc || !iframe.contentWindow) {
+      // Fallback: window.open if iframe is blocked
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.open();
+        w.document.write(htmlContent);
+        w.document.close();
+        setTimeout(() => {
+          w.focus();
+          w.print();
+        }, 400);
+      } else {
+        toast.error("Please allow pop-ups to open the print dialog");
+      }
+      return;
+    }
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    // Allow Google Fonts, SVG styles, and base64 QR images to settle before triggering print
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.error("Iframe print error, falling back to window.open", e);
+        const w = window.open("", "_blank");
+        if (w) {
+          w.document.open();
+          w.document.write(htmlContent);
+          w.document.close();
+          setTimeout(() => {
+            w.focus();
+            w.print();
+          }, 400);
+        }
+      }
+    }, 450);
+  };
+
+  // High-Res Printable Sheet Exporter (300 DPI PNG)
+  const downloadPrintableCard = async (format: "A5" | "A4") => {
+    try {
+      toast.info(`Preparing HD ${format} Printable Sheet (300 DPI)...`);
+      const isA4 = format === "A4";
+      // Standard 300 DPI dimensions:
+      // A5: 1748 x 2480 px (148 x 210 mm)
+      // A4: 2480 x 3508 px (210 x 297 mm)
+      const width = isA4 ? 2480 : 1748;
+      const height = isA4 ? 3508 : 2480;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        toast.error("Failed to initialize canvas context");
+        return;
+      }
+
+      // Crisp pure white background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      // Outer dashed cut guide for print shops or home cutting
+      const margin = isA4 ? 120 : 90;
+      const cardW = width - margin * 2;
+      const cardH = height - margin * 2;
+      ctx.save();
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([16, 12]);
+      drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
+      ctx.stroke();
+      ctx.restore();
+
+      // Bottom cut guide note
+      ctx.font = `600 ${isA4 ? "24px" : "19px"} -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+      ctx.fillStyle = "#94a3b8";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        `✂ Cut along the dashed line for ${format} acrylic table stand or wall mount`,
+        width / 2,
+        height - (isA4 ? 55 : 42)
+      );
+
+      const contentCenterX = width / 2;
+      let currentY = margin + (isA4 ? 110 : 80);
+
+      // Top badge: "CONTACTLESS DINING MENU"
+      const badgeW = isA4 ? 680 : 520;
+      const badgeH = isA4 ? 64 : 50;
+      ctx.save();
+      ctx.fillStyle = "#ecfdf5";
+      drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
+      ctx.fill();
+      ctx.strokeStyle = "#a7f3d0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#047857";
+      ctx.font = `bold ${isA4 ? "26px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("✦ CONTACTLESS DINING MENU ✦", contentCenterX, currentY + badgeH / 2);
+      ctx.restore();
+
+      currentY += badgeH + (isA4 ? 60 : 45);
+
+      // Restaurant Logo or Initials Monogram
+      const logoSize = isA4 ? 220 : 160;
+      let logoDrawn = false;
+      if (r.logo_url) {
+        try {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("Logo load error"));
+            img.src = r.logo_url!;
+            setTimeout(() => reject(new Error("Timeout")), 2500);
+          });
+          ctx.save();
+          drawRoundedRect(ctx, contentCenterX - logoSize / 2, currentY, logoSize, logoSize, 36);
+          ctx.clip();
+          ctx.drawImage(img, contentCenterX - logoSize / 2, currentY, logoSize, logoSize);
+          ctx.restore();
+          logoDrawn = true;
+        } catch {
+          logoDrawn = false;
+        }
+      }
+
+      if (!logoDrawn) {
+        ctx.save();
+        ctx.fillStyle = fg;
+        drawRoundedRect(ctx, contentCenterX - logoSize / 2, currentY, logoSize, logoSize, 36);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = `bold ${Math.round(logoSize * 0.44)}px 'Fraunces', Georgia, serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(r.name.slice(0, 2).toUpperCase(), contentCenterX, currentY + logoSize / 2);
+        ctx.restore();
+      }
+
+      currentY += logoSize + (isA4 ? 65 : 45);
+
+      // Restaurant Name
+      ctx.fillStyle = fg;
+      ctx.font = `bold ${isA4 ? "78px" : "58px"} 'Fraunces', Georgia, serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(r.name, contentCenterX, currentY);
+
+      currentY += isA4 ? 50 : 38;
+
+      // Subtitle
+      ctx.fillStyle = "#64748b";
+      ctx.font = `bold ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.fillText("SCAN TO VIEW MENU & PRICES", contentCenterX, currentY);
+
+      currentY += isA4 ? 65 : 45;
+
+      // QR Code Box
+      const qrSize = isA4 ? 1100 : 820;
+      const framePad = isA4 ? 46 : 34;
+      const qrFrameW = qrSize + framePad * 2;
+      const qrFrameH = qrSize + framePad * 2;
+      const qrFrameX = contentCenterX - qrFrameW / 2;
+      const qrFrameY = currentY;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 12;
+      ctx.fillStyle = bg;
+      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 3;
+      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
+      ctx.stroke();
+
+      // Render high-res QR code
+      const { default: QRCodeStyling } = await import("qr-code-styling");
+      const qrBlob = (await new QRCodeStyling({
+        ...options,
+        width: qrSize,
+        height: qrSize,
+      }).getRawData("png")) as Blob;
+
+      const qrImg = new Image();
+      const qrObjectUrl = URL.createObjectURL(qrBlob);
+      await new Promise<void>((resolve) => {
+        qrImg.onload = () => resolve();
+        qrImg.src = qrObjectUrl;
+      });
+
+      ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
+      URL.revokeObjectURL(qrObjectUrl);
+
+      currentY += qrFrameH + (isA4 ? 75 : 55);
+
+      // Scan Instructions
+      ctx.fillStyle = fg;
+      ctx.font = `bold ${isA4 ? "52px" : "40px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Point your phone camera to scan", contentCenterX, currentY);
+
+      currentY += isA4 ? 44 : 34;
+      ctx.fillStyle = "#64748b";
+      ctx.font = `500 ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.fillText("No app download required • Instant mobile dining", contentCenterX, currentY);
+
+      if (r.hours || r.address) {
+        currentY += isA4 ? 42 : 32;
+        ctx.fillStyle = "#475569";
+        ctx.font = `600 ${isA4 ? "28px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+        const meta = [r.hours, r.address].filter(Boolean).join("  •  ");
+        ctx.fillText(meta, contentCenterX, currentY);
+      }
+
+      currentY += isA4 ? 50 : 38;
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = `500 ${isA4 ? "24px" : "18px"} monospace`;
+      ctx.fillText(url, contentCenterX, currentY);
+
+      // Trigger download
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${name}-${format}-printable-menu-card.png`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        toast.success(`Downloaded ${format} HD Printable Sheet (300 DPI)`);
+      }, "image/png");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to generate printable card: " + msg);
+    }
+  };
+
+  // High-Res Table Stand Exporter (300 DPI PNG)
+  const downloadTableStandCard = async (tbl: RestaurantTable) => {
+    try {
+      toast.info(`Preparing HD Stand Card for Table #${tbl.table_number}...`);
+      const width = 1748;
+      const height = 2480;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Pure white background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      // Cut guide line
+      const margin = 90;
+      const cardW = width - margin * 2;
+      const cardH = height - margin * 2;
+      ctx.save();
+      ctx.strokeStyle = "#0f5132";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([16, 12]);
+      drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.font = "600 20px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillStyle = "#94a3b8";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("✂ Cut along the line for A5 acrylic stand or tent card", width / 2, height - 42);
+
+      const contentCenterX = width / 2;
+      let currentY = margin + 80;
+
+      // Top Contactless Badge
+      const badgeW = 620;
+      const badgeH = 50;
+      ctx.save();
+      ctx.fillStyle = "#ecfdf5";
+      drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
+      ctx.fill();
+      ctx.strokeStyle = "#a7f3d0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#047857";
+      ctx.font = "bold 20px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("✦ CONTACTLESS DINING • SCAN TO ORDER ✦", contentCenterX, currentY + badgeH / 2);
+      ctx.restore();
+
+      currentY += badgeH + 40;
+
+      // Restaurant Name
+      ctx.fillStyle = fg;
+      ctx.font = "bold 58px 'Fraunces', Georgia, serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(r.name, contentCenterX, currentY);
+
+      if (r.address) {
+        currentY += 36;
+        ctx.fillStyle = "#64748b";
+        ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText(r.address, contentCenterX, currentY);
+      }
+
+      currentY += 50;
+
+      // Big Bold Table Banner
+      const bannerW = 860;
+      const bannerH = 140;
+      ctx.save();
+      ctx.fillStyle = "#1a1f1c";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.12)";
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
+      drawRoundedRect(ctx, contentCenterX - bannerW / 2, currentY, bannerW, bannerH, 28);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 68px 'Fraunces', Georgia, serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`TABLE #${tbl.table_number}`, contentCenterX, currentY + (tbl.label ? 50 : 70));
+
+      if (tbl.label) {
+        ctx.fillStyle = "#cbd5e1";
+        ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText(tbl.label.toUpperCase(), contentCenterX, currentY + 104);
+      }
+
+      currentY += bannerH + 50;
+
+      // QR Code Frame
+      const qrSize = 800;
+      const framePad = 32;
+      const qrFrameW = qrSize + framePad * 2;
+      const qrFrameH = qrSize + framePad * 2;
+      const qrFrameX = contentCenterX - qrFrameW / 2;
+      const qrFrameY = currentY;
+
+      ctx.save();
+      ctx.fillStyle = bg;
+      ctx.shadowColor = "rgba(0,0,0,0.06)";
+      ctx.shadowBlur = 20;
+      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 36);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 3;
+      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 36);
+      ctx.stroke();
+
+      const tableUrl = `${url}?table=${encodeURIComponent(tbl.table_number)}`;
+      const { default: QRCodeStyling } = await import("qr-code-styling");
+      const qrBlob = (await new QRCodeStyling({
+        ...options,
+        data: tableUrl,
+        width: qrSize,
+        height: qrSize,
+      }).getRawData("png")) as Blob;
+
+      const qrImg = new Image();
+      const qrObjectUrl = URL.createObjectURL(qrBlob);
+      await new Promise<void>((resolve) => {
+        qrImg.onload = () => resolve();
+        qrImg.src = qrObjectUrl;
+      });
+
+      ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
+      URL.revokeObjectURL(qrObjectUrl);
+
+      currentY += qrFrameH + 55;
+
+      // Scan Call to Action
+      ctx.fillStyle = fg;
+      ctx.font = "bold 40px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`Scan to View Menu & Order from Table #${tbl.table_number}`, contentCenterX, currentY);
+
+      currentY += 36;
+      ctx.fillStyle = "#64748b";
+      ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText("No app download needed • Instant contactless dining", contentCenterX, currentY);
+
+      currentY += 40;
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "500 18px monospace";
+      ctx.fillText(tableUrl, contentCenterX, currentY);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${name}-table-${tbl.table_number}-stand-A5.png`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        toast.success(`Downloaded HD Stand Card for Table #${tbl.table_number}`);
+      }, "image/png");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to download table stand: " + msg);
+    }
+  };
+
+  // Direct clean print with A5 / A4 formatted template
   const printTemplate = async (format: "A5" | "A4") => {
+    toast.info(`Preparing clean print sheet for ${format}...`);
     const { default: QRCodeStyling } = await import("qr-code-styling");
     const blob = (await new QRCodeStyling({
       ...options,
@@ -307,138 +774,236 @@ function QrPage() {
       fr.readAsDataURL(blob);
     });
 
-    const w = window.open("", "_blank");
-    if (!w) {
-      toast.error("Please allow pop-ups to open the print dialog");
-      return;
-    }
-
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
     const isA4 = format === "A4";
 
-    w.document.write(`<!doctype html>
+    const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${esc(r.name)} — QR ${format}</title>
+  <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    @page { size: ${format} portrait; margin: 0; }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Manrope', -apple-system, sans-serif;
-      background: #ffffff;
+    @page {
+      size: ${format} portrait;
+      margin: 0mm !important;
+    }
+    @page :first { margin: 0mm !important; }
+    @page :left { margin: 0mm !important; }
+    @page :right { margin: 0mm !important; }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100%;
+      height: 100%;
+      background: #ffffff !important;
+      font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1a1f1c;
-      width: 100vw;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    .page-wrap {
+      width: 100%;
       height: 100vh;
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 10mm;
+      padding: ${isA4 ? "12mm 10mm" : "8mm 6mm"};
+      background: #ffffff;
     }
+
     .sheet {
       width: 100%;
       height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: space-between;
       text-align: center;
-      border: 2px dashed #e2e8f0;
-      border-radius: 8mm;
-      padding: ${isA4 ? "20mm 15mm" : "12mm 10mm"};
-      background: #ffffff;
+      border: 1.5px dashed #94a3b8 !important;
+      border-radius: 6mm;
+      padding: ${isA4 ? "14mm 12mm" : "9mm 8mm"};
+      background: #ffffff !important;
+      position: relative;
     }
-    .logo {
-      width: ${isA4 ? "28mm" : "20mm"};
-      height: ${isA4 ? "28mm" : "20mm"};
+
+    .top-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      padding: ${isA4 ? "6px 18px" : "4px 14px"};
+      border-radius: 999px;
+      font-size: ${isA4 ? "10pt" : "8pt"};
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid #a7f3d0 !important;
+      margin-bottom: ${isA4 ? "5mm" : "3mm"};
+    }
+
+    .logo-img {
+      width: ${isA4 ? "30mm" : "22mm"};
+      height: ${isA4 ? "30mm" : "22mm"};
       border-radius: 6mm;
       object-fit: cover;
-      margin-bottom: ${isA4 ? "6mm" : "4mm"};
+      margin-bottom: ${isA4 ? "4mm" : "3mm"};
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
+
+    .logo-placeholder {
+      width: ${isA4 ? "30mm" : "22mm"};
+      height: ${isA4 ? "30mm" : "22mm"};
+      border-radius: 6mm;
+      background: ${fg} !important;
+      color: #ffffff !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: ${isA4 ? "18pt" : "13pt"};
+      margin-bottom: ${isA4 ? "4mm" : "3mm"};
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
     h1 {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: ${isA4 ? "36pt" : "24pt"};
-      font-weight: 700;
-      color: ${fg};
+      font-size: ${isA4 ? "34pt" : "22pt"};
+      font-weight: 800;
+      color: ${fg} !important;
       line-height: 1.15;
-      margin-bottom: 2mm;
+      margin-bottom: 1.5mm;
     }
+
     .prompt {
-      font-size: ${isA4 ? "12pt" : "9.5pt"};
+      font-size: ${isA4 ? "11pt" : "9pt"};
       font-weight: 700;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: #718096;
-      margin-bottom: ${isA4 ? "8mm" : "5mm"};
+      color: #64748b !important;
+      margin-bottom: ${isA4 ? "6mm" : "4mm"};
     }
+
     .qr-frame {
       display: inline-flex;
-      padding: 4mm;
-      background: ${bg};
+      padding: ${isA4 ? "5mm" : "3.5mm"};
+      background: ${bg} !important;
       border-radius: 6mm;
-      border: 1px solid #edf2f7;
+      border: 1px solid #e2e8f0 !important;
       box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-      margin-bottom: ${isA4 ? "8mm" : "5mm"};
+      margin-bottom: ${isA4 ? "6mm" : "4mm"};
     }
+
     .qr-img {
-      width: ${isA4 ? "95mm" : "70mm"};
-      height: ${isA4 ? "95mm" : "70mm"};
+      width: ${isA4 ? "95mm" : "68mm"};
+      height: ${isA4 ? "95mm" : "68mm"};
       display: block;
     }
+
     .scan-msg {
-      font-size: ${isA4 ? "16pt" : "12pt"};
-      font-weight: 700;
-      color: ${fg};
+      font-size: ${isA4 ? "15pt" : "11.5pt"};
+      font-weight: 800;
+      color: ${fg} !important;
+      margin-bottom: 1.5mm;
+    }
+
+    .subtext {
+      font-size: ${isA4 ? "9.5pt" : "7.5pt"};
+      color: #64748b !important;
+      max-width: 92%;
+      line-height: 1.4;
       margin-bottom: 2mm;
     }
-    .subtext {
-      font-size: ${isA4 ? "10pt" : "8pt"};
-      color: #718096;
-      max-width: 90%;
-      line-height: 1.4;
-      margin-bottom: 3mm;
-    }
+
     .footer-url {
-      font-size: 8pt;
+      font-size: ${isA4 ? "8pt" : "6.5pt"};
       font-family: monospace;
-      color: #a0aec0;
+      color: #94a3b8 !important;
     }
+
+    .cut-guide {
+      font-size: 6.5pt;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 1.5mm;
+    }
+
     @media print {
-      body { padding: 0; }
-      .sheet { border: none; }
+      @page {
+        size: ${format} portrait;
+        margin: 0mm !important;
+      }
+      html, body {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+      .page-wrap {
+        padding: ${isA4 ? "10mm 8mm" : "6mm 5mm"} !important;
+        height: 100vh !important;
+      }
+      .sheet {
+        border: 1.5px dashed #cbd5e1 !important;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    ${
-      r.logo_url
-        ? `<img class="logo" src="${esc(r.logo_url)}" alt="${esc(r.name)}" />`
-        : `<div style="width:${isA4 ? "28mm" : "20mm"};height:${isA4 ? "28mm" : "20mm"};border-radius:6mm;background:${fg};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${isA4 ? "18pt" : "13pt"};margin-bottom:${isA4 ? "6mm" : "4mm"};">${esc(r.name.slice(0, 2).toUpperCase())}</div>`
-    }
-    <h1>${esc(r.name)}</h1>
-    <div class="prompt">Digital Dining Menu</div>
-    <div class="qr-frame">
-      <img class="qr-img" src="${dataUrl}" alt="QR code" />
+  <div class="page-wrap">
+    <div class="sheet">
+      <div>
+        <div class="top-badge">✦ Contactless Dining Menu ✦</div>
+        ${
+          r.logo_url
+            ? `<img class="logo-img" src="${esc(r.logo_url)}" alt="${esc(r.name)}" />`
+            : `<div class="logo-placeholder">${esc(r.name.slice(0, 2).toUpperCase())}</div>`
+        }
+        <h1>${esc(r.name)}</h1>
+        <div class="prompt">Scan to View Menu & Prices</div>
+      </div>
+
+      <div>
+        <div class="qr-frame">
+          <img class="qr-img" src="${dataUrl}" alt="QR Code" />
+        </div>
+        <div class="scan-msg">Point your phone camera to scan</div>
+        <div class="subtext">
+          No app download required • Fast & interactive mobile dining
+          ${r.hours ? `<br><span>${esc(r.hours)}</span>` : ""}
+          ${r.address ? `<br><span>${esc(r.address)}</span>` : ""}
+        </div>
+      </div>
+
+      <div>
+        <div class="footer-url">${esc(url)}</div>
+        <div class="cut-guide">✂ Cut along dashed line for ${format} display stand</div>
+      </div>
     </div>
-    <div class="scan-msg">Scan with your phone camera</div>
-    <div class="subtext">
-      ${r.hours ? `<span>${esc(r.hours)}</span><br>` : ""}
-      ${r.address ? `<span>${esc(r.address)}</span>` : ""}
-    </div>
-    <div class="footer-url">${esc(url)}</div>
   </div>
-  <script>
-    window.onload = () => setTimeout(() => window.print(), 350);
-  </script>
 </body>
-</html>`);
-    w.document.close();
+</html>`;
+
+    printCleanHtml(html);
   };
 
   const generateTableQrDataUrl = async (tableNum: string): Promise<string> => {
@@ -519,38 +1084,61 @@ function QrPage() {
   };
 
   const printTableStand = async (tbl: RestaurantTable) => {
-    toast.info(`Preparing print stand for Table #${tbl.table_number}...`);
+    toast.info(`Preparing clean print stand for Table #${tbl.table_number}...`);
     const tableDataUrl = await generateTableQrDataUrl(tbl.table_number);
     const tableUrl = `${url}?table=${encodeURIComponent(tbl.table_number)}`;
-    const w = window.open("", "_blank");
-    if (!w) {
-      toast.error("Please allow pop-ups to open the print dialog");
-      return;
-    }
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-    w.document.write(`<!doctype html>
+    const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${esc(r.name)} — Table #${esc(tbl.table_number)} Tent Card</title>
+  <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    @page { size: A5 portrait; margin: 0; }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Manrope', -apple-system, sans-serif;
-      background: #ffffff;
+    @page {
+      size: A5 portrait;
+      margin: 0mm !important;
+    }
+    @page :first { margin: 0mm !important; }
+    @page :left { margin: 0mm !important; }
+    @page :right { margin: 0mm !important; }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100%;
+      height: 100%;
+      background: #ffffff !important;
+      font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1a1f1c;
-      width: 100vw;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    .page-wrap {
+      width: 100%;
       height: 100vh;
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 10mm;
+      padding: 8mm 6mm;
+      background: #ffffff;
     }
+
     .sheet {
       width: 100%;
       height: 100%;
@@ -559,120 +1147,160 @@ function QrPage() {
       align-items: center;
       justify-content: space-between;
       text-align: center;
-      border: 3px double #0f5132;
-      border-radius: 8mm;
-      padding: 12mm 10mm;
-      background: #ffffff;
+      border: 1.5px dashed #0f5132 !important;
+      border-radius: 6mm;
+      padding: 9mm 8mm;
+      background: #ffffff !important;
+      position: relative;
     }
+
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #ecfdf5;
-      color: #047857;
-      padding: 5px 16px;
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      padding: 4px 14px;
       border-radius: 999px;
-      font-size: 9pt;
+      font-size: 8pt;
       font-weight: 800;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      border: 1px solid #a7f3d0;
-      margin-bottom: 3mm;
+      border: 1px solid #a7f3d0 !important;
+      margin-bottom: 2mm;
     }
+
+    .rest-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 20pt;
+      font-weight: 800;
+      color: ${fg} !important;
+      margin-bottom: 1mm;
+    }
+
     .table-banner {
-      background: #1a1f1c;
-      color: #ffffff;
-      padding: 6mm 16mm;
-      border-radius: 6mm;
-      margin: 3mm 0;
+      background: #1a1f1c !important;
+      color: #ffffff !important;
+      padding: 5mm 14mm;
+      border-radius: 5mm;
+      margin: 2.5mm 0;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      width: 80%;
+      width: 82%;
     }
+
     .table-num {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 32pt;
+      font-size: 28pt;
       font-weight: 800;
       line-height: 1;
       letter-spacing: 0.02em;
+      color: #ffffff !important;
     }
+
     .table-label {
-      font-size: 9.5pt;
+      font-size: 8.5pt;
       text-transform: uppercase;
       letter-spacing: 0.15em;
-      opacity: 0.85;
+      color: #cbd5e1 !important;
       margin-top: 3px;
     }
-    .rest-name {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 22pt;
-      font-weight: 700;
-      color: ${fg};
-      margin-bottom: 1mm;
-    }
+
     .qr-frame {
-      padding: 4mm;
-      background: ${bg};
+      padding: 3.5mm;
+      background: ${bg} !important;
       border-radius: 6mm;
-      border: 1px solid #e2e8f0;
+      border: 1px solid #e2e8f0 !important;
       box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-      margin: 3mm 0;
+      margin: 2mm 0;
     }
+
     .qr-img {
-      width: 72mm;
-      height: 72mm;
+      width: 68mm;
+      height: 68mm;
       display: block;
     }
+
     .instructions {
-      font-size: 12pt;
-      font-weight: 700;
-      color: #1a1f1c;
+      font-size: 11pt;
+      font-weight: 800;
+      color: #1a1f1c !important;
       margin-top: 2mm;
     }
+
     .subtext {
-      font-size: 8.5pt;
-      color: #64748b;
+      font-size: 7.5pt;
+      color: #64748b !important;
       margin-top: 1mm;
     }
+
     .footer-url {
-      font-size: 7pt;
+      font-size: 6.5pt;
       font-family: monospace;
-      color: #94a3b8;
+      color: #94a3b8 !important;
     }
+
+    .cut-guide {
+      font-size: 6.5pt;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 1.5mm;
+    }
+
     @media print {
-      body { padding: 0; }
-      .sheet { border-width: 1px; }
+      @page {
+        size: A5 portrait;
+        margin: 0mm !important;
+      }
+      html, body {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+      .page-wrap {
+        padding: 6mm 5mm !important;
+        height: 100vh !important;
+      }
+      .sheet {
+        border: 1.5px dashed #0f5132 !important;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <div>
-      <div class="badge">Scan to View Menu • Contactless Dining</div>
-      <div class="rest-name">${esc(r.name)}</div>
-      ${r.address ? `<div style="font-size:8.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
-    </div>
-
-    <div class="table-banner">
-      <div class="table-num">TABLE #${esc(tbl.table_number)}</div>
-      ${tbl.label ? `<div class="table-label">${esc(tbl.label)}</div>` : ""}
-    </div>
-
-    <div>
-      <div class="qr-frame">
-        <img class="qr-img" src="${tableDataUrl}" alt="Table ${esc(tbl.table_number)} QR" />
+  <div class="page-wrap">
+    <div class="sheet">
+      <div>
+        <div class="badge">✦ Contactless Dining • Scan to Order ✦</div>
+        <div class="rest-name">${esc(r.name)}</div>
+        ${r.address ? `<div style="font-size:7.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
       </div>
-      <div class="instructions">Scan to View Menu & Order from Table #${esc(tbl.table_number)}</div>
-      <div class="subtext">No app download needed • Instant mobile view</div>
-    </div>
 
-    <div class="footer-url">${esc(tableUrl)}</div>
+      <div class="table-banner">
+        <div class="table-num">TABLE #${esc(tbl.table_number)}</div>
+        ${tbl.label ? `<div class="table-label">${esc(tbl.label)}</div>` : ""}
+      </div>
+
+      <div>
+        <div class="qr-frame">
+          <img class="qr-img" src="${tableDataUrl}" alt="Table ${esc(tbl.table_number)} QR" />
+        </div>
+        <div class="instructions">Scan to View Menu & Order from Table #${esc(tbl.table_number)}</div>
+        <div class="subtext">No app download needed • Instant mobile view</div>
+      </div>
+
+      <div>
+        <div class="footer-url">${esc(tableUrl)}</div>
+        <div class="cut-guide">✂ Cut along dashed line for A5 table tent or acrylic stand</div>
+      </div>
+    </div>
   </div>
-  <script>
-    window.onload = () => setTimeout(() => window.print(), 350);
-  </script>
 </body>
-</html>`);
-    w.document.close();
+</html>`;
+
+    printCleanHtml(html);
   };
 
   const printAllTableStands = async () => {
@@ -680,7 +1308,7 @@ function QrPage() {
       toast.error("No tables found. Please add tables first.");
       return;
     }
-    toast.info(`Preparing print sheets for ${tables.length} tables...`);
+    toast.info(`Preparing clean print sheets for ${tables.length} tables...`);
     const { default: QRCodeStyling } = await import("qr-code-styling");
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -702,12 +1330,12 @@ function QrPage() {
         });
 
         return `
-        <div class="page">
+        <div class="page-wrap page-break">
           <div class="sheet">
             <div>
-              <div class="badge">Scan to View Menu • Contactless Dining</div>
+              <div class="badge">✦ Contactless Dining • Scan to Order ✦</div>
               <div class="rest-name">${esc(r.name)}</div>
-              ${r.address ? `<div style="font-size:8.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
+              ${r.address ? `<div style="font-size:7.5pt;color:#64748b;">${esc(r.address)}</div>` : ""}
             </div>
 
             <div class="table-banner">
@@ -723,44 +1351,72 @@ function QrPage() {
               <div class="subtext">No app download needed • Instant mobile view</div>
             </div>
 
-            <div class="footer-url">${esc(tableUrl)}</div>
+            <div>
+              <div class="footer-url">${esc(tableUrl)}</div>
+              <div class="cut-guide">✂ Cut along dashed line for A5 table tent or acrylic stand</div>
+            </div>
           </div>
         </div>
         `;
       })
     );
 
-    const w = window.open("", "_blank");
-    if (!w) {
-      toast.error("Please allow pop-ups to open the print dialog");
-      return;
-    }
-
-    w.document.write(`<!doctype html>
+    const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${esc(r.name)} — All Table Stands (${tables.length})</title>
+  <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    @page { size: A5 portrait; margin: 0; }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Manrope', -apple-system, sans-serif;
-      background: #f1f5f9;
-      color: #1a1f1c;
+    @page {
+      size: A5 portrait;
+      margin: 0mm !important;
     }
-    .page {
+    @page :first { margin: 0mm !important; }
+    @page :left { margin: 0mm !important; }
+    @page :right { margin: 0mm !important; }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1a1f1c;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    .page-wrap {
       width: 100vw;
       height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 10mm;
-      page-break-after: always;
+      padding: 8mm 6mm;
       background: #ffffff;
     }
+
+    .page-break {
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .page-break:last-child {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
     .sheet {
       width: 100%;
       height: 100%;
@@ -769,100 +1425,134 @@ function QrPage() {
       align-items: center;
       justify-content: space-between;
       text-align: center;
-      border: 3px double #0f5132;
-      border-radius: 8mm;
-      padding: 12mm 10mm;
-      background: #ffffff;
+      border: 1.5px dashed #0f5132 !important;
+      border-radius: 6mm;
+      padding: 9mm 8mm;
+      background: #ffffff !important;
+      position: relative;
     }
+
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #ecfdf5;
-      color: #047857;
-      padding: 5px 16px;
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      padding: 4px 14px;
       border-radius: 999px;
-      font-size: 9pt;
+      font-size: 8pt;
       font-weight: 800;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      border: 1px solid #a7f3d0;
-      margin-bottom: 3mm;
+      border: 1px solid #a7f3d0 !important;
+      margin-bottom: 2mm;
     }
+
+    .rest-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 20pt;
+      font-weight: 800;
+      color: ${fg} !important;
+      margin-bottom: 1mm;
+    }
+
     .table-banner {
-      background: #1a1f1c;
-      color: #ffffff;
-      padding: 6mm 16mm;
-      border-radius: 6mm;
-      margin: 3mm 0;
+      background: #1a1f1c !important;
+      color: #ffffff !important;
+      padding: 5mm 14mm;
+      border-radius: 5mm;
+      margin: 2.5mm 0;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      width: 80%;
+      width: 82%;
     }
+
     .table-num {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 32pt;
+      font-size: 28pt;
       font-weight: 800;
       line-height: 1;
       letter-spacing: 0.02em;
+      color: #ffffff !important;
     }
+
     .table-label {
-      font-size: 9.5pt;
+      font-size: 8.5pt;
       text-transform: uppercase;
       letter-spacing: 0.15em;
-      opacity: 0.85;
+      color: #cbd5e1 !important;
       margin-top: 3px;
     }
-    .rest-name {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 22pt;
-      font-weight: 700;
-      color: ${fg};
-      margin-bottom: 1mm;
-    }
+
     .qr-frame {
-      padding: 4mm;
-      background: ${bg};
+      padding: 3.5mm;
+      background: ${bg} !important;
       border-radius: 6mm;
-      border: 1px solid #e2e8f0;
+      border: 1px solid #e2e8f0 !important;
       box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-      margin: 3mm 0;
+      margin: 2mm 0;
     }
+
     .qr-img {
-      width: 72mm;
-      height: 72mm;
+      width: 68mm;
+      height: 68mm;
       display: block;
     }
+
     .instructions {
-      font-size: 12pt;
-      font-weight: 700;
-      color: #1a1f1c;
+      font-size: 11pt;
+      font-weight: 800;
+      color: #1a1f1c !important;
       margin-top: 2mm;
     }
+
     .subtext {
-      font-size: 8.5pt;
-      color: #64748b;
+      font-size: 7.5pt;
+      color: #64748b !important;
       margin-top: 1mm;
     }
+
     .footer-url {
-      font-size: 7pt;
+      font-size: 6.5pt;
       font-family: monospace;
-      color: #94a3b8;
+      color: #94a3b8 !important;
     }
+
+    .cut-guide {
+      font-size: 6.5pt;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 1.5mm;
+    }
+
     @media print {
-      body { background: #ffffff; }
-      .page { padding: 0; }
-      .sheet { border-width: 1px; }
+      @page {
+        size: A5 portrait;
+        margin: 0mm !important;
+      }
+      html, body {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+      .page-wrap {
+        padding: 6mm 5mm !important;
+        height: 100vh !important;
+      }
+      .sheet {
+        border: 1.5px dashed #0f5132 !important;
+      }
     }
   </style>
 </head>
 <body>
   ${cardsHtml.join("")}
-  <script>
-    window.onload = () => setTimeout(() => window.print(), 500);
-  </script>
 </body>
-</html>`);
-    w.document.close();
+</html>`;
+
+    printCleanHtml(html);
   };
 
   return (
@@ -1058,13 +1748,24 @@ function QrPage() {
 
                     {/* Actions */}
                     <div className="space-y-2 pt-2 border-t border-border/60">
-                      <Button
-                        size="sm"
-                        onClick={() => printTableStand(tbl)}
-                        className="w-full gap-1.5 text-xs font-semibold shadow-soft"
-                      >
-                        <Printer className="size-3.5" /> Print Stand Card (A5)
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          onClick={() => printTableStand(tbl)}
+                          className="flex-1 gap-1.5 text-xs font-semibold shadow-soft h-8"
+                        >
+                          <Printer className="size-3.5" /> Print Stand (A5)
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadTableStandCard(tbl)}
+                          title="Download 300 DPI HD Stand Card (PNG)"
+                          className="gap-1 text-xs font-semibold px-2.5 h-8 border-primary/30 text-primary hover:bg-primary/5"
+                        >
+                          <Download className="size-3.5" /> HD
+                        </Button>
+                      </div>
                       <div className="grid grid-cols-3 gap-1.5">
                         <Button
                           variant="outline"
@@ -1328,20 +2029,32 @@ function QrPage() {
                 {r.address && <p className="mt-1 text-[10px] text-muted-foreground">{r.address}</p>}
               </div>
 
-              <div className="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 w-full">
-                <Button
-                  onClick={() => printTemplate(templateTab)}
-                  className="w-full sm:w-auto gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10"
-                >
-                  <Printer className="size-4 shrink-0" /> Print {templateTab === "A5" ? "Table Card (A5)" : "Wall Poster (A4)"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => printTemplate(templateTab === "A5" ? "A4" : "A5")}
-                  className="w-full sm:w-auto gap-2 text-xs sm:text-sm h-10"
-                >
-                  <Printer className="size-4 shrink-0" /> Switch to {templateTab === "A5" ? "A4" : "A5"}
-                </Button>
+              <div className="mt-5 space-y-3 w-full">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 w-full">
+                  <Button
+                    onClick={() => printTemplate(templateTab)}
+                    className="flex-1 gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10"
+                  >
+                    <Printer className="size-4 shrink-0" /> Print Clean {templateTab === "A5" ? "Table Card (A5)" : "Wall Poster (A4)"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadPrintableCard(templateTab)}
+                    className="flex-1 gap-2 text-xs sm:text-sm h-10 border-primary/30 text-primary hover:bg-primary/5 font-semibold"
+                  >
+                    <Download className="size-4 shrink-0" /> Download HD Sheet (300 DPI)
+                  </Button>
+                </div>
+
+                <div className="rounded-xl bg-muted/60 border border-border/80 px-3.5 py-2.5 text-left text-xs text-muted-foreground flex items-start gap-2.5">
+                  <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 leading-relaxed">
+                    <p className="font-semibold text-foreground">Clean Print Engine Active</p>
+                    <p className="text-[11px]">
+                      Browser headers (time, URL, page numbers) are automatically stripped. For vibrant output, keep <strong>Background graphics</strong> enabled in your print dialog.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
