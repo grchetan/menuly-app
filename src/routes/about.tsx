@@ -30,6 +30,8 @@ import hero from "@/assets/hero.png";
 import shopStand from "@/assets/shop-stand.png";
 import shopSticker from "@/assets/shop-sticker.png";
 import shopPoster from "@/assets/shop-poster.png";
+import oldMenuImg from "@/assets/old-menu.png";
+import digitalMenuImg from "@/assets/digital-menu.png";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -277,7 +279,7 @@ function About() {
       {/* 3. OLD PAPER VS MENULY COMPARISON */}
       <section className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center space-y-3 max-w-2xl mx-auto">
-          <span className="rounded-full bg-accent/30 px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent-foreground">
+          <span className="rounded-full bg-accent/30 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-accent-foreground">
             The Transformation
           </span>
           <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">
@@ -288,73 +290,138 @@ function About() {
           </p>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* Old Paper Menu Card */}
-          <div className="rounded-3xl border border-destructive/25 bg-destructive/5 p-6 sm:p-8 space-y-5">
-            <div className="flex items-center gap-3 border-b border-destructive/20 pb-4">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
-                <XCircle className="size-6" />
+        <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 items-stretch">
+          {/* 1. Traditional Printed Menu Card */}
+          <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-rose-200/80 bg-gradient-to-b from-rose-50/70 via-card to-rose-50/30 p-6 sm:p-8 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-rose-300 motion-reduce:transform-none dark:border-rose-950/50 dark:from-rose-950/20 dark:via-card dark:to-rose-950/10">
+            <div>
+              {/* Illustration Top Area (180-220px, object-contain, suitable padding) */}
+              <div className="relative mb-6 flex h-48 sm:h-52 md:h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-rose-200/60 bg-gradient-to-b from-rose-100/60 to-rose-50/40 p-3 sm:p-4 dark:border-rose-900/40 dark:from-rose-950/40 dark:to-rose-950/20">
+                <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 border border-rose-500/20">
+                  Outdated Model
+                </div>
+                <img
+                  src={oldMenuImg}
+                  alt="Frustrated chef dealing with damaged outdated paper menus and kitchen apologies"
+                  className="h-full w-full object-contain filter saturate-[0.88] contrast-[0.98] transition-transform duration-500 ease-out group-hover:scale-[1.03] motion-reduce:transform-none"
+                  loading="lazy"
+                />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-foreground">Old Printed Paper Menus</h3>
-                <p className="text-xs text-muted-foreground">Outdated, expensive, and inflexible</p>
-              </div>
-            </div>
 
-            <ul className="space-y-3 text-sm text-foreground/90">
-              <li className="flex items-start gap-2.5">
-                <XCircle className="size-4 text-destructive shrink-0 mt-0.5" />
-                <span><strong>Expensive reprinting:</strong> Spending ₹10,000–₹35,000 yearly every time fuel, vegetable, or dairy costs change.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <XCircle className="size-4 text-destructive shrink-0 mt-0.5" />
-                <span><strong>Awkward kitchen apologies:</strong> Customers order an item only for the waiter to return saying "Sir, ye dish khatam ho gayi hai."</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <XCircle className="size-4 text-destructive shrink-0 mt-0.5" />
-                <span><strong>Unhygienic & damaged:</strong> Laminated cards get sticky, gravy-stained, dog-eared, and torn within weeks.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <XCircle className="size-4 text-destructive shrink-0 mt-0.5" />
-                <span><strong>No visual appeal:</strong> Plain black-and-white text fails to tempt hungry customers into trying high-margin specialties.</span>
-              </li>
-            </ul>
+              {/* Title & Subtitle */}
+              <div className="flex items-center gap-3.5 border-b border-rose-200/60 pb-4 dark:border-rose-900/40">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-destructive/15 text-destructive shadow-xs">
+                  <XCircle className="size-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">Old Printed Paper Menus</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Outdated, expensive, and inflexible</p>
+                </div>
+              </div>
+
+              {/* 4 Comparison Points with Dividers */}
+              <ul className="mt-5 space-y-3.5 text-sm text-foreground/90 divide-y divide-rose-200/40 dark:divide-rose-900/30">
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive mt-0.5">
+                    <XCircle className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">Expensive reprinting:</strong> Spending ₹10,000–₹35,000 yearly every time fuel, vegetable, or dairy costs change.
+                  </span>
+                </li>
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive mt-0.5">
+                    <XCircle className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">Awkward kitchen apologies:</strong> Customers order an item only for the waiter to return saying "Sir, ye dish khatam ho gayi hai."
+                  </span>
+                </li>
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive mt-0.5">
+                    <XCircle className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">Unhygienic & damaged:</strong> Laminated cards get sticky, gravy-stained, dog-eared, and torn within weeks.
+                  </span>
+                </li>
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive mt-0.5">
+                    <XCircle className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">No visual appeal:</strong> Plain black-and-white text fails to tempt hungry customers into trying high-margin specialties.
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
 
-          {/* Menuly Digital Menu Card */}
-          <div className="rounded-3xl border-2 border-primary/40 bg-card p-6 sm:p-8 space-y-5 shadow-soft relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-primary px-3 py-1 rounded-bl-xl text-[10px] font-extrabold uppercase tracking-wider text-primary-foreground">
+          {/* 2. Menuly Digital Menu Card */}
+          <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-primary/45 bg-gradient-to-b from-primary/[0.04] via-card to-primary/[0.02] p-6 sm:p-8 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift hover:border-primary/70 motion-reduce:transform-none">
+            {/* Small MODERN SOLUTION badge */}
+            <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-10 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-xs">
+              <Sparkles className="size-3 text-accent fill-accent" />
               Modern Solution
             </div>
 
-            <div className="flex items-center gap-3 border-b border-border/70 pb-4">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                <CheckCircle2 className="size-6" />
+            <div>
+              {/* Illustration Top Area (180-220px, object-contain, suitable padding) */}
+              <div className="relative mb-6 flex h-48 sm:h-52 md:h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent p-3 sm:p-4">
+                <img
+                  src={digitalMenuImg}
+                  alt="Happy chef showcasing live digital QR menu on smartphone with real-time updates"
+                  className="h-full w-full object-contain filter saturate-[1.04] transition-transform duration-500 ease-out group-hover:scale-[1.04] motion-reduce:transform-none"
+                  loading="lazy"
+                />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-foreground">Menuly Digital QR Menu</h3>
-                <p className="text-xs text-muted-foreground">Instant, interactive, and ₹0 reprint forever</p>
-              </div>
-            </div>
 
-            <ul className="space-y-3 text-sm text-foreground/90">
-              <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="size-4 text-veg shrink-0 mt-0.5" />
-                <span><strong>Instant 2-second price updates:</strong> Update dishes or change prices directly from your phone. Zero reprinting bills.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="size-4 text-veg shrink-0 mt-0.5" />
-                <span><strong>1-Tap Sold-Out Toggle:</strong> Mark any dish unavailable in real time. Customers see "Sold out" and choose an alternative instantly.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="size-4 text-veg shrink-0 mt-0.5" />
-                <span><strong>100% Hygienic & Contactless:</strong> Diners scan from their personal mobile phone cameras. Always clean, modern, and inviting.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="size-4 text-veg shrink-0 mt-0.5" />
-                <span><strong>Photos & Dietary Tags:</strong> High-res dish images, spicy indicators, and Pure-Veg tags tempt customers to order 25% more.</span>
-              </li>
-            </ul>
+              {/* Title & Subtitle */}
+              <div className="flex items-center gap-3.5 border-b border-primary/20 pb-4">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-xs">
+                  <CheckCircle2 className="size-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">Menuly Digital QR Menu</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Instant, interactive, and ₹0 reprint forever</p>
+                </div>
+              </div>
+
+              {/* 4 Comparison Points with Dividers */}
+              <ul className="mt-5 space-y-3.5 text-sm text-foreground/90 divide-y divide-primary/10">
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-veg/15 text-veg mt-0.5">
+                    <CheckCircle2 className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">Instant 2-second price updates:</strong> Update dishes or change prices directly from your phone. Zero reprinting bills.
+                  </span>
+                </li>
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-veg/15 text-veg mt-0.5">
+                    <CheckCircle2 className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">1-Tap Sold-Out Toggle:</strong> Mark any dish unavailable in real time. Customers see "Sold out" and choose an alternative instantly.
+                  </span>
+                </li>
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-veg/15 text-veg mt-0.5">
+                    <CheckCircle2 className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">100% Hygienic & Contactless:</strong> Diners scan from their personal mobile phone cameras. Always clean, modern, and inviting.
+                  </span>
+                </li>
+                <li className="pt-3.5 first:pt-0 flex items-start gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-veg/15 text-veg mt-0.5">
+                    <CheckCircle2 className="size-3.5" />
+                  </span>
+                  <span>
+                    <strong className="text-foreground">Photos & Dietary Tags:</strong> High-res dish images, spicy indicators, and Pure-Veg tags tempt customers to order 25% more.
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
