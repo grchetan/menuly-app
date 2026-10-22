@@ -1,11 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import cursorImg from "@/assets/Forest Green QR Cursor Icon.png";
+import { cn } from "@/lib/utils";
 
 interface Ripple {
   id: number;
   x: number;
   y: number;
 }
+
+// Exact Arrow Tip hotspot offset in 1335x1178 image:
+// x = 447px (33.48%), y = 208px (17.66%)
+// At width = 52px, height = 45.88px:
+// offsetX = 52 * 0.3348 = 17.4px
+// offsetY = 45.88 * 0.1766 = 8.1px
+const CURSOR_WIDTH = 52;
+const HOTSPOT_OFFSET_X = 17.4;
+const HOTSPOT_OFFSET_Y = 8.1;
 
 export function CustomCursor() {
   const [enabled, setEnabled] = useState(false);
@@ -14,17 +24,10 @@ export function CustomCursor() {
   const [isPressed, setIsPressed] = useState(false);
   const [ripples, setRipples] = useState<Ripple[]>([]);
 
-  // Refs for high-performance direct DOM manipulation (bypasses React render loop)
-  const cursorRef = useRef<HTMLDivElement>(null);
-  const auraRef = useRef<HTMLDivElement>(null);
+  // Ref to outer container: handles real-time position with ZERO transition lag
+  const cursorContainerRef = useRef<HTMLDivElement>(null);
 
-  // Positional coordinates
-  const targetPos = useRef({ x: -100, y: -100 });
-  const currentPos = useRef({ x: -100, y: -100 });
-  const auraPos = useRef({ x: -100, y: -100 });
-  const animFrameId = useRef<number | null>(null);
-
-  // 1. Detect desktop vs touch device
+  // 1. Detect desktop fine pointer vs touch/mobile device
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -54,58 +57,38 @@ export function CustomCursor() {
     };
   }, []);
 
-  // 2. High-speed 120fps animation loop using requestAnimationFrame
+  // 2. High-speed, 0-lag pointermove tracking with requestAnimationFrame
   useEffect(() => {
     if (!enabled) return;
 
-    const loop = () => {
-      // Fast responsive lerp for cursor pointer (instant feel)
-      const cursorLerp = 0.85;
-      currentPos.current.x += (targetPos.current.x - currentPos.current.x) * cursorLerp;
-      currentPos.current.y += (targetPos.current.y - currentPos.current.y) * cursorLerp;
+    let targetX = -100;
+    let targetY = -100;
+    let rafId: number | null = null;
+    let hasMoved = false;
 
-      // Softer smoother lerp for the ambient trailing aura
-      const auraLerp = 0.35;
-      auraPos.current.x += (targetPos.current.x - auraPos.current.x) * auraLerp;
-      auraPos.current.y += (targetPos.current.y - auraPos.current.y) * auraLerp;
-
-      // Update Cursor Tip:
-      // The arrow tip hotspot in "Forest Green QR Cursor Icon.png" is at ~33% X and ~18% Y.
-      // With width: 36px, height: ~32px -> offset is -12px X and -6px Y.
-      if (cursorRef.current) {
-        cursorRef.current.style.transform = `translate3d(${currentPos.current.x - 12}px, ${
-          currentPos.current.y - 6
-        }px, 0)`;
+    const updatePosition = () => {
+      if (cursorContainerRef.current) {
+        cursorContainerRef.current.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
       }
-
-      // Update Ambient Aura
-      if (auraRef.current) {
-        auraRef.current.style.transform = `translate3d(${auraPos.current.x - 18}px, ${
-          auraPos.current.y - 18
-        }px, 0)`;
-      }
-
-      animFrameId.current = requestAnimationFrame(loop);
+      rafId = null;
     };
 
-    animFrameId.current = requestAnimationFrame(loop);
+    const onPointerMove = (e: PointerEvent) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
 
-    return () => {
-      if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
-    };
-  }, [enabled]);
+      if (!hasMoved) {
+        hasMoved = true;
+        setIsVisible(true);
+      }
 
-  // 3. Mouse event listeners (Move, Enter, Leave, Click, Hover detection)
-  useEffect(() => {
-    if (!enabled) return;
+      // Schedule real-time position update on the very next animation frame
+      if (!rafId) {
+        rafId = requestAnimationFrame(updatePosition);
+      }
 
-    const onMouseMove = (e: MouseEvent) => {
-      targetPos.current.x = e.clientX;
-      targetPos.current.y = e.clientY;
-      if (!isVisible) setIsVisible(true);
-
-      // Check if hovering over clickable or interactive element
-      const target = e.target as HTMLElement | null;
+      // Detect hover over interactive elements
+      const target = e.target as Element | null;
       if (target) {
         const interactive = Boolean(
           target.closest(
@@ -116,49 +99,50 @@ export function CustomCursor() {
       }
     };
 
-    const onMouseDown = (e: MouseEvent) => {
+    const onPointerDown = (e: PointerEvent) => {
       setIsPressed(true);
-      // Spawn orange click ripple exactly at mouse click coordinates
+
+      // Spawn orange click ripple centered directly on the arrow tip click point
       const id = Date.now() + Math.random();
       const x = e.clientX;
       const y = e.clientY;
 
-      setRipples((prev) => [...prev.slice(-5), { id, x, y }]);
+      setRipples((prev) => [...prev.slice(-4), { id, x, y }]);
 
-      // Self-cleaning ripple
       setTimeout(() => {
         setRipples((prev) => prev.filter((r) => r.id !== id));
-      }, 500);
+      }, 450);
     };
 
-    const onMouseUp = () => {
+    const onPointerUp = () => {
       setIsPressed(false);
     };
 
-    const onMouseEnter = () => {
+    const onPointerEnter = () => {
       setIsVisible(true);
     };
 
-    const onMouseLeave = () => {
+    const onPointerLeave = () => {
       setIsVisible(false);
     };
 
-    window.addEventListener("mousemove", onMouseMove, { passive: true });
-    window.addEventListener("mousedown", onMouseDown, { passive: true });
-    window.addEventListener("mouseup", onMouseUp, { passive: true });
-    document.addEventListener("mouseenter", onMouseEnter);
-    document.addEventListener("mouseleave", onMouseLeave);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    document.addEventListener("pointerenter", onPointerEnter);
+    document.addEventListener("pointerleave", onPointerLeave);
 
     return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("mouseup", onMouseUp);
-      document.removeEventListener("mouseenter", onMouseEnter);
-      document.removeEventListener("mouseleave", onMouseLeave);
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointerenter", onPointerEnter);
+      document.removeEventListener("pointerleave", onPointerLeave);
     };
-  }, [enabled, isVisible]);
+  }, [enabled]);
 
-  // If on mobile/touch or disabled, render nothing
+  // If mobile/touch or disabled, render nothing
   if (!enabled || !isVisible) {
     return null;
   }
@@ -166,48 +150,54 @@ export function CustomCursor() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[99999] overflow-hidden select-none"
+      className="pointer-events-none fixed inset-0 z-[999999] overflow-hidden select-none"
     >
-      {/* 1. Ambient Trailing Aura (Smooth forest-green & warm-orange glow) */}
-      <div
-        ref={auraRef}
-        className={`pointer-events-none fixed top-0 left-0 size-9 rounded-full blur-[6px] transition-all duration-300 will-change-transform ${
-          isHovered
-            ? "bg-amber-500/35 scale-125"
-            : "bg-emerald-600/20 scale-90"
-        }`}
-      />
-
-      {/* 2. Orange Click Ripples */}
+      {/* 1. Orange Click Ripples */}
       {ripples.map((ripple) => (
         <span
           key={ripple.id}
-          className="pointer-events-none fixed top-0 left-0 size-10 rounded-full border-2 border-amber-500/90 bg-amber-500/25 shadow-[0_0_14px_rgba(245,158,11,0.65)] animate-cursor-ripple"
+          className="pointer-events-none fixed size-12 rounded-full border-2 border-amber-500/90 bg-amber-500/20 shadow-[0_0_16px_rgba(245,158,11,0.65)] animate-cursor-ripple"
           style={{
-            transform: `translate3d(${ripple.x - 20}px, ${ripple.y - 20}px, 0)`,
+            left: `${ripple.x}px`,
+            top: `${ripple.y}px`,
           }}
         />
       ))}
 
-      {/* 3. Primary Custom Animated Cursor Icon */}
+      {/* 2. Custom Cursor Outer Container: Real-time 0-lag position tracking */}
       <div
-        ref={cursorRef}
-        className={`pointer-events-none fixed top-0 left-0 will-change-transform transition-transform duration-150 ease-out origin-top-left ${
-          isPressed
-            ? "scale-90 rotate-[-1deg]"
-            : isHovered
-            ? "scale-[1.18] rotate-[-4deg]"
-            : "scale-100 rotate-0"
-        }`}
+        ref={cursorContainerRef}
+        className="pointer-events-none fixed top-0 left-0 will-change-transform"
+        style={{
+          transform: "translate3d(-100px, -100px, 0)",
+          transition: "none",
+        }}
       >
-        <img
-          src={cursorImg}
-          alt=""
-          width={36}
-          height={32}
-          className="size-9 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.28)]"
-          draggable={false}
-        />
+        {/* Inner wrapper: Handles subtle hover scaling & click press without affecting position */}
+        <div
+          className={cn(
+            "origin-top-left transition-transform duration-200 ease-out select-none",
+            isPressed
+              ? "scale-90 rotate-[-1deg]"
+              : isHovered
+              ? "scale-[1.14] rotate-[-3deg]"
+              : "scale-100 rotate-0"
+          )}
+        >
+          <img
+            src={cursorImg}
+            alt=""
+            width={CURSOR_WIDTH}
+            height={46}
+            style={{
+              width: `${CURSOR_WIDTH}px`,
+              height: "auto",
+              transform: `translate(-${HOTSPOT_OFFSET_X}px, -${HOTSPOT_OFFSET_Y}px)`,
+            }}
+            className="object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] select-none pointer-events-none"
+            draggable={false}
+          />
+        </div>
       </div>
     </div>
   );

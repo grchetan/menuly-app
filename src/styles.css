@@ -160,11 +160,11 @@ header.fixed {
 @keyframes cursor-ripple {
   0% {
     opacity: 0.95;
-    transform: scale(0.35);
+    transform: translate(-50%, -50%) scale(0.3);
   }
   100% {
     opacity: 0;
-    transform: scale(2.2);
+    transform: translate(-50%, -50%) scale(1.6);
   }
 }
 @utility animate-cursor-ripple {
