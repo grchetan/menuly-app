@@ -21,6 +21,7 @@ import { MaintenanceScreen } from "@/components/MaintenanceScreen";
 import { AutoUpdateDetector } from "@/components/AutoUpdateDetector";
 import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
 import { CustomCursor } from "@/components/CustomCursor";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 
 function NotFoundComponent() {
   return (
@@ -310,6 +311,7 @@ function RootComponent() {
       <AutoUpdateDetector />
       <NetworkStatusIndicator />
       <RootInner />
+      <CookieConsentBanner />
       <Toaster position="bottom-right" closeButton />
     </QueryClientProvider>
   );

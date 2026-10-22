@@ -131,6 +131,24 @@ function CookiePolicyPage() {
           <li><strong>Mozilla Firefox:</strong> Settings &gt; Privacy & Security &gt; Cookies and Site Data</li>
           <li><strong>Microsoft Edge:</strong> Settings &gt; Cookies and site permissions</li>
         </ul>
+
+        <div className="mt-4 pt-3 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-3 bg-secondary/30 p-4 rounded-2xl">
+          <div className="space-y-0.5 text-center sm:text-left">
+            <p className="font-bold text-xs text-foreground">Interactive Consent Manager</p>
+            <p className="text-[11px] text-muted-foreground">Re-open our on-screen preferences modal to toggle functional or analytics storage.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new Event("menuly-open-cookie-banner"));
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-soft hover:bg-primary/90 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+          >
+            <Cookie className="size-3.5" /> Change Cookie Preferences
+          </button>
+        </div>
       </LegalSection>
 
       {/* Section 6 */}

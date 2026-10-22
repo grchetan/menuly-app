@@ -339,6 +339,19 @@ export function SiteFooter() {
             <li><Link to="/refund" className="opacity-85 hover:opacity-100 hover:underline">Refund Policy</Link></li>
             <li><Link to="/shipping" className="opacity-85 hover:opacity-100 hover:underline">Shipping Policy</Link></li>
             <li><Link to="/cookies" className="opacity-85 hover:opacity-100 hover:underline">Cookie Policy</Link></li>
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new Event("menuly-open-cookie-banner"));
+                  }
+                }}
+                className="opacity-85 hover:opacity-100 hover:underline text-left cursor-pointer"
+              >
+                Cookie Settings
+              </button>
+            </li>
           </ul>
         </div>
         <div>

@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
   Shield,
@@ -53,6 +53,29 @@ export function LegalLayout({
   const location = useLocation();
   const pathname = location.pathname;
 
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  // Smoothly scroll to top on tab route transition
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [pathname]);
+
+  // Track reading scroll progress for top luxury indicator bar
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleScroll = () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (totalHeight > 0) {
+        const progress = (window.scrollY / totalHeight) * 100;
+        setScrollProgress(Math.min(100, Math.max(0, progress)));
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const handlePrint = () => {
     if (typeof window !== "undefined") {
       window.print();
@@ -61,6 +84,14 @@ export function LegalLayout({
 
   return (
     <SitePage>
+      {/* Top Luxury Reading / Transition Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 z-[60] h-1 bg-transparent pointer-events-none">
+        <div
+          className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-150 ease-out shadow-xs"
+          style={{ width: `${Math.max(scrollProgress, 6)}%` }}
+        />
+      </div>
+
       {/* ================================================================= */}
       {/* LEGAL HERO BANNER                                                 */}
       {/* ================================================================= */}
@@ -119,7 +150,7 @@ export function LegalLayout({
             </div>
           </div>
 
-          {/* Policy Navigation Tabs (Quick Switcher) */}
+          {/* Policy Navigation Tabs (Quick Switcher with Smooth Animated Feedback) */}
           <div className="mt-8 pt-4 border-t border-border/60">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
               Legal Policies & Statements
@@ -133,13 +164,13 @@ export function LegalLayout({
                     key={tab.to}
                     to={tab.to}
                     className={cn(
-                      "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all shrink-0",
+                      "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold transition-all shrink-0 duration-200 active:scale-95",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-soft"
+                        ? "bg-primary text-primary-foreground shadow-lift ring-2 ring-primary/40 font-extrabold"
                         : "bg-card border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary"
                     )}
                   >
-                    <Icon className="size-3.5" />
+                    <Icon className={cn("size-3.5 transition-transform duration-200", isActive && "scale-110 text-accent")} />
                     {tab.label}
                   </Link>
                 );
@@ -224,8 +255,8 @@ export function LegalLayout({
             </div>
           </aside>
 
-          {/* RIGHT: Document Article Body */}
-          <main className="min-w-0">
+          {/* RIGHT: Document Article Body with Butter-Smooth Keyed Entrance Animation */}
+          <main key={pathname} className="min-w-0 animate-in fade-in-50 slide-in-from-bottom-3 duration-300 fill-mode-both">
             <article className="rounded-3xl border border-border/80 bg-card p-6 sm:p-10 shadow-soft">
               {children}
             </article>
