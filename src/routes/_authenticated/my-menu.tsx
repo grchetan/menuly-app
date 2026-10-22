@@ -132,9 +132,10 @@ function MyMenu() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
 
-  // Quick Add State (Single line entry)
+  // Quick Add State (Single line entry with optional description)
   const [quickName, setQuickName] = useState("");
   const [quickPrice, setQuickPrice] = useState("");
+  const [quickDesc, setQuickDesc] = useState("");
   const [quickCatId, setQuickCatId] = useState(data?.categories?.[0]?.id || "");
   const [isQuickAdding, setIsQuickAdding] = useState(false);
 
@@ -212,11 +213,13 @@ function MyMenu() {
     setIsQuickAdding(true);
     try {
       let targetCatId = quickCatId;
+      let createdCat: Category | null = null;
 
       // If user typed a new category name in the inline field, auto-create it first!
       if (newCat.trim()) {
         const cat = await addCategoryHelper(rid, newCat.trim());
         targetCatId = cat.id;
+        createdCat = cat;
         setNewCat("");
         setShowAddCat(false);
         setQuickCatId(cat.id);
@@ -227,21 +230,36 @@ function MyMenu() {
         } else {
           const cat = await addCategoryHelper(rid, "Main Dishes");
           targetCatId = cat.id;
+          createdCat = cat;
           setQuickCatId(cat.id);
         }
       }
 
-      await addDishHelper({
+      const newItem = await addDishHelper({
         restaurant_id: rid,
         category_id: targetCatId,
         name: quickName.trim(),
         price: priceNum,
-        description: "",
+        description: quickDesc.trim() || "",
         image_url: null,
       });
+
+      // Optimistic cache update for instantaneous 0ms feedback!
+      qc.setQueryData(myMenuQuery.queryKey, (old: typeof data | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          categories: createdCat && !old.categories.some((c) => c.id === createdCat!.id)
+            ? [...old.categories, createdCat]
+            : old.categories,
+          items: [...old.items.filter((i) => i.id !== newItem.id), newItem],
+        };
+      });
+
       toast.success(`Added "${quickName.trim()}" (₹${priceNum})`);
       setQuickName("");
       setQuickPrice("");
+      setQuickDesc("");
       refresh();
     } catch (err) {
       toast.error((err as Error).message);
@@ -698,61 +716,74 @@ function MyMenu() {
             </span>
           </div>
 
-          <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.8fr)_110px_minmax(0,1.4fr)_auto] gap-2.5 sm:gap-3 min-w-0">
-            <Input
-              placeholder="Dish Name (e.g. Masala Dosa, Paneer Tikka)"
-              value={quickName}
-              onChange={(e) => setQuickName(e.target.value)}
-              className="bg-background text-sm font-medium h-11 px-4 rounded-xl border-border"
-              required
-            />
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">₹</span>
+          <form onSubmit={handleQuickAdd} className="space-y-2.5 sm:space-y-3 min-w-0">
+            {/* Row 1: Dish Name, Price, and Category */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_120px_minmax(0,1.5fr)] gap-2.5 sm:gap-3 min-w-0">
               <Input
-                type="number"
-                min="1"
-                placeholder="Price"
-                value={quickPrice}
-                onChange={(e) => setQuickPrice(e.target.value)}
-                className="pl-7 bg-background font-bold text-sm h-11 rounded-xl border-border"
+                placeholder="Dish Name (e.g. Masala Dosa, Paneer Tikka, Chai)"
+                value={quickName}
+                onChange={(e) => setQuickName(e.target.value)}
+                className="bg-background text-sm font-medium h-11 px-4 rounded-xl border-border"
                 required
               />
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">₹</span>
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Price"
+                  value={quickPrice}
+                  onChange={(e) => setQuickPrice(e.target.value)}
+                  className="pl-7 bg-background font-bold text-sm h-11 rounded-xl border-border"
+                  required
+                />
+              </div>
+              <select
+                value={quickCatId || (data.categories[0]?.id ?? "__NEW__")}
+                onChange={(e) => {
+                  if (e.target.value === "__NEW__") {
+                    setShowAddCat(true);
+                    setQuickCatId("__NEW__");
+                  } else {
+                    setShowAddCat(false);
+                    setQuickCatId(e.target.value);
+                  }
+                }}
+                className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-xs sm:text-sm font-semibold truncate cursor-pointer"
+              >
+                {data.categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="__NEW__">+ Add New Category...</option>
+              </select>
             </div>
-            <select
-              value={quickCatId || (data.categories[0]?.id ?? "__NEW__")}
-              onChange={(e) => {
-                if (e.target.value === "__NEW__") {
-                  setShowAddCat(true);
-                  setQuickCatId("__NEW__");
-                } else {
-                  setShowAddCat(false);
-                  setQuickCatId(e.target.value);
-                }
-              }}
-              className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-xs sm:text-sm font-semibold truncate cursor-pointer"
-            >
-              {data.categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-              <option value="__NEW__">+ Add New Category...</option>
-            </select>
-            <Button
-              type="submit"
-              disabled={isQuickAdding || !quickName.trim()}
-              className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl gap-1.5 shadow-xs shrink-0 whitespace-nowrap bg-primary text-primary-foreground cursor-pointer"
-            >
-              {isQuickAdding ? (
-                <>
-                  <RefreshCw className="size-4 animate-spin" /> Adding...
-                </>
-              ) : (
-                <>
-                  <Plus className="size-4" /> Add Dish
-                </>
-              )}
-            </Button>
+
+            {/* Row 2: Optional Description & Add Dish Button */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
+              <Input
+                placeholder="Description (optional) e.g. Steaming hot aromatic spiced tea brewed with ginger & cardamom"
+                value={quickDesc}
+                onChange={(e) => setQuickDesc(e.target.value)}
+                className="bg-background text-xs sm:text-sm font-normal h-11 px-4 rounded-xl border-border flex-1 w-full"
+              />
+              <Button
+                type="submit"
+                disabled={isQuickAdding || !quickName.trim()}
+                className="w-full sm:w-auto font-bold text-xs sm:text-sm h-11 px-6 rounded-xl gap-1.5 shadow-xs shrink-0 whitespace-nowrap bg-primary text-primary-foreground cursor-pointer"
+              >
+                {isQuickAdding ? (
+                  <>
+                    <RefreshCw className="size-4 animate-spin" /> Adding...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="size-4" /> Add Dish
+                  </>
+                )}
+              </Button>
+            </div>
           </form>
 
           {/* Inline Add Category Form if triggered */}
@@ -1140,28 +1171,15 @@ function MyMenu() {
           </div>
         </div>
 
-        {/* Mobile Floating Preview Button */}
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 lg:hidden">
-          <Button
-            onClick={() => setPreview(true)}
-            className="rounded-full shadow-2xl gap-2 font-bold px-5 py-2.5 h-11 text-xs sm:text-sm bg-foreground text-background border-2 border-primary/40 hover:bg-foreground/90 active:scale-95 transition-all"
-          >
-            <Smartphone className="size-4 text-accent" />
-            <span>Preview Live Menu</span>
-          </Button>
-        </div>
       </div>
 
       {/* Mobile Live View Dialog */}
       <Dialog open={preview} onOpenChange={setPreview}>
         <DialogContent className="max-h-[92vh] max-w-sm sm:max-w-md overflow-hidden p-0 rounded-3xl border-4 border-foreground/90">
-          <div className="p-3 border-b flex items-center justify-between bg-card">
+          <div className="p-3.5 border-b flex items-center justify-between bg-card pr-12">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Smartphone className="size-3.5 text-primary" /> Customer Mobile Preview
             </span>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setPreview(false)}>
-              Close
-            </Button>
           </div>
           <div className="max-h-[calc(90vh-60px)] overflow-y-auto overscroll-contain scroll-smooth [scrollbar-width:thin] pb-6">
             <MenuView menu={data} compact />

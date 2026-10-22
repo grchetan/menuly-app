@@ -2515,27 +2515,31 @@ function QrPage() {
               </div>
 
               <div className="mt-5 space-y-3 w-full">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full">
+                <div className="flex flex-col gap-2.5 w-full">
                   <Button
                     onClick={() => downloadCleanPdf(templateTab)}
-                    className="gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10 bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="w-full gap-2 shadow-soft font-bold text-xs sm:text-sm h-11 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                   >
                     <FileText className="size-4 shrink-0 text-amber-300" /> Download Clean PDF (1-Page)
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => printTemplate(templateTab)}
-                    className="gap-2 font-semibold text-xs sm:text-sm h-10 border-border hover:bg-secondary"
-                  >
-                    <Printer className="size-4 shrink-0 text-muted-foreground" /> Print Clean Sheet
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => downloadPrintableCard(templateTab)}
-                    className="gap-2 text-xs sm:text-sm h-10 border-border hover:bg-secondary font-semibold"
-                  >
-                    <Download className="size-4 shrink-0 text-muted-foreground" /> HD Image (300 DPI)
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-2.5 w-full">
+                    <Button
+                      variant="outline"
+                      onClick={() => printTemplate(templateTab)}
+                      className="gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm h-10 border-border hover:bg-secondary cursor-pointer truncate"
+                    >
+                      <Printer className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">Print Clean Sheet</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => downloadPrintableCard(templateTab)}
+                      className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-10 border-border hover:bg-secondary font-semibold cursor-pointer truncate"
+                    >
+                      <Download className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">HD Image (300 DPI)</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3 text-left text-xs text-muted-foreground flex items-start gap-2.5">
