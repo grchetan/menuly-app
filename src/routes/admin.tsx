@@ -153,13 +153,15 @@ export type CustomerFeedbackItem = {
   rating: number;
   category: string;
   message: string;
-  wouldRecommend: boolean;
+  wouldRecommend?: boolean;
+  recommend?: boolean;
   createdAt: string;
 };
 
 export type FeedbackStats = {
   total: number;
-  averageRating: number;
+  averageRating?: number | string;
+  avgRating?: string;
   recommendPercent: number;
   stars?: {
     5?: number;
@@ -1636,6 +1638,7 @@ function AdminPage() {
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-bold font-display text-foreground">
                     {feedbackStats?.averageRating ??
+                      (feedbackStats as any)?.avgRating ??
                       (feedbacks.length > 0
                         ? (feedbacks.reduce((a, b) => a + b.rating, 0) / feedbacks.length).toFixed(1)
                         : "5.0")}
@@ -1647,7 +1650,7 @@ function AdminPage() {
                         key={s}
                         className={cn(
                           "size-3.5",
-                          s <= Math.round(Number(feedbackStats?.averageRating || 5))
+                          s <= Math.round(Number(feedbackStats?.averageRating || (feedbackStats as any)?.avgRating || 5))
                             ? "text-amber-400 fill-amber-400"
                             : "text-muted-foreground/30"
                         )}
@@ -1757,7 +1760,7 @@ function AdminPage() {
                               {f.category}
                             </span>
 
-                            {f.wouldRecommend ? (
+                            {(f.wouldRecommend ?? (f as any).recommend ?? true) ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-veg/10 px-2.5 py-0.5 text-[11px] font-semibold text-veg">
                                 <ThumbsUp className="size-3" /> Recommends
                               </span>

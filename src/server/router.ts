@@ -551,6 +551,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         category: body.category || "Overall Experience",
         message: message || "No written remarks provided.",
         recommend: body.recommend !== false,
+        wouldRecommend: body.recommend !== false,
         createdAt: new Date().toISOString(),
       };
 
@@ -805,15 +806,23 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         const total = feedbacks.length;
         const sumRatings = feedbacks.reduce((acc, f) => acc + (Number(f.rating) || 5), 0);
         const avgRating = total > 0 ? (sumRatings / total).toFixed(1) : "5.0";
-        const recommendCount = feedbacks.filter((f) => f.recommend !== false).length;
+        const recommendCount = feedbacks.filter((f) => f.recommend !== false && f.wouldRecommend !== false).length;
         const recommendPercent = total > 0 ? Math.round((recommendCount / total) * 100) : 100;
+
+        const normalizedFeedbacks = feedbacks.map((f: any) => ({
+          ...f,
+          rating: Number(f.rating) || 5,
+          recommend: f.recommend !== undefined ? f.recommend : (f.wouldRecommend !== false),
+          wouldRecommend: f.wouldRecommend !== undefined ? f.wouldRecommend : (f.recommend !== false),
+        }));
 
         return json({
           success: true,
-          feedbacks,
+          feedbacks: normalizedFeedbacks,
           stats: {
             total,
             avgRating,
+            averageRating: avgRating,
             recommendPercent,
             distribution: {
               5: feedbacks.filter((f) => Number(f.rating) === 5).length,
@@ -841,6 +850,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
             data: { value: filtered },
           });
         }
+
+        // Clean up mirror ticket if one was created
+        try {
+          await prisma.supportTicket.deleteMany({
+            where: { id: `TKT-${String(body.id).slice(-6)}` },
+          });
+        } catch {
+          // ignore
+        }
+
         return json({ success: true, message: "Feedback deleted successfully" });
       }
 
