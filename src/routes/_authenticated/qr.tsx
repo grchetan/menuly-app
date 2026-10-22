@@ -21,6 +21,7 @@ import {
   Layers,
   Smartphone,
   Eye,
+  FileText,
 } from "lucide-react";
 import type QRCodeStylingType from "qr-code-styling";
 import type { Options } from "qr-code-styling";
@@ -116,6 +117,79 @@ const placementTips = [
     text: "Your QR code always points to your live digital menu. Update prices or items anytime without reprinting.",
   },
 ];
+
+// Pure client-side 1-page PDF generator (standard PDF 1.4, exact ISO page size, 0 external dependencies)
+function createSinglePageImagePdf(
+  jpegBytes: Uint8Array,
+  pageWidthPt: number, // A4: 595.28, A5: 419.53
+  pageHeightPt: number, // A4: 841.89, A5: 595.28
+  imgWidthPx: number,
+  imgHeightPx: number
+): Blob {
+  const parts: BlobPart[] = [];
+  const offsets: number[] = [0];
+  let currentOffset = 0;
+
+  const enc = new TextEncoder();
+
+  const pushString = (str: string) => {
+    const bytes = enc.encode(str);
+    currentOffset += bytes.length;
+    parts.push(bytes as unknown as BlobPart);
+  };
+
+  const pushBinary = (bytes: Uint8Array) => {
+    currentOffset += bytes.length;
+    parts.push(bytes as unknown as BlobPart);
+  };
+
+  // Header & binary indicator comment
+  pushString("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+
+  // 1 0 obj: Catalog
+  offsets.push(currentOffset);
+  pushString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  // 2 0 obj: Pages
+  offsets.push(currentOffset);
+  pushString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+  // 3 0 obj: Page
+  offsets.push(currentOffset);
+  pushString(
+    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidthPt.toFixed(2)} ${pageHeightPt.toFixed(2)}] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`
+  );
+
+  // 4 0 obj: Image XObject (native baseline JPEG)
+  offsets.push(currentOffset);
+  pushString(
+    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgWidthPx} /Height ${imgHeightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`
+  );
+  pushBinary(jpegBytes);
+  pushString("\nendstream\nendobj\n");
+
+  // 5 0 obj: Content stream (scale image to fill exact page dimensions)
+  const contentStream = `q\n${pageWidthPt.toFixed(2)} 0 0 ${pageHeightPt.toFixed(2)} 0 0 cm\n/Im1 Do\nQ\n`;
+  offsets.push(currentOffset);
+  pushString(
+    `5 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream\nendobj\n`
+  );
+
+  // Cross-reference table
+  const xrefOffset = currentOffset;
+  pushString("xref\n0 6\n0000000000 65535 f \n");
+  for (let i = 1; i <= 5; i++) {
+    const offStr = String(offsets[i]).padStart(10, "0");
+    pushString(`${offStr} 00000 n \n`);
+  }
+
+  // Trailer
+  pushString(
+    `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  );
+
+  return new Blob(parts, { type: "application/pdf" });
+}
 
 function QrPage() {
   const { data, isLoading } = useQuery(myMenuQuery);
@@ -327,6 +401,23 @@ function QrPage() {
     const originalHostTitle = document.title;
     document.title = "";
 
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      // Mobile browsers handle popup/new window print much more reliably than hidden iframes
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.open();
+        w.document.write(htmlContent);
+        w.document.close();
+        setTimeout(() => {
+          w.focus();
+          w.print();
+          document.title = originalHostTitle;
+        }, 500);
+        return;
+      }
+    }
+
     const frameId = "menuly-clean-print-frame";
     const existing = document.getElementById(frameId);
     if (existing) existing.remove();
@@ -389,198 +480,200 @@ function QrPage() {
     }, 450);
   };
 
+  // Generate high-resolution 300 DPI Canvas for A5 or A4 Printable Card
+  const generateCardCanvas = async (format: "A5" | "A4"): Promise<HTMLCanvasElement> => {
+    const isA4 = format === "A4";
+    // Standard 300 DPI dimensions:
+    // A5: 1748 x 2480 px (148 x 210 mm)
+    // A4: 2480 x 3508 px (210 x 297 mm)
+    const width = isA4 ? 2480 : 1748;
+    const height = isA4 ? 3508 : 2480;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to initialize canvas context");
+
+    // Crisp pure white background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    // Outer dashed cut guide for print shops or acrylic stands
+    const margin = isA4 ? 120 : 90;
+    const cardW = width - margin * 2;
+    const cardH = height - margin * 2;
+    ctx.save();
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([16, 12]);
+    drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
+    ctx.stroke();
+    ctx.restore();
+
+    // Bottom cut guide note
+    ctx.font = `600 ${isA4 ? "24px" : "19px"} -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+    ctx.fillStyle = "#94a3b8";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      `✂ Cut along the dashed line for ${format} acrylic table stand or wall mount`,
+      width / 2,
+      height - (isA4 ? 55 : 42)
+    );
+
+    const contentCenterX = width / 2;
+    let currentY = margin + (isA4 ? 110 : 80);
+
+    // Top badge: "CONTACTLESS DINING MENU"
+    const badgeW = isA4 ? 680 : 520;
+    const badgeH = isA4 ? 64 : 50;
+    ctx.save();
+    ctx.fillStyle = "#ecfdf5";
+    drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
+    ctx.fill();
+    ctx.strokeStyle = "#a7f3d0";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#047857";
+    ctx.font = `bold ${isA4 ? "26px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✦ CONTACTLESS DINING MENU ✦", contentCenterX, currentY + badgeH / 2);
+    ctx.restore();
+
+    currentY += badgeH + (isA4 ? 60 : 45);
+
+    // Restaurant Logo or Initials Monogram
+    const logoSize = isA4 ? 220 : 160;
+    let logoDrawn = false;
+    if (r.logo_url) {
+      try {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("Logo load error"));
+          img.src = r.logo_url!;
+          setTimeout(() => reject(new Error("Timeout")), 2500);
+        });
+        ctx.save();
+        drawRoundedRect(ctx, contentCenterX - logoSize / 2, currentY, logoSize, logoSize, 36);
+        ctx.clip();
+        ctx.drawImage(img, contentCenterX - logoSize / 2, currentY, logoSize, logoSize);
+        ctx.restore();
+        logoDrawn = true;
+      } catch {
+        logoDrawn = false;
+      }
+    }
+
+    if (!logoDrawn) {
+      ctx.save();
+      ctx.fillStyle = fg;
+      drawRoundedRect(ctx, contentCenterX - logoSize / 2, currentY, logoSize, logoSize, 36);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold ${Math.round(logoSize * 0.44)}px 'Fraunces', Georgia, serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(r.name.slice(0, 2).toUpperCase(), contentCenterX, currentY + logoSize / 2);
+      ctx.restore();
+    }
+
+    currentY += logoSize + (isA4 ? 65 : 45);
+
+    // Restaurant Name
+    ctx.fillStyle = fg;
+    ctx.font = `bold ${isA4 ? "78px" : "58px"} 'Fraunces', Georgia, serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(r.name, contentCenterX, currentY);
+
+    currentY += isA4 ? 50 : 38;
+
+    // Subtitle
+    ctx.fillStyle = "#64748b";
+    ctx.font = `bold ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.fillText("SCAN TO VIEW MENU & PRICES", contentCenterX, currentY);
+
+    currentY += isA4 ? 65 : 45;
+
+    // QR Code Box
+    const qrSize = isA4 ? 1100 : 820;
+    const framePad = isA4 ? 46 : 34;
+    const qrFrameW = qrSize + framePad * 2;
+    const qrFrameH = qrSize + framePad * 2;
+    const qrFrameX = contentCenterX - qrFrameW / 2;
+    const qrFrameY = currentY;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
+    ctx.shadowBlur = 28;
+    ctx.shadowOffsetY = 12;
+    ctx.fillStyle = bg;
+    drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 3;
+    drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
+    ctx.stroke();
+
+    // Render high-res QR code
+    const { default: QRCodeStyling } = await import("qr-code-styling");
+    const qrBlob = (await new QRCodeStyling({
+      ...options,
+      width: qrSize,
+      height: qrSize,
+    }).getRawData("png")) as Blob;
+
+    const qrImg = new Image();
+    const qrObjectUrl = URL.createObjectURL(qrBlob);
+    await new Promise<void>((resolve) => {
+      qrImg.onload = () => resolve();
+      qrImg.src = qrObjectUrl;
+    });
+
+    ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
+    URL.revokeObjectURL(qrObjectUrl);
+
+    currentY += qrFrameH + (isA4 ? 75 : 55);
+
+    // Scan Instructions
+    ctx.fillStyle = fg;
+    ctx.font = `bold ${isA4 ? "52px" : "40px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Point your phone camera to scan", contentCenterX, currentY);
+
+    currentY += isA4 ? 44 : 34;
+    ctx.fillStyle = "#64748b";
+    ctx.font = `500 ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.fillText("No app download required • Instant mobile dining", contentCenterX, currentY);
+
+    if (r.hours || r.address) {
+      currentY += isA4 ? 42 : 32;
+      ctx.fillStyle = "#475569";
+      ctx.font = `600 ${isA4 ? "28px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+      const meta = [r.hours, r.address].filter(Boolean).join("  •  ");
+      ctx.fillText(meta, contentCenterX, currentY);
+    }
+
+    currentY += isA4 ? 50 : 38;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `500 ${isA4 ? "24px" : "18px"} monospace`;
+    ctx.fillText(url, contentCenterX, currentY);
+
+    return canvas;
+  };
+
   // High-Res Printable Sheet Exporter (300 DPI PNG)
   const downloadPrintableCard = async (format: "A5" | "A4") => {
     try {
       toast.info(`Preparing HD ${format} Printable Sheet (300 DPI)...`);
-      const isA4 = format === "A4";
-      // Standard 300 DPI dimensions:
-      // A5: 1748 x 2480 px (148 x 210 mm)
-      // A4: 2480 x 3508 px (210 x 297 mm)
-      const width = isA4 ? 2480 : 1748;
-      const height = isA4 ? 3508 : 2480;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        toast.error("Failed to initialize canvas context");
-        return;
-      }
-
-      // Crisp pure white background
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-
-      // Outer dashed cut guide for print shops or home cutting
-      const margin = isA4 ? 120 : 90;
-      const cardW = width - margin * 2;
-      const cardH = height - margin * 2;
-      ctx.save();
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.lineWidth = 4;
-      ctx.setLineDash([16, 12]);
-      drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
-      ctx.stroke();
-      ctx.restore();
-
-      // Bottom cut guide note
-      ctx.font = `600 ${isA4 ? "24px" : "19px"} -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
-      ctx.fillStyle = "#94a3b8";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(
-        `✂ Cut along the dashed line for ${format} acrylic table stand or wall mount`,
-        width / 2,
-        height - (isA4 ? 55 : 42)
-      );
-
-      const contentCenterX = width / 2;
-      let currentY = margin + (isA4 ? 110 : 80);
-
-      // Top badge: "CONTACTLESS DINING MENU"
-      const badgeW = isA4 ? 680 : 520;
-      const badgeH = isA4 ? 64 : 50;
-      ctx.save();
-      ctx.fillStyle = "#ecfdf5";
-      drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
-      ctx.fill();
-      ctx.strokeStyle = "#a7f3d0";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#047857";
-      ctx.font = `bold ${isA4 ? "26px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("✦ CONTACTLESS DINING MENU ✦", contentCenterX, currentY + badgeH / 2);
-      ctx.restore();
-
-      currentY += badgeH + (isA4 ? 60 : 45);
-
-      // Restaurant Logo or Initials Monogram
-      const logoSize = isA4 ? 220 : 160;
-      let logoDrawn = false;
-      if (r.logo_url) {
-        try {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = () => reject(new Error("Logo load error"));
-            img.src = r.logo_url!;
-            setTimeout(() => reject(new Error("Timeout")), 2500);
-          });
-          ctx.save();
-          drawRoundedRect(ctx, contentCenterX - logoSize / 2, currentY, logoSize, logoSize, 36);
-          ctx.clip();
-          ctx.drawImage(img, contentCenterX - logoSize / 2, currentY, logoSize, logoSize);
-          ctx.restore();
-          logoDrawn = true;
-        } catch {
-          logoDrawn = false;
-        }
-      }
-
-      if (!logoDrawn) {
-        ctx.save();
-        ctx.fillStyle = fg;
-        drawRoundedRect(ctx, contentCenterX - logoSize / 2, currentY, logoSize, logoSize, 36);
-        ctx.fill();
-        ctx.fillStyle = "#ffffff";
-        ctx.font = `bold ${Math.round(logoSize * 0.44)}px 'Fraunces', Georgia, serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(r.name.slice(0, 2).toUpperCase(), contentCenterX, currentY + logoSize / 2);
-        ctx.restore();
-      }
-
-      currentY += logoSize + (isA4 ? 65 : 45);
-
-      // Restaurant Name
-      ctx.fillStyle = fg;
-      ctx.font = `bold ${isA4 ? "78px" : "58px"} 'Fraunces', Georgia, serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(r.name, contentCenterX, currentY);
-
-      currentY += isA4 ? 50 : 38;
-
-      // Subtitle
-      ctx.fillStyle = "#64748b";
-      ctx.font = `bold ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.fillText("SCAN TO VIEW MENU & PRICES", contentCenterX, currentY);
-
-      currentY += isA4 ? 65 : 45;
-
-      // QR Code Box
-      const qrSize = isA4 ? 1100 : 820;
-      const framePad = isA4 ? 46 : 34;
-      const qrFrameW = qrSize + framePad * 2;
-      const qrFrameH = qrSize + framePad * 2;
-      const qrFrameX = contentCenterX - qrFrameW / 2;
-      const qrFrameY = currentY;
-
-      ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
-      ctx.shadowBlur = 28;
-      ctx.shadowOffsetY = 12;
-      ctx.fillStyle = bg;
-      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 3;
-      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
-      ctx.stroke();
-
-      // Render high-res QR code
-      const { default: QRCodeStyling } = await import("qr-code-styling");
-      const qrBlob = (await new QRCodeStyling({
-        ...options,
-        width: qrSize,
-        height: qrSize,
-      }).getRawData("png")) as Blob;
-
-      const qrImg = new Image();
-      const qrObjectUrl = URL.createObjectURL(qrBlob);
-      await new Promise<void>((resolve) => {
-        qrImg.onload = () => resolve();
-        qrImg.src = qrObjectUrl;
-      });
-
-      ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
-      URL.revokeObjectURL(qrObjectUrl);
-
-      currentY += qrFrameH + (isA4 ? 75 : 55);
-
-      // Scan Instructions
-      ctx.fillStyle = fg;
-      ctx.font = `bold ${isA4 ? "52px" : "40px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Point your phone camera to scan", contentCenterX, currentY);
-
-      currentY += isA4 ? 44 : 34;
-      ctx.fillStyle = "#64748b";
-      ctx.font = `500 ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.fillText("No app download required • Instant mobile dining", contentCenterX, currentY);
-
-      if (r.hours || r.address) {
-        currentY += isA4 ? 42 : 32;
-        ctx.fillStyle = "#475569";
-        ctx.font = `600 ${isA4 ? "28px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-        const meta = [r.hours, r.address].filter(Boolean).join("  •  ");
-        ctx.fillText(meta, contentCenterX, currentY);
-      }
-
-      currentY += isA4 ? 50 : 38;
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = `500 ${isA4 ? "24px" : "18px"} monospace`;
-      ctx.fillText(url, contentCenterX, currentY);
-
-      // Trigger download
+      const canvas = await generateCardCanvas(format);
       canvas.toBlob((blob) => {
         if (!blob) return;
         const link = document.createElement("a");
@@ -596,164 +689,205 @@ function QrPage() {
     }
   };
 
+  // Clean 1-Page PDF Exporter (Zero browser headers, timestamps, or URLs)
+  const downloadCleanPdf = async (format: "A5" | "A4") => {
+    try {
+      toast.info(`Generating Clean 1-Page ${format} PDF...`);
+      const isA4 = format === "A4";
+      const canvas = await generateCardCanvas(format);
+
+      const jpegBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.95)
+      );
+      if (!jpegBlob) throw new Error("Could not encode printable sheet");
+
+      const arrayBuf = await jpegBlob.arrayBuffer();
+      const jpegBytes = new Uint8Array(arrayBuf);
+
+      const pdfBlob = createSinglePageImagePdf(
+        jpegBytes,
+        isA4 ? 595.28 : 419.53,
+        isA4 ? 841.89 : 595.28,
+        canvas.width,
+        canvas.height
+      );
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(pdfBlob);
+      link.download = `${name}-${format}-wall-poster-clean.pdf`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success(`Downloaded Clean 1-Page ${format} PDF (No timestamps/URLs)`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to generate clean PDF: " + msg);
+    }
+  };
+
+  // Generate high-resolution 300 DPI Canvas for Table Stand Card (A5)
+  const generateTableStandCanvas = async (tbl: RestaurantTable): Promise<HTMLCanvasElement> => {
+    const width = 1748;
+    const height = 2480;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to initialize canvas context");
+
+    // Pure white background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    // Cut guide line
+    const margin = 90;
+    const cardW = width - margin * 2;
+    const cardH = height - margin * 2;
+    ctx.save();
+    ctx.strokeStyle = "#0f5132";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([16, 12]);
+    drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.font = "600 20px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillStyle = "#94a3b8";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✂ Cut along the line for A5 acrylic stand or tent card", width / 2, height - 42);
+
+    const contentCenterX = width / 2;
+    let currentY = margin + 80;
+
+    // Top Contactless Badge
+    const badgeW = 620;
+    const badgeH = 50;
+    ctx.save();
+    ctx.fillStyle = "#ecfdf5";
+    drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
+    ctx.fill();
+    ctx.strokeStyle = "#a7f3d0";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#047857";
+    ctx.font = "bold 20px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✦ CONTACTLESS DINING • SCAN TO ORDER ✦", contentCenterX, currentY + badgeH / 2);
+    ctx.restore();
+
+    currentY += badgeH + 40;
+
+    // Restaurant Name
+    ctx.fillStyle = fg;
+    ctx.font = "bold 58px 'Fraunces', Georgia, serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(r.name, contentCenterX, currentY);
+
+    if (r.address) {
+      currentY += 36;
+      ctx.fillStyle = "#64748b";
+      ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(r.address, contentCenterX, currentY);
+    }
+
+    currentY += 50;
+
+    // Big Bold Table Banner
+    const bannerW = 860;
+    const bannerH = 140;
+    ctx.save();
+    ctx.fillStyle = "#1a1f1c";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.12)";
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 8;
+    drawRoundedRect(ctx, contentCenterX - bannerW / 2, currentY, bannerW, bannerH, 28);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 68px 'Fraunces', Georgia, serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`TABLE #${tbl.table_number}`, contentCenterX, currentY + (tbl.label ? 50 : 70));
+
+    if (tbl.label) {
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(tbl.label.toUpperCase(), contentCenterX, currentY + 104);
+    }
+
+    currentY += bannerH + 50;
+
+    // QR Code Frame
+    const qrSize = 800;
+    const framePad = 32;
+    const qrFrameW = qrSize + framePad * 2;
+    const qrFrameH = qrSize + framePad * 2;
+    const qrFrameX = contentCenterX - qrFrameW / 2;
+    const qrFrameY = currentY;
+
+    ctx.save();
+    ctx.fillStyle = bg;
+    ctx.shadowColor = "rgba(0,0,0,0.06)";
+    ctx.shadowBlur = 20;
+    drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 36);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 3;
+    drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 36);
+    ctx.stroke();
+
+    const tableUrl = `${url}?table=${encodeURIComponent(tbl.table_number)}`;
+    const { default: QRCodeStyling } = await import("qr-code-styling");
+    const qrBlob = (await new QRCodeStyling({
+      ...options,
+      data: tableUrl,
+      width: qrSize,
+      height: qrSize,
+    }).getRawData("png")) as Blob;
+
+    const qrImg = new Image();
+    const qrObjectUrl = URL.createObjectURL(qrBlob);
+    await new Promise<void>((resolve) => {
+      qrImg.onload = () => resolve();
+      qrImg.src = qrObjectUrl;
+    });
+
+    ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
+    URL.revokeObjectURL(qrObjectUrl);
+
+    currentY += qrFrameH + 55;
+
+    // Scan Call to Action
+    ctx.fillStyle = fg;
+    ctx.font = "bold 40px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`Scan to View Menu & Order from Table #${tbl.table_number}`, contentCenterX, currentY);
+
+    currentY += 36;
+    ctx.fillStyle = "#64748b";
+    ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("No app download needed • Instant contactless dining", contentCenterX, currentY);
+
+    currentY += 40;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "500 18px monospace";
+    ctx.fillText(tableUrl, contentCenterX, currentY);
+
+    return canvas;
+  };
+
   // High-Res Table Stand Exporter (300 DPI PNG)
   const downloadTableStandCard = async (tbl: RestaurantTable) => {
     try {
       toast.info(`Preparing HD Stand Card for Table #${tbl.table_number}...`);
-      const width = 1748;
-      const height = 2480;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      // Pure white background
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-
-      // Cut guide line
-      const margin = 90;
-      const cardW = width - margin * 2;
-      const cardH = height - margin * 2;
-      ctx.save();
-      ctx.strokeStyle = "#0f5132";
-      ctx.lineWidth = 4;
-      ctx.setLineDash([16, 12]);
-      drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.font = "600 20px -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillStyle = "#94a3b8";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("✂ Cut along the line for A5 acrylic stand or tent card", width / 2, height - 42);
-
-      const contentCenterX = width / 2;
-      let currentY = margin + 80;
-
-      // Top Contactless Badge
-      const badgeW = 620;
-      const badgeH = 50;
-      ctx.save();
-      ctx.fillStyle = "#ecfdf5";
-      drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
-      ctx.fill();
-      ctx.strokeStyle = "#a7f3d0";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#047857";
-      ctx.font = "bold 20px -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("✦ CONTACTLESS DINING • SCAN TO ORDER ✦", contentCenterX, currentY + badgeH / 2);
-      ctx.restore();
-
-      currentY += badgeH + 40;
-
-      // Restaurant Name
-      ctx.fillStyle = fg;
-      ctx.font = "bold 58px 'Fraunces', Georgia, serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(r.name, contentCenterX, currentY);
-
-      if (r.address) {
-        currentY += 36;
-        ctx.fillStyle = "#64748b";
-        ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText(r.address, contentCenterX, currentY);
-      }
-
-      currentY += 50;
-
-      // Big Bold Table Banner
-      const bannerW = 860;
-      const bannerH = 140;
-      ctx.save();
-      ctx.fillStyle = "#1a1f1c";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.12)";
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetY = 8;
-      drawRoundedRect(ctx, contentCenterX - bannerW / 2, currentY, bannerW, bannerH, 28);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 68px 'Fraunces', Georgia, serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(`TABLE #${tbl.table_number}`, contentCenterX, currentY + (tbl.label ? 50 : 70));
-
-      if (tbl.label) {
-        ctx.fillStyle = "#cbd5e1";
-        ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText(tbl.label.toUpperCase(), contentCenterX, currentY + 104);
-      }
-
-      currentY += bannerH + 50;
-
-      // QR Code Frame
-      const qrSize = 800;
-      const framePad = 32;
-      const qrFrameW = qrSize + framePad * 2;
-      const qrFrameH = qrSize + framePad * 2;
-      const qrFrameX = contentCenterX - qrFrameW / 2;
-      const qrFrameY = currentY;
-
-      ctx.save();
-      ctx.fillStyle = bg;
-      ctx.shadowColor = "rgba(0,0,0,0.06)";
-      ctx.shadowBlur = 20;
-      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 36);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 3;
-      drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 36);
-      ctx.stroke();
-
-      const tableUrl = `${url}?table=${encodeURIComponent(tbl.table_number)}`;
-      const { default: QRCodeStyling } = await import("qr-code-styling");
-      const qrBlob = (await new QRCodeStyling({
-        ...options,
-        data: tableUrl,
-        width: qrSize,
-        height: qrSize,
-      }).getRawData("png")) as Blob;
-
-      const qrImg = new Image();
-      const qrObjectUrl = URL.createObjectURL(qrBlob);
-      await new Promise<void>((resolve) => {
-        qrImg.onload = () => resolve();
-        qrImg.src = qrObjectUrl;
-      });
-
-      ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
-      URL.revokeObjectURL(qrObjectUrl);
-
-      currentY += qrFrameH + 55;
-
-      // Scan Call to Action
-      ctx.fillStyle = fg;
-      ctx.font = "bold 40px -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(`Scan to View Menu & Order from Table #${tbl.table_number}`, contentCenterX, currentY);
-
-      currentY += 36;
-      ctx.fillStyle = "#64748b";
-      ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillText("No app download needed • Instant contactless dining", contentCenterX, currentY);
-
-      currentY += 40;
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "500 18px monospace";
-      ctx.fillText(tableUrl, contentCenterX, currentY);
-
+      const canvas = await generateTableStandCanvas(tbl);
       canvas.toBlob((blob) => {
         if (!blob) return;
         const link = document.createElement("a");
@@ -766,6 +900,40 @@ function QrPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error("Failed to download table stand: " + msg);
+    }
+  };
+
+  // Clean 1-Page PDF Exporter for Table Stand
+  const downloadTableStandPdf = async (tbl: RestaurantTable) => {
+    try {
+      toast.info(`Generating Clean 1-Page PDF for Table #${tbl.table_number}...`);
+      const canvas = await generateTableStandCanvas(tbl);
+
+      const jpegBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.95)
+      );
+      if (!jpegBlob) throw new Error("Could not encode table stand");
+
+      const arrayBuf = await jpegBlob.arrayBuffer();
+      const jpegBytes = new Uint8Array(arrayBuf);
+
+      const pdfBlob = createSinglePageImagePdf(
+        jpegBytes,
+        419.53, // A5 width in pt
+        595.28, // A5 height in pt
+        canvas.width,
+        canvas.height
+      );
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(pdfBlob);
+      link.download = `${name}-table-${tbl.table_number}-stand-A5-clean.pdf`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success(`Downloaded Table #${tbl.table_number} Clean 1-Page PDF`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to generate table stand PDF: " + msg);
     }
   };
 
@@ -799,7 +967,7 @@ function QrPage() {
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: auto;
+      size: ${isA4 ? "A4 portrait" : "A5 portrait"};
       margin: 0mm !important;
     }
     @page :first { margin: 0mm !important; }
@@ -807,7 +975,7 @@ function QrPage() {
     @page :right { margin: 0mm !important; }
 
     *, *::before, *::after {
-      box-sizing: border-box;
+      box-sizing: border-box !important;
       margin: 0;
       padding: 0;
       -webkit-print-color-adjust: exact !important;
@@ -818,31 +986,38 @@ function QrPage() {
     html, body {
       margin: 0 !important;
       padding: 0 !important;
-      width: 100%;
-      height: 100%;
+      width: 100% !important;
+      height: 100% !important;
       background: #ffffff !important;
       font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1a1f1c;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
+      overflow: hidden !important;
     }
 
     .page-wrap {
       width: 100%;
-      height: 100vh;
-      min-height: 100vh;
+      height: 100%;
+      max-height: ${isA4 ? "297mm" : "210mm"};
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: ${isA4 ? "12mm 10mm" : "10mm 8mm"};
+      padding: ${isA4 ? "5mm 6mm" : "4mm 5mm"};
       background: #ffffff;
       box-sizing: border-box;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      overflow: hidden !important;
     }
 
     .sheet {
-      width: ${isA4 ? "190mm" : "138mm"};
-      height: ${isA4 ? "272mm" : "196mm"};
+      width: ${isA4 ? "174mm" : "128mm"};
+      max-height: ${isA4 ? "248mm" : "182mm"};
+      height: auto;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -850,11 +1025,16 @@ function QrPage() {
       justify-content: space-between;
       text-align: center;
       border: ${isA4 ? "2.5px solid #0f5132" : "2px dashed #0f5132"} !important;
-      border-radius: 8mm;
-      padding: ${isA4 ? "14mm 12mm" : "9mm 8mm"};
+      border-radius: 7mm;
+      padding: ${isA4 ? "7mm 8mm" : "5mm 6mm"};
       background: #ffffff !important;
       position: relative;
       margin: 0 auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      overflow: hidden !important;
     }
 
     .header-box {
@@ -873,14 +1053,14 @@ function QrPage() {
       gap: 6px;
       background: #ecfdf5 !important;
       color: #047857 !important;
-      padding: ${isA4 ? "6px 20px" : "4px 14px"};
+      padding: ${isA4 ? "4px 16px" : "3px 12px"};
       border-radius: 999px;
-      font-size: ${isA4 ? "10pt" : "8pt"};
+      font-size: ${isA4 ? "9pt" : "7.5pt"};
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       border: 1.5px solid #a7f3d0 !important;
-      margin: 0 auto ${isA4 ? "5mm" : "3.5mm"} auto;
+      margin: 0 auto ${isA4 ? "3.5mm" : "2.5mm"} auto;
     }
 
     .logo-container {
@@ -888,13 +1068,13 @@ function QrPage() {
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto ${isA4 ? "4mm" : "3mm"} auto;
+      margin: 0 auto ${isA4 ? "3mm" : "2mm"} auto;
     }
 
     .logo-img {
-      width: ${isA4 ? "34mm" : "26mm"};
-      height: ${isA4 ? "34mm" : "26mm"};
-      border-radius: 7mm;
+      width: ${isA4 ? "28mm" : "22mm"};
+      height: ${isA4 ? "28mm" : "22mm"};
+      border-radius: 6mm;
       object-fit: cover;
       display: block !important;
       margin: 0 auto !important;
@@ -902,9 +1082,9 @@ function QrPage() {
     }
 
     .logo-placeholder {
-      width: ${isA4 ? "34mm" : "26mm"};
-      height: ${isA4 ? "34mm" : "26mm"};
-      border-radius: 7mm;
+      width: ${isA4 ? "28mm" : "22mm"};
+      height: ${isA4 ? "28mm" : "22mm"};
+      border-radius: 6mm;
       background: ${fg} !important;
       color: #ffffff !important;
       display: flex !important;
@@ -912,26 +1092,26 @@ function QrPage() {
       justify-content: center !important;
       font-family: 'Fraunces', Georgia, serif;
       font-weight: 800;
-      font-size: ${isA4 ? "20pt" : "15pt"};
+      font-size: ${isA4 ? "17pt" : "13pt"};
       margin: 0 auto !important;
       box-shadow: 0 4px 14px rgba(0,0,0,0.12);
     }
 
     h1.rest-name {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: ${isA4 ? "34pt" : "23pt"};
+      font-size: ${isA4 ? "26pt" : "19pt"};
       font-weight: 800;
       color: ${fg} !important;
       line-height: 1.15;
-      margin: 0 0 1.5mm 0;
+      margin: 0 0 1mm 0;
       width: 100%;
       text-align: center;
     }
 
     .prompt {
-      font-size: ${isA4 ? "11.5pt" : "9pt"};
+      font-size: ${isA4 ? "10pt" : "8pt"};
       font-weight: 800;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: #64748b !important;
       margin: 0 auto;
@@ -944,38 +1124,38 @@ function QrPage() {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      margin: ${isA4 ? "5mm 0" : "3mm 0"};
+      margin: ${isA4 ? "3mm 0" : "2mm 0"};
     }
 
     .qr-frame {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: ${isA4 ? "5mm" : "3.5mm"};
+      padding: ${isA4 ? "4mm" : "3mm"};
       background: ${bg} !important;
-      border-radius: 7mm;
+      border-radius: 6mm;
       border: 2px solid #e2e8f0 !important;
       box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08);
-      margin: 0 auto ${isA4 ? "4mm" : "2.5mm"} auto;
+      margin: 0 auto ${isA4 ? "3mm" : "2mm"} auto;
     }
 
     .qr-img {
-      width: ${isA4 ? "105mm" : "75mm"};
-      height: ${isA4 ? "105mm" : "75mm"};
+      width: ${isA4 ? "90mm" : "68mm"};
+      height: ${isA4 ? "90mm" : "68mm"};
       display: block;
       margin: 0 auto;
     }
 
     .scan-msg {
-      font-size: ${isA4 ? "16pt" : "12pt"};
+      font-size: ${isA4 ? "13pt" : "10.5pt"};
       font-weight: 800;
       color: ${fg} !important;
-      margin: 0 auto 1.5mm auto;
+      margin: 0 auto 1mm auto;
       text-align: center;
     }
 
     .subtext {
-      font-size: ${isA4 ? "10pt" : "8pt"};
+      font-size: ${isA4 ? "8.5pt" : "7pt"};
       font-weight: 600;
       color: #64748b !important;
       max-width: 95%;
@@ -989,11 +1169,11 @@ function QrPage() {
       flex-direction: column;
       align-items: center;
       gap: 1.5mm;
-      margin-top: 2mm;
+      margin-top: 1.5mm;
     }
 
     .meta-line {
-      font-size: ${isA4 ? "9pt" : "7.5pt"};
+      font-size: ${isA4 ? "8pt" : "6.5pt"};
       font-weight: 700;
       color: #475569 !important;
       display: inline-flex;
@@ -1008,18 +1188,19 @@ function QrPage() {
       align-items: center;
       justify-content: center;
       border-top: 1px solid #f1f5f9;
-      padding-top: 2.5mm;
+      padding-top: 2mm;
+      margin-top: 2mm;
     }
 
     .footer-url {
-      font-size: ${isA4 ? "8.5pt" : "7pt"};
+      font-size: ${isA4 ? "7.5pt" : "6pt"};
       font-family: monospace;
       color: #94a3b8 !important;
-      margin-bottom: 1.5mm;
+      margin-bottom: 1mm;
     }
 
     .cut-guide {
-      font-size: 7pt;
+      font-size: ${isA4 ? "6.5pt" : "5.5pt"};
       font-weight: 700;
       color: #94a3b8;
       text-transform: uppercase;
@@ -1028,7 +1209,7 @@ function QrPage() {
 
     @media print {
       @page {
-        size: auto;
+        size: ${isA4 ? "A4 portrait" : "A5 portrait"};
         margin: 0mm !important;
       }
       html, body {
@@ -1037,13 +1218,25 @@ function QrPage() {
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
+        overflow: hidden !important;
       }
       .page-wrap {
-        padding: ${isA4 ? "10mm 8mm" : "8mm 6mm"} !important;
-        height: 100vh !important;
+        padding: ${isA4 ? "5mm 6mm" : "4mm 5mm"} !important;
+        height: 100% !important;
+        max-height: ${isA4 ? "297mm" : "210mm"} !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .sheet {
         box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        overflow: hidden !important;
       }
     }
   </style>
@@ -1188,7 +1381,7 @@ function QrPage() {
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: auto;
+      size: A5 portrait;
       margin: 0mm !important;
     }
     @page :first { margin: 0mm !important; }
@@ -1196,7 +1389,7 @@ function QrPage() {
     @page :right { margin: 0mm !important; }
 
     *, *::before, *::after {
-      box-sizing: border-box;
+      box-sizing: border-box !important;
       margin: 0;
       padding: 0;
       -webkit-print-color-adjust: exact !important;
@@ -1207,31 +1400,38 @@ function QrPage() {
     html, body {
       margin: 0 !important;
       padding: 0 !important;
-      width: 100%;
-      height: 100%;
+      width: 100% !important;
+      height: 100% !important;
       background: #ffffff !important;
       font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1a1f1c;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
+      overflow: hidden !important;
     }
 
     .page-wrap {
       width: 100%;
-      height: 100vh;
-      min-height: 100vh;
+      height: 100%;
+      max-height: 210mm;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 10mm 8mm;
+      padding: 4mm 5mm;
       background: #ffffff;
       box-sizing: border-box;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      overflow: hidden !important;
     }
 
     .sheet {
-      width: 138mm;
-      height: 196mm;
+      width: 128mm;
+      max-height: 182mm;
+      height: auto;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -1239,11 +1439,16 @@ function QrPage() {
       justify-content: space-between;
       text-align: center;
       border: 2px dashed #0f5132 !important;
-      border-radius: 8mm;
-      padding: 9mm 8mm;
+      border-radius: 7mm;
+      padding: 5mm 6mm;
       background: #ffffff !important;
       position: relative;
       margin: 0 auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      overflow: hidden !important;
     }
 
     .header-box {
@@ -1262,22 +1467,22 @@ function QrPage() {
       gap: 6px;
       background: #ecfdf5 !important;
       color: #047857 !important;
-      padding: 4px 16px;
+      padding: 3px 12px;
       border-radius: 999px;
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       border: 1.5px solid #a7f3d0 !important;
-      margin: 0 auto 2.5mm auto;
+      margin: 0 auto 2mm auto;
     }
 
     .rest-name {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 21pt;
+      font-size: 18pt;
       font-weight: 800;
       color: ${fg} !important;
-      margin: 0 auto 1mm auto;
+      margin: 0 auto 0.8mm auto;
       text-align: center;
       width: 100%;
     }
@@ -1285,9 +1490,9 @@ function QrPage() {
     .table-banner {
       background: #1a1f1c !important;
       color: #ffffff !important;
-      padding: 4.5mm 12mm;
-      border-radius: 6mm;
-      margin: 2.5mm auto;
+      padding: 3.5mm 10mm;
+      border-radius: 5mm;
+      margin: 1.5mm auto;
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
       width: 85%;
       text-align: center;
@@ -1295,7 +1500,7 @@ function QrPage() {
 
     .table-num {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 28pt;
+      font-size: 24pt;
       font-weight: 800;
       line-height: 1;
       letter-spacing: 0.02em;
@@ -1303,12 +1508,12 @@ function QrPage() {
     }
 
     .table-label {
-      font-size: 8.5pt;
+      font-size: 7.5pt;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: #cbd5e1 !important;
-      margin-top: 3px;
+      margin-top: 2px;
     }
 
     .qr-box {
@@ -1317,38 +1522,38 @@ function QrPage() {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      margin: 2mm auto;
+      margin: 1.5mm auto;
     }
 
     .qr-frame {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 3.5mm;
+      padding: 3mm;
       background: ${bg} !important;
-      border-radius: 7mm;
+      border-radius: 6mm;
       border: 2px solid #e2e8f0 !important;
       box-shadow: 0 8px 20px rgba(0,0,0,0.06);
-      margin: 0 auto 2mm auto;
+      margin: 0 auto 1.5mm auto;
     }
 
     .qr-img {
-      width: 72mm;
-      height: 72mm;
+      width: 65mm;
+      height: 65mm;
       display: block;
       margin: 0 auto;
     }
 
     .instructions {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: 800;
       color: #1a1f1c !important;
-      margin: 0 auto 1mm auto;
+      margin: 0 auto 0.8mm auto;
       text-align: center;
     }
 
     .subtext {
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 600;
       color: #64748b !important;
       margin: 0 auto;
@@ -1362,18 +1567,19 @@ function QrPage() {
       align-items: center;
       justify-content: center;
       border-top: 1px solid #f1f5f9;
-      padding-top: 2mm;
+      padding-top: 1.5mm;
+      margin-top: 1.5mm;
     }
 
     .footer-url {
-      font-size: 6.5pt;
+      font-size: 6pt;
       font-family: monospace;
       color: #94a3b8 !important;
-      margin-bottom: 1mm;
+      margin-bottom: 0.8mm;
     }
 
     .cut-guide {
-      font-size: 6.5pt;
+      font-size: 5.5pt;
       font-weight: 700;
       color: #94a3b8;
       text-transform: uppercase;
@@ -1382,7 +1588,7 @@ function QrPage() {
 
     @media print {
       @page {
-        size: auto;
+        size: A5 portrait;
         margin: 0mm !important;
       }
       html, body {
@@ -1391,13 +1597,25 @@ function QrPage() {
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
+        overflow: hidden !important;
       }
       .page-wrap {
-        padding: 8mm 6mm !important;
-        height: 100vh !important;
+        padding: 4mm 5mm !important;
+        height: 100% !important;
+        max-height: 210mm !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .sheet {
         box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        overflow: hidden !important;
       }
     }
   </style>
@@ -1503,7 +1721,7 @@ function QrPage() {
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: auto;
+      size: A5 portrait;
       margin: 0mm !important;
     }
     @page :first { margin: 0mm !important; }
@@ -1511,7 +1729,7 @@ function QrPage() {
     @page :right { margin: 0mm !important; }
 
     *, *::before, *::after {
-      box-sizing: border-box;
+      box-sizing: border-box !important;
       margin: 0;
       padding: 0;
       -webkit-print-color-adjust: exact !important;
@@ -1531,29 +1749,34 @@ function QrPage() {
     }
 
     .page-wrap {
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
+      max-height: 210mm;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 10mm 8mm;
+      padding: 4mm 5mm;
       background: #ffffff;
       box-sizing: border-box;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      overflow: hidden !important;
     }
 
     .page-break {
-      page-break-after: always;
-      break-after: page;
+      page-break-after: always !important;
+      break-after: page !important;
     }
 
     .page-break:last-child {
-      page-break-after: avoid;
-      break-after: avoid;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
     }
 
     .sheet {
-      width: 138mm;
-      height: 196mm;
+      width: 128mm;
+      max-height: 182mm;
+      height: auto;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -1561,11 +1784,16 @@ function QrPage() {
       justify-content: space-between;
       text-align: center;
       border: 2px dashed #0f5132 !important;
-      border-radius: 8mm;
-      padding: 9mm 8mm;
+      border-radius: 7mm;
+      padding: 5mm 6mm;
       background: #ffffff !important;
       position: relative;
       margin: 0 auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      overflow: hidden !important;
     }
 
     .header-box {
@@ -1584,22 +1812,22 @@ function QrPage() {
       gap: 6px;
       background: #ecfdf5 !important;
       color: #047857 !important;
-      padding: 4px 16px;
+      padding: 3px 12px;
       border-radius: 999px;
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       border: 1.5px solid #a7f3d0 !important;
-      margin: 0 auto 2.5mm auto;
+      margin: 0 auto 2mm auto;
     }
 
     .rest-name {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 21pt;
+      font-size: 18pt;
       font-weight: 800;
       color: ${fg} !important;
-      margin: 0 auto 1mm auto;
+      margin: 0 auto 0.8mm auto;
       text-align: center;
       width: 100%;
     }
@@ -1607,9 +1835,9 @@ function QrPage() {
     .table-banner {
       background: #1a1f1c !important;
       color: #ffffff !important;
-      padding: 4.5mm 12mm;
-      border-radius: 6mm;
-      margin: 2.5mm auto;
+      padding: 3.5mm 10mm;
+      border-radius: 5mm;
+      margin: 1.5mm auto;
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
       width: 85%;
       text-align: center;
@@ -1617,7 +1845,7 @@ function QrPage() {
 
     .table-num {
       font-family: 'Fraunces', Georgia, serif;
-      font-size: 28pt;
+      font-size: 24pt;
       font-weight: 800;
       line-height: 1;
       letter-spacing: 0.02em;
@@ -1625,12 +1853,12 @@ function QrPage() {
     }
 
     .table-label {
-      font-size: 8.5pt;
+      font-size: 7.5pt;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: #cbd5e1 !important;
-      margin-top: 3px;
+      margin-top: 2px;
     }
 
     .qr-box {
@@ -1639,38 +1867,38 @@ function QrPage() {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      margin: 2mm auto;
+      margin: 1.5mm auto;
     }
 
     .qr-frame {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 3.5mm;
+      padding: 3mm;
       background: ${bg} !important;
-      border-radius: 7mm;
+      border-radius: 6mm;
       border: 2px solid #e2e8f0 !important;
       box-shadow: 0 8px 20px rgba(0,0,0,0.06);
-      margin: 0 auto 2mm auto;
+      margin: 0 auto 1.5mm auto;
     }
 
     .qr-img {
-      width: 72mm;
-      height: 72mm;
+      width: 65mm;
+      height: 65mm;
       display: block;
       margin: 0 auto;
     }
 
     .instructions {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: 800;
       color: #1a1f1c !important;
-      margin: 0 auto 1mm auto;
+      margin: 0 auto 0.8mm auto;
       text-align: center;
     }
 
     .subtext {
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 600;
       color: #64748b !important;
       margin: 0 auto;
@@ -1684,18 +1912,19 @@ function QrPage() {
       align-items: center;
       justify-content: center;
       border-top: 1px solid #f1f5f9;
-      padding-top: 2mm;
+      padding-top: 1.5mm;
+      margin-top: 1.5mm;
     }
 
     .footer-url {
-      font-size: 6.5pt;
+      font-size: 6pt;
       font-family: monospace;
       color: #94a3b8 !important;
-      margin-bottom: 1mm;
+      margin-bottom: 0.8mm;
     }
 
     .cut-guide {
-      font-size: 6.5pt;
+      font-size: 5.5pt;
       font-weight: 700;
       color: #94a3b8;
       text-transform: uppercase;
@@ -1704,7 +1933,7 @@ function QrPage() {
 
     @media print {
       @page {
-        size: auto;
+        size: A5 portrait;
         margin: 0mm !important;
       }
       html, body {
@@ -1713,13 +1942,21 @@ function QrPage() {
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
+        overflow: hidden !important;
       }
       .page-wrap {
-        padding: 8mm 6mm !important;
-        height: 100vh !important;
+        padding: 4mm 5mm !important;
+        height: 100% !important;
+        max-height: 210mm !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .sheet {
         box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        overflow: hidden !important;
       }
     }
   </style>
@@ -1928,17 +2165,27 @@ function QrPage() {
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
-                          onClick={() => printTableStand(tbl)}
-                          className="flex-1 gap-1.5 text-xs font-semibold shadow-soft h-8"
+                          onClick={() => downloadTableStandPdf(tbl)}
+                          title="Download Clean 1-Page PDF"
+                          className="flex-1 gap-1 text-xs font-semibold shadow-soft h-8 bg-primary text-primary-foreground hover:bg-primary/90"
                         >
-                          <Printer className="size-3.5" /> Print Stand (A5)
+                          <FileText className="size-3.5 text-amber-300" /> PDF
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => printTableStand(tbl)}
+                          title="Print Stand (A5)"
+                          className="gap-1 text-xs font-semibold px-2.5 h-8 border-border hover:bg-secondary"
+                        >
+                          <Printer className="size-3.5" /> Print
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => downloadTableStandCard(tbl)}
                           title="Download 300 DPI HD Stand Card (PNG)"
-                          className="gap-1 text-xs font-semibold px-2.5 h-8 border-primary/30 text-primary hover:bg-primary/5"
+                          className="gap-1 text-xs font-semibold px-2 h-8 border-primary/30 text-primary hover:bg-primary/5"
                         >
                           <Download className="size-3.5" /> HD
                         </Button>
@@ -2207,33 +2454,37 @@ function QrPage() {
               </div>
 
               <div className="mt-5 space-y-3 w-full">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full">
                   <Button
-                    onClick={() => printTemplate(templateTab)}
-                    className="flex-1 gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10"
+                    onClick={() => downloadCleanPdf(templateTab)}
+                    className="gap-2 shadow-soft font-semibold text-xs sm:text-sm h-10 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    <Printer className="size-4 shrink-0" /> Print Clean {templateTab === "A5" ? "Table Card (A5)" : "Wall Poster (A4)"}
+                    <FileText className="size-4 shrink-0 text-amber-300" /> Download Clean PDF (1-Page)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => printTemplate(templateTab)}
+                    className="gap-2 font-semibold text-xs sm:text-sm h-10 border-border hover:bg-secondary"
+                  >
+                    <Printer className="size-4 shrink-0 text-muted-foreground" /> Print Clean Sheet
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => downloadPrintableCard(templateTab)}
-                    className="flex-1 gap-2 text-xs sm:text-sm h-10 border-primary/30 text-primary hover:bg-primary/5 font-semibold"
+                    className="gap-2 text-xs sm:text-sm h-10 border-border hover:bg-secondary font-semibold"
                   >
-                    <Download className="size-4 shrink-0" /> Download HD Sheet (300 DPI)
+                    <Download className="size-4 shrink-0 text-muted-foreground" /> HD Image (300 DPI)
                   </Button>
                 </div>
 
-                <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-left text-xs text-muted-foreground flex items-start gap-2.5">
-                  <Sparkles className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3 text-left text-xs text-muted-foreground flex items-start gap-2.5">
+                  <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <div className="space-y-1 leading-relaxed">
-                    <p className="font-semibold text-foreground">Print Quality Guide (Clean & Centered)</p>
-                    <p className="text-[11px] text-foreground/80 leading-normal">
-                      Print preview dialog me <strong>More settings</strong> open karein:
-                    </p>
-                    <div className="text-[11px] space-y-0.5 text-foreground/75 pl-1">
-                      <div>• <strong>Headers and footers</strong>: <span className="font-semibold text-destructive">UNCHECK / OFF</span> (browser date, URL aur page number remove karne ke liye)</div>
-                      <div>• <strong>Background graphics</strong>: <span className="font-semibold text-veg">CHECK / ON</span> (rich logo & badge colors ke liye)</div>
-                      <div>• Ya direct <strong>Download HD Sheet</strong> button use karein — 100% clean 300 DPI PNG download hogi!</div>
+                    <p className="font-semibold text-foreground">1-Page Clean Print & PDF Guarantee</p>
+                    <div className="text-[11px] space-y-1 text-foreground/85 pl-1">
+                      <div>• <strong>Download Clean PDF (1-Page)</strong>: Single-click me exact 1-page PDF download hogi bina kisi browser timestamp, date, URL ya page number ke!</div>
+                      <div>• <strong>Mobile & Desktop Print</strong>: Single-page strict constraints apply kiye gaye hain taaki mobile print me 2nd page kabhi na aaye.</div>
+                      <div>• Agar browser print dialog use karein to settings me <em>Headers & Footers</em> off aur <em>Background Graphics</em> on rakhein.</div>
                     </div>
                   </div>
                 </div>
