@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard, User, LogOut } from "lucide-react";
+import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard, User, LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ export function usePlatformSettings() {
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -81,7 +82,15 @@ export function SiteHeader() {
   const [hot, setHot] = useState<string | null>(() => lastPublicNavPill?.to ?? null);
 
   useEffect(() => {
-    setHasSession(typeof window !== "undefined" && Boolean(localStorage.getItem("menuly_token")));
+    if (typeof window !== "undefined") {
+      setHasSession(Boolean(localStorage.getItem("menuly_token")));
+      try {
+        const u = JSON.parse(localStorage.getItem("menuly_user") || "{}");
+        setIsSuperAdmin(u?.role === "SUPER_ADMIN" || u?.email === "menulyofficial@gmail.com");
+      } catch {
+        setIsSuperAdmin(false);
+      }
+    }
   }, [pathname]);
 
   const displayedLinks = publicLinks;
@@ -201,6 +210,15 @@ export function SiteHeader() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             {hasSession ? (
               <>
+                {isSuperAdmin && (
+                  <Link
+                    to="/admin"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 shadow-xs transition-all hover:bg-amber-500/25"
+                  >
+                    <Shield className="size-3.5" />
+                    <span className="hidden xs:inline">Admin</span> Console
+                  </Link>
+                )}
                 <Link
                   to="/dashboard"
                   className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-soft transition-all hover:opacity-90"
@@ -258,16 +276,30 @@ export function SiteHeader() {
       {open && (
         <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift md:hidden">
           {hasSession && (
-            <Link
-              to="/dashboard"
-              onClick={() => setOpen(false)}
-              className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl text-accent"
-            >
-              <span className="flex items-center gap-2">
-                <LayoutDashboard className="size-5" /> Dashboard
-              </span>
-              <ArrowRight className="size-5 opacity-60" />
-            </Link>
+            <>
+              {isSuperAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setOpen(false)}
+                  className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl text-amber-400"
+                >
+                  <span className="flex items-center gap-2">
+                    <Shield className="size-5 text-amber-400" /> Admin Console
+                  </span>
+                  <ArrowRight className="size-5 opacity-60" />
+                </Link>
+              )}
+              <Link
+                to="/dashboard"
+                onClick={() => setOpen(false)}
+                className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl text-accent"
+              >
+                <span className="flex items-center gap-2">
+                  <LayoutDashboard className="size-5" /> Dashboard
+                </span>
+                <ArrowRight className="size-5 opacity-60" />
+              </Link>
+            </>
           )}
           {displayedLinks.map((l, i) => (
             <Link

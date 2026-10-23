@@ -34,23 +34,11 @@ export async function getOrCreateUserRestaurant(
   });
 
   if (!restaurant) {
-    if (role === "SUPER_ADMIN") {
-      return {
-        restaurant: null,
-        categories: [],
-        items: [],
-        analytics: {
-          totalScans: 0,
-          scansToday: 0,
-          tableScans: 0,
-          directVisits: 0,
-          scansThisWeek: 0,
-          weeklyScans: [],
-        },
-      };
-    }
     // Generate unique slug
-    const cleanBase = slugify(userFullName || userEmail.split("@")[0] || "pureveg") || "pureveg";
+    const cleanBase =
+      role === "SUPER_ADMIN"
+        ? "menuly-official"
+        : (slugify(userFullName || userEmail.split("@")[0] || "pureveg") || "pureveg");
     const randomSuffix = Math.random().toString(36).slice(2, 6);
     let finalSlug = `${cleanBase}-${randomSuffix}`;
 
@@ -60,9 +48,10 @@ export async function getOrCreateUserRestaurant(
       finalSlug = `${cleanBase}-${Date.now().toString(36).slice(-4)}`;
     }
 
-    const defaultName = userFullName
-      ? `${userFullName}'s Restaurant`
-      : "My Restaurant";
+    const defaultName =
+      role === "SUPER_ADMIN"
+        ? "Menuly HQ (Official Demo)"
+        : (userFullName ? `${userFullName}'s Restaurant` : "My Restaurant");
 
     restaurant = await prisma.restaurant.create({
       data: {
@@ -78,6 +67,27 @@ export async function getOrCreateUserRestaurant(
         menuItems: { orderBy: { position: "asc" } },
       },
     });
+
+    // Auto-create 2 starter categories for instant demonstration
+    try {
+      const cat1 = await prisma.category.create({
+        data: {
+          restaurantId: restaurant.id,
+          name: "Signature Dishes",
+          position: 0,
+        },
+      });
+      const cat2 = await prisma.category.create({
+        data: {
+          restaurantId: restaurant.id,
+          name: "Beverages & Drinks",
+          position: 1,
+        },
+      });
+      restaurant.categories = [cat1, cat2];
+    } catch {
+      // ignore
+    }
   }
 
   const analytics = await getRestaurantAnalytics(restaurant.id);

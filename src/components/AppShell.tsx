@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Sparkles,
   User,
+  Shield,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,6 +71,22 @@ export function AppShell({
   const liveMenuUrl = slug ? `/menu/${slug}` : "/menu";
 
   const isDemo = isDemoMode() && typeof window !== "undefined" && !localStorage.getItem("menuly_token");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const u = JSON.parse(localStorage.getItem("menuly_user") || "{}");
+        setIsSuperAdmin(u?.role === "SUPER_ADMIN" || u?.email === "menulyofficial@gmail.com");
+      } catch {
+        setIsSuperAdmin(false);
+      }
+    }
+  }, []);
+
+  const links = isSuperAdmin
+    ? [{ to: "/admin", label: "Admin Console" }, ...DASHBOARD_LINKS]
+    : DASHBOARD_LINKS;
 
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 40);
@@ -175,7 +192,7 @@ export function AppShell({
                 )}
                 style={{ left: blob.left, width: blob.width, opacity: blob.show ? 1 : 0 }}
               />
-              {DASHBOARD_LINKS.map((l) => {
+              {links.map((l) => {
                 const isActive = pathname === l.to || pathname.startsWith(`${l.to}/`);
                 return (
                   <Link
@@ -193,6 +210,7 @@ export function AppShell({
                         : "text-background/70 hover:text-background"
                     )}
                   >
+                    {l.to === "/admin" && <Shield className="size-3.5 text-amber-400 inline -mt-0.5" />}
                     {l.label}
                   </Link>
                 );
@@ -201,6 +219,15 @@ export function AppShell({
 
             {/* Right Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {isSuperAdmin && (
+                <Link
+                  to="/admin"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 shadow-xs transition-all hover:bg-amber-500/25"
+                >
+                  <Shield className="size-3.5" />
+                  <span className="hidden xs:inline">Admin</span> Console
+                </Link>
+              )}
               {slug && (
                 <a
                   href={liveMenuUrl}
@@ -266,15 +293,19 @@ export function AppShell({
         {/* Mobile Dropdown (Identical to SiteHeader) */}
         {open && (
           <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift md:hidden">
-            {DASHBOARD_LINKS.map((l, i) => (
+            {links.map((l, i) => (
               <Link
                 key={l.to}
                 to={l.to}
                 onClick={() => setOpen(false)}
                 style={{ animationDelay: `${i * 70}ms` }}
-                className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent"
+                className={cn(
+                  "animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent",
+                  l.to === "/admin" && "text-amber-400 font-bold"
+                )}
               >
                 <span className="flex items-center gap-2">
+                  {l.to === "/admin" && <Shield className="size-5 text-amber-400" />}
                   {l.label}
                 </span>
                 <ArrowRight className="size-5 opacity-60" />

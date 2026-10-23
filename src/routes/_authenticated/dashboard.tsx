@@ -110,6 +110,15 @@ function Dashboard() {
   const [logoSummary, setLogoSummary] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const isSuperAdmin = typeof window !== "undefined" && (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("menuly_user") || "{}");
+      return u?.role === "SUPER_ADMIN" || u?.email === "menulyofficial@gmail.com";
+    } catch {
+      return false;
+    }
+  })();
+
   useEffect(() => {
     if (r) {
       setForm({
@@ -124,8 +133,47 @@ function Dashboard() {
     }
   }, [r]);
 
-  if (isLoading || !r) {
+  if (isLoading) {
     return <DashboardSkeleton />;
+  }
+
+  if (!r) {
+    return (
+      <AppShell title={isSuperAdmin ? "Executive Command Center" : "Dashboard & Analytics"}>
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-primary/30 bg-primary/5 p-8 sm:p-12 text-center space-y-4 shadow-lift">
+            <div className="size-16 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto shadow-soft">
+              <ShieldCheck className="size-8" />
+            </div>
+            <div className="max-w-lg mx-auto space-y-2">
+              <h2 className="text-2xl font-bold font-display text-foreground">
+                {isSuperAdmin ? "Platform Super Administrator" : "No Restaurant Profile Found"}
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                {isSuperAdmin
+                  ? "You are logged in with Platform Super Administrator privileges. Control all restaurant accounts, subscriber billing, user support tickets, and feedbacks in the Executive Console."
+                  : "We could not find an active restaurant menu for your account. Please visit the menu editor or contact support."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+              {isSuperAdmin ? (
+                <Button asChild size="lg" className="gap-2 font-bold shadow-soft">
+                  <Link to="/admin">
+                    <ShieldCheck className="size-4" /> Go to Admin Console
+                  </Link>
+                </Button>
+              ) : (
+                <Button asChild size="lg" className="gap-2 font-bold shadow-soft">
+                  <Link to="/my-menu">
+                    <UtensilsCrossed className="size-4" /> Go to My Menu
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
   }
 
   const link = typeof window !== "undefined" ? `${window.location.origin}/menu/${r.slug}` : `/menu/${r.slug}`;
@@ -193,6 +241,13 @@ function Dashboard() {
       title={`Namaste, ${r.name || "Restaurant"}`}
       actions={
         <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <Button size="sm" asChild className="text-xs font-bold gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-soft">
+              <Link to="/admin">
+                <ShieldCheck className="size-3.5" /> Admin Console
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild className="text-xs font-semibold gap-1.5">
             <a href={`/menu/${r.slug}`} target="_blank" rel="noreferrer">
               <Eye className="size-3.5 text-primary" /> View Live Menu
@@ -207,6 +262,34 @@ function Dashboard() {
       }
     >
       <div className="space-y-6">
+        {/* Super Administrator Access Alert Banner */}
+        {isSuperAdmin && (
+          <div className="rounded-2xl border-2 border-primary/40 bg-gradient-to-r from-primary/10 via-amber-500/10 to-primary/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-soft">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="size-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-bold shadow-xs shrink-0">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm text-foreground">
+                    Super Administrator Console Available
+                  </h3>
+                  <span className="rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                    Master Admin
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  You are authenticated with Platform Master Admin privileges. Manage all restaurants, owner accounts, customer feedbacks, and support tickets in the Executive Console.
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm" className="font-bold gap-1.5 shrink-0 shadow-soft bg-primary text-primary-foreground">
+              <Link to="/admin">
+                <ShieldCheck className="size-3.5" /> Open Executive Console
+              </Link>
+            </Button>
+          </div>
+        )}
         {/* Clean, Simple Metrics Grid (Visitors & QR Scans) */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           {/* Card 1: Total QR Scans */}

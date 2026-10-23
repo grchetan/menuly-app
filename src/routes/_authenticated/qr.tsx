@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -290,8 +290,21 @@ function QrPage() {
     };
   }, [options, r]);
 
-  if (isLoading || !r) {
+  if (isLoading) {
     return <QrSkeleton />;
+  }
+
+  if (!r) {
+    return (
+      <AppShell title="QR Studio">
+        <div className="rounded-2xl border bg-card p-12 text-center space-y-4">
+          <p className="text-muted-foreground text-sm">No restaurant menu found to generate QR codes.</p>
+          <Button asChild size="sm">
+            <Link to="/dashboard">Go to Dashboard</Link>
+          </Button>
+        </div>
+      </AppShell>
+    );
   }
 
   const copyLink = async () => {

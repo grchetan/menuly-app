@@ -316,31 +316,6 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 1. GET /api/restaurant/my-menu
       if (pathname === "/api/restaurant/my-menu" && request.method === "GET") {
-        if (auth.role === "SUPER_ADMIN") {
-          const existing = await prisma.restaurant.findFirst({
-            where: { ownerId: auth.userId },
-            include: {
-              categories: { orderBy: { position: "asc" } },
-              menuItems: { orderBy: { position: "asc" } },
-            },
-          });
-          if (!existing) {
-            return json({
-              success: true,
-              restaurant: null,
-              categories: [],
-              items: [],
-              analytics: {
-                totalScans: 0,
-                scansToday: 0,
-                tableScans: 0,
-                directVisits: 0,
-                scansThisWeek: 0,
-                weeklyScans: [],
-              },
-            });
-          }
-        }
         const menu = await getOrCreateUserRestaurant(auth.userId, auth.email, auth.fullName, auth.role);
         return json({ success: true, ...menu });
       }

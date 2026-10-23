@@ -184,8 +184,21 @@ function MyMenu() {
     }
   }, [data?.categories, quickCatId]);
 
-  if (isLoading || !data || !data.restaurant) {
+  if (isLoading) {
     return <MyMenuSkeleton />;
+  }
+
+  if (!data || !data.restaurant) {
+    return (
+      <AppShell title="My Menu">
+        <div className="rounded-2xl border bg-card p-12 text-center space-y-4">
+          <p className="text-muted-foreground text-sm">No restaurant menu found.</p>
+          <Button asChild size="sm">
+            <Link to="/dashboard">Go to Dashboard</Link>
+          </Button>
+        </div>
+      </AppShell>
+    );
   }
 
   const rid = data.restaurant.id;
