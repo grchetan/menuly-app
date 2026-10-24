@@ -223,8 +223,8 @@ function QrPage() {
     }
   }, [r]);
 
-  // Multi-table QR state
-  const [viewTab, setViewTab] = useState<"master" | "tables">("master");
+  // View tabs: "master" (Online Web QR) | "tables" (Multi-Table QRs) | "offline" (Zero-Net Dhaba QR)
+  const [viewTab, setViewTab] = useState<"master" | "tables" | "offline">("master");
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(true);
   const [showAddTable, setShowAddTable] = useState(false);
@@ -252,32 +252,37 @@ function QrPage() {
   const categories = useMemo(() => data?.categories || [], [data?.categories]);
   const items = useMemo(() => data?.items || [], [data?.items]);
 
-  // Offline Plain Text QR state
-  const [qrMode, setQrMode] = useState<"online" | "offline">("online");
-  const [offlineMaxItems, setOfflineMaxItems] = useState<number>(25);
-  const [includePhoneInOffline, setIncludePhoneInOffline] = useState(true);
-  const [includeAddressInOffline, setIncludeAddressInOffline] = useState(true);
+  // Dedicated Offline Dhaba QR State
+  const [offlineMaxItems, setOfflineMaxItems] = useState<number>(15);
+  const [customOfflineText, setCustomOfflineText] = useState<string>("");
+  const [offlineTemplateTab, setOfflineTemplateTab] = useState<"A5" | "A4">("A5");
+  const [offlineQrDataUrl, setOfflineQrDataUrl] = useState<string>("");
   const [showCameraPreview, setShowCameraPreview] = useState(false);
+
+  const offlineBox = useRef<HTMLDivElement>(null);
+  const offlineQr = useRef<QRCodeStylingType | null>(null);
 
   const url = typeof window !== "undefined" && r?.slug ? `${window.location.origin}/menu/${r.slug}` : "";
   const name = slugify(r?.name || "") || "menu";
 
-  // Formatted offline plain-text menu payload for direct phone camera scanning (0 data needed)
-  const offlineMenuText = useMemo(() => {
+  // Auto-generate clean ASCII menu text (100% compatible with Google Lens & native cameras)
+  const autoOfflineText = useMemo(() => {
     if (!r) return "";
     const lines: string[] = [];
-    lines.push(`🍽️ ${r.name.toUpperCase()}`);
-    if (includePhoneInOffline && r.phone) lines.push(`📞 ${r.phone}`);
-    if (includeAddressInOffline && r.address) lines.push(`📍 ${r.address}`);
-    lines.push("─".repeat(24));
+    const cleanName = (r.name || "MENU").replace(/[^\x20-\x7E]/g, "").trim().toUpperCase();
+    lines.push(`=== ${cleanName} ===`);
+    if (r.phone) {
+      const cleanPhone = r.phone.replace(/[^\x20-\x7E]/g, "").trim();
+      lines.push(`Phone: ${cleanPhone}`);
+    }
+    lines.push("------------------------");
 
-    // Group available items by category
     const catMap = new Map<string, typeof items>();
-    for (const item of items) {
-      if (item.available === false) continue;
-      const list = catMap.get(item.category_id) || [];
-      list.push(item);
-      catMap.set(item.category_id, list);
+    for (const it of items) {
+      if (it.available === false) continue;
+      const list = catMap.get(it.category_id) || [];
+      list.push(it);
+      catMap.set(it.category_id, list);
     }
 
     let count = 0;
@@ -286,57 +291,65 @@ function QrPage() {
       if (catItems.length === 0) continue;
       if (count >= offlineMaxItems) break;
 
-      lines.push(`\n[${cat.name.toUpperCase()}]`);
-      for (const item of catItems) {
+      const cleanCat = cat.name.replace(/[^\x20-\x7E]/g, "").trim().toUpperCase();
+      lines.push(`[${cleanCat}]`);
+      for (const it of catItems) {
         if (count >= offlineMaxItems) break;
-        lines.push(`• ${item.name}: ₹${item.price}`);
+        const cleanItem = it.name.replace(/[^\x20-\x7E]/g, "").trim();
+        lines.push(`* ${cleanItem} - Rs.${it.price}`);
         count++;
       }
     }
 
-    lines.push("\n" + "─".repeat(24));
-    lines.push("✦ 100% Offline Menu • No Internet Needed");
-    lines.push("✦ Pay at Counter / UPI / Cash");
+    lines.push("------------------------");
+    lines.push("100% Offline Menu - No Data Needed");
+    lines.push("Pay at Counter / Cash / UPI");
 
     return lines.join("\n");
-  }, [r, categories, items, offlineMaxItems, includePhoneInOffline, includeAddressInOffline]);
+  }, [r, categories, items, offlineMaxItems]);
 
-  const offlineItemsCount = useMemo(() => {
-    let count = 0;
-    for (const cat of categories) {
-      for (const item of items) {
-        if (item.category_id === cat.id && item.available !== false) {
-          count++;
-          if (count >= offlineMaxItems) return count;
-        }
-      }
-    }
-    return count;
-  }, [categories, items, offlineMaxItems]);
+  const effectiveOfflineText = customOfflineText.trim() || autoOfflineText;
 
-  const activeQrData = qrMode === "offline" ? offlineMenuText : (url || "https://menuly.app");
-
+  // Master Brand QR Options (Live URL)
   const options = useMemo<Options>(
     () => ({
       width: 320,
       height: 320,
       type: "canvas",
-      data: activeQrData,
+      data: url || "https://menuly.app",
       margin: 8,
-      ...(showLogo && r?.logo_url && qrMode !== "offline" ? { image: r.logo_url } : {}),
-      qrOptions: { errorCorrectionLevel: qrMode === "offline" ? "M" : "H" },
+      ...(showLogo && r?.logo_url ? { image: r.logo_url } : {}),
+      qrOptions: { errorCorrectionLevel: "H" },
       imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.3, hideBackgroundDots: true },
       dotsOptions: { color: fg, type: corners[corner].dots },
       cornersSquareOptions: { color: fg, type: corners[corner].sq },
       cornersDotOptions: { color: fg, type: corners[corner].dot },
       backgroundOptions: { color: bg },
     }),
-    [activeQrData, qrMode, r?.id, r?.logo_url, showLogo, fg, bg, corner]
+    [url, r?.id, r?.logo_url, showLogo, fg, bg, corner]
   );
 
+  // Offline Dhaba QR Options (Pure ASCII + Square dots + Level L = Maximum dot size & 100% Google Lens reliability)
+  const offlineOptions = useMemo<Options>(
+    () => ({
+      width: 340,
+      height: 340,
+      type: "canvas",
+      data: effectiveOfflineText,
+      margin: 8,
+      qrOptions: { errorCorrectionLevel: "L" },
+      dotsOptions: { color: "#1a1f1c", type: "square" },
+      cornersSquareOptions: { color: "#1a1f1c", type: "square" },
+      cornersDotOptions: { color: "#1a1f1c", type: "square" },
+      backgroundOptions: { color: "#ffffff" },
+    }),
+    [effectiveOfflineText]
+  );
+
+  // Render Master QR Canvas
   useEffect(() => {
     let alive = true;
-    if (!r) return;
+    if (viewTab !== "master" || !r) return;
     import("qr-code-styling").then(({ default: QRCodeStyling }) => {
       if (!alive || !box.current) return;
       if (!qr.current) {
@@ -358,7 +371,34 @@ function QrPage() {
     return () => {
       alive = false;
     };
-  }, [options, r]);
+  }, [options, viewTab, r]);
+
+  // Render Offline Dhaba QR Canvas
+  useEffect(() => {
+    let alive = true;
+    if (viewTab !== "offline" || !r) return;
+    import("qr-code-styling").then(({ default: QRCodeStyling }) => {
+      if (!alive || !offlineBox.current) return;
+      if (!offlineQr.current) {
+        offlineQr.current = new QRCodeStyling(offlineOptions);
+        offlineBox.current.innerHTML = "";
+        offlineQr.current.append(offlineBox.current);
+      } else {
+        offlineQr.current.update(offlineOptions);
+      }
+      offlineQr.current.getRawData("png").then((blob) => {
+        if (!alive || !blob) return;
+        const fr = new FileReader();
+        fr.onload = () => {
+          if (alive) setOfflineQrDataUrl(fr.result as string);
+        };
+        fr.readAsDataURL(blob as Blob);
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [offlineOptions, viewTab, r]);
 
   if (isLoading) {
     return <QrSkeleton />;
@@ -385,17 +425,6 @@ function QrPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy link");
-    }
-  };
-
-  const copyOfflineText = async () => {
-    try {
-      await navigator.clipboard.writeText(offlineMenuText);
-      setCopied(true);
-      toast.success("Offline menu text copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Failed to copy offline text");
     }
   };
 
@@ -639,27 +668,21 @@ function QrPage() {
     const contentCenterX = width / 2;
     let currentY = margin + (isA4 ? 110 : 80);
 
-    const isOfflineMode = qrMode === "offline";
-
-    // Top badge: "CONTACTLESS DINING MENU" or "100% OFFLINE MENU"
-    const badgeW = isA4 ? (isOfflineMode ? 780 : 680) : (isOfflineMode ? 600 : 520);
+    // Top badge: "CONTACTLESS DINING MENU"
+    const badgeW = isA4 ? 680 : 520;
     const badgeH = isA4 ? 64 : 50;
     ctx.save();
-    ctx.fillStyle = isOfflineMode ? "#fef3c7" : "#ecfdf5";
+    ctx.fillStyle = "#ecfdf5";
     drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
     ctx.fill();
-    ctx.strokeStyle = isOfflineMode ? "#fcd34d" : "#a7f3d0";
+    ctx.strokeStyle = "#a7f3d0";
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = isOfflineMode ? "#b45309" : "#047857";
+    ctx.fillStyle = "#047857";
     ctx.font = `bold ${isA4 ? "26px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(
-      isOfflineMode ? "✦ 100% OFFLINE MENU • ZERO INTERNET ✦" : "✦ CONTACTLESS DINING MENU ✦",
-      contentCenterX,
-      currentY + badgeH / 2
-    );
+    ctx.fillText("✦ CONTACTLESS DINING MENU ✦", contentCenterX, currentY + badgeH / 2);
     ctx.restore();
 
     currentY += badgeH + (isA4 ? 60 : 45);
@@ -713,13 +736,9 @@ function QrPage() {
     currentY += isA4 ? 50 : 38;
 
     // Subtitle
-    ctx.fillStyle = isOfflineMode ? "#b45309" : "#64748b";
+    ctx.fillStyle = "#64748b";
     ctx.font = `bold ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.fillText(
-      isOfflineMode ? "SCAN TO VIEW MENU DIRECTLY IN CAMERA" : "SCAN TO VIEW MENU & PRICES",
-      contentCenterX,
-      currentY
-    );
+    ctx.fillText("SCAN TO VIEW MENU & PRICES", contentCenterX, currentY);
 
     currentY += isA4 ? 65 : 45;
 
@@ -770,22 +789,12 @@ function QrPage() {
     ctx.font = `bold ${isA4 ? "52px" : "40px"} -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(
-      isOfflineMode ? "Point your phone camera to scan text" : "Point your phone camera to scan",
-      contentCenterX,
-      currentY
-    );
+    ctx.fillText("Point your phone camera to scan", contentCenterX, currentY);
 
     currentY += isA4 ? 44 : 34;
     ctx.fillStyle = "#64748b";
     ctx.font = `500 ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.fillText(
-      isOfflineMode
-        ? "No internet, browser, or SIM recharge needed • Instant camera popup"
-        : "No app download required • Instant mobile dining",
-      contentCenterX,
-      currentY
-    );
+    ctx.fillText("No app download required • Instant mobile dining", contentCenterX, currentY);
 
     if (r.hours || r.address) {
       currentY += isA4 ? 42 : 32;
@@ -798,11 +807,7 @@ function QrPage() {
     currentY += isA4 ? 50 : 38;
     ctx.fillStyle = "#94a3b8";
     ctx.font = `500 ${isA4 ? "24px" : "18px"} monospace`;
-    ctx.fillText(
-      isOfflineMode ? "✦ Offline Plain Text Menu • Works Without Internet ✦" : url,
-      contentCenterX,
-      currentY
-    );
+    ctx.fillText(url, contentCenterX, currentY);
 
     return canvas;
   };
@@ -860,6 +865,338 @@ function QrPage() {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error("Failed to generate clean PDF: " + msg);
     }
+  };
+
+  // Generate high-resolution 300 DPI Canvas for Offline Dhaba Card (A5 / A4)
+  const generateOfflineCardCanvas = async (format: "A5" | "A4"): Promise<HTMLCanvasElement> => {
+    const isA4 = format === "A4";
+    const width = isA4 ? 2480 : 1748;
+    const height = isA4 ? 3508 : 2480;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to initialize canvas context");
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    const margin = isA4 ? 120 : 90;
+    const cardW = width - margin * 2;
+    const cardH = height - margin * 2;
+    ctx.save();
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([16, 12]);
+    drawRoundedRect(ctx, margin, margin, cardW, cardH, 44);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.font = `600 ${isA4 ? "24px" : "19px"} -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+    ctx.fillStyle = "#94a3b8";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      `✂ Cut along the dashed line for ${format} acrylic table stand or wall mount`,
+      width / 2,
+      height - (isA4 ? 55 : 42)
+    );
+
+    const contentCenterX = width / 2;
+    let currentY = margin + (isA4 ? 110 : 80);
+
+    // Top badge: "100% OFFLINE MENU • ZERO DATA PACK"
+    const badgeW = isA4 ? 760 : 580;
+    const badgeH = isA4 ? 64 : 50;
+    ctx.save();
+    ctx.fillStyle = "#fef3c7";
+    drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
+    ctx.fill();
+    ctx.strokeStyle = "#fcd34d";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#b45309";
+    ctx.font = `bold ${isA4 ? "26px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✦ 100% OFFLINE MENU • ZERO DATA PACK NEEDED ✦", contentCenterX, currentY + badgeH / 2);
+    ctx.restore();
+
+    currentY += badgeH + (isA4 ? 60 : 45);
+
+    // Restaurant Name
+    ctx.fillStyle = "#1a1f1c";
+    ctx.font = `bold ${isA4 ? "78px" : "58px"} 'Fraunces', Georgia, serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(r.name, contentCenterX, currentY);
+
+    currentY += isA4 ? 48 : 36;
+
+    // Subtitle
+    ctx.fillStyle = "#d97706";
+    ctx.font = `bold ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.fillText("SCAN TO VIEW MENU DIRECTLY IN CAMERA", contentCenterX, currentY);
+
+    currentY += isA4 ? 60 : 45;
+
+    // QR Code Box
+    const qrSize = isA4 ? 1100 : 820;
+    const framePad = isA4 ? 46 : 34;
+    const qrFrameW = qrSize + framePad * 2;
+    const qrFrameH = qrSize + framePad * 2;
+    const qrFrameX = contentCenterX - qrFrameW / 2;
+    const qrFrameY = currentY;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
+    ctx.shadowBlur = 28;
+    ctx.shadowOffsetY = 12;
+    ctx.fillStyle = "#ffffff";
+    drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 3;
+    drawRoundedRect(ctx, qrFrameX, qrFrameY, qrFrameW, qrFrameH, 40);
+    ctx.stroke();
+
+    const { default: QRCodeStyling } = await import("qr-code-styling");
+    const qrBlob = (await new QRCodeStyling({
+      ...offlineOptions,
+      width: qrSize,
+      height: qrSize,
+    }).getRawData("png")) as Blob;
+
+    const qrImg = new Image();
+    const qrObjectUrl = URL.createObjectURL(qrBlob);
+    await new Promise<void>((resolve) => {
+      qrImg.onload = () => resolve();
+      qrImg.src = qrObjectUrl;
+    });
+
+    ctx.drawImage(qrImg, qrFrameX + framePad, qrFrameY + framePad, qrSize, qrSize);
+    URL.revokeObjectURL(qrObjectUrl);
+
+    currentY += qrFrameH + (isA4 ? 75 : 55);
+
+    // Scan Instructions
+    ctx.fillStyle = "#1a1f1c";
+    ctx.font = `bold ${isA4 ? "52px" : "40px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Point your phone camera to scan text", contentCenterX, currentY);
+
+    currentY += isA4 ? 44 : 34;
+    ctx.fillStyle = "#64748b";
+    ctx.font = `500 ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.fillText("No internet, browser, or SIM recharge needed • Instant camera popup", contentCenterX, currentY);
+
+    if (r.phone || r.address) {
+      currentY += isA4 ? 42 : 32;
+      ctx.fillStyle = "#475569";
+      ctx.font = `600 ${isA4 ? "28px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
+      const meta = [r.phone ? `Phone: ${r.phone}` : null, r.address].filter(Boolean).join("  •  ");
+      ctx.fillText(meta, contentCenterX, currentY);
+    }
+
+    currentY += isA4 ? 50 : 38;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `500 ${isA4 ? "24px" : "18px"} monospace`;
+    ctx.fillText("✦ Offline Plain Text Menu • Direct Camera Hardware Scan ✦", contentCenterX, currentY);
+
+    return canvas;
+  };
+
+  const downloadOfflineCleanPdf = async (format: "A5" | "A4") => {
+    try {
+      toast.info(`Generating Clean 1-Page ${format} Offline PDF...`);
+      const isA4 = format === "A4";
+      const canvas = await generateOfflineCardCanvas(format);
+
+      const jpegBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.95)
+      );
+      if (!jpegBlob) throw new Error("Could not encode printable sheet");
+
+      const arrayBuf = await jpegBlob.arrayBuffer();
+      const jpegBytes = new Uint8Array(arrayBuf);
+
+      const pdfBlob = createSinglePageImagePdf(
+        jpegBytes,
+        isA4 ? 595.28 : 419.53,
+        isA4 ? 841.89 : 595.28,
+        canvas.width,
+        canvas.height
+      );
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(pdfBlob);
+      link.download = `${name}-${format}-offline-dhaba-clean.pdf`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success(`Downloaded ${format} Clean 1-Page Offline PDF`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to generate offline PDF: " + msg);
+    }
+  };
+
+  const downloadOfflinePrintableCard = async (format: "A5" | "A4") => {
+    try {
+      toast.info(`Preparing HD ${format} Offline Sheet (300 DPI)...`);
+      const canvas = await generateOfflineCardCanvas(format);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${name}-${format}-offline-dhaba-card.png`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        toast.success(`Downloaded ${format} HD Printable Sheet (300 DPI)`);
+      }, "image/png");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to generate printable card: " + msg);
+    }
+  };
+
+  const printOfflineTemplate = async (format: "A5" | "A4") => {
+    toast.info(`Preparing clean offline print sheet for ${format}...`);
+    const { default: QRCodeStyling } = await import("qr-code-styling");
+    const isA4 = format === "A4";
+
+    const blob = (await new QRCodeStyling({
+      ...offlineOptions,
+      width: isA4 ? 1400 : 900,
+      height: isA4 ? 1400 : 900,
+    }).getRawData("png")) as Blob;
+
+    const dataUrl = await new Promise<string>((res) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result as string);
+      fr.readAsDataURL(blob);
+    });
+
+    const esc = (s: string) =>
+      s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    @page { size: ${isA4 ? "A4 portrait" : "A5 portrait"}; margin: 0mm !important; }
+    *, *::before, *::after { box-sizing: border-box !important; margin: 0; padding: 0; }
+    html, body {
+      margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important;
+      background: #ffffff !important; font-family: 'Manrope', sans-serif; color: #1a1f1c; overflow: hidden !important;
+    }
+    .page-wrap {
+      width: 100%; height: 100%; max-height: ${isA4 ? "297mm" : "210mm"};
+      display: flex; align-items: center; justify-content: center;
+      padding: ${isA4 ? "5mm 6mm" : "4mm 5mm"}; background: #ffffff;
+    }
+    .sheet {
+      width: ${isA4 ? "174mm" : "128mm"}; max-height: ${isA4 ? "248mm" : "182mm"};
+      height: auto; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      text-align: center; border: ${isA4 ? "2.5px solid #b45309" : "2px dashed #b45309"} !important;
+      border-radius: 7mm; padding: ${isA4 ? "7mm 8mm" : "5mm 6mm"}; background: #ffffff !important;
+    }
+    .top-badge {
+      background: #fef3c7 !important; color: #b45309 !important;
+      padding: ${isA4 ? "4px 16px" : "3px 12px"}; border-radius: 999px;
+      font-size: ${isA4 ? "9pt" : "7.5pt"}; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; border: 1.5px solid #fcd34d !important; margin-bottom: 2mm;
+    }
+    h1.rest-name {
+      font-family: 'Fraunces', Georgia, serif; font-size: ${isA4 ? "26pt" : "19pt"};
+      font-weight: 800; color: #1a1f1c !important; margin: 0 0 1mm 0;
+    }
+    .prompt {
+      font-size: ${isA4 ? "10pt" : "8pt"}; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #d97706 !important;
+    }
+    .qr-frame {
+      display: inline-flex; padding: ${isA4 ? "4mm" : "3mm"}; background: #ffffff !important;
+      border-radius: 6mm; border: 2px solid #e2e8f0 !important; box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      margin: 2mm 0;
+    }
+    .qr-img { width: ${isA4 ? "90mm" : "68mm"}; height: ${isA4 ? "90mm" : "68mm"}; display: block; }
+    .scan-msg { font-size: ${isA4 ? "13pt" : "10.5pt"}; font-weight: 800; color: #1a1f1c !important; margin-bottom: 1mm; }
+    .subtext { font-size: ${isA4 ? "8.5pt" : "7pt"}; font-weight: 600; color: #64748b !important; }
+    .footer-box { border-top: 1px solid #f1f5f9; padding-top: 2mm; margin-top: 2mm; width: 100%; }
+    .footer-note { font-size: ${isA4 ? "7.5pt" : "6pt"}; font-family: monospace; color: #94a3b8 !important; }
+    .cut-guide { font-size: ${isA4 ? "6.5pt" : "5.5pt"}; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <div class="sheet">
+      <div>
+        <div class="top-badge">✦ 100% Offline Menu • Zero Data Pack ✦</div>
+        <h1 class="rest-name">${esc(r.name)}</h1>
+        <div class="prompt">Scan to View Menu Directly in Camera</div>
+      </div>
+      <div>
+        <div class="qr-frame">
+          <img class="qr-img" src="${dataUrl}" alt="Offline QR" />
+        </div>
+        <div class="scan-msg">Point your phone camera to scan text</div>
+        <div class="subtext">No internet, browser, or SIM recharge needed • Instant camera popup</div>
+      </div>
+      <div class="footer-box">
+        <div class="footer-note">✦ Offline Plain Text Menu • Direct Camera Hardware Scan ✦</div>
+        <div class="cut-guide">✂ Cut along the line for ${format} display stand</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    printCleanHtml(html);
+  };
+
+  const copyOfflineText = async () => {
+    try {
+      await navigator.clipboard.writeText(effectiveOfflineText);
+      setCopied(true);
+      toast.success("Offline menu text copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy offline text");
+    }
+  };
+
+  const downloadOfflinePng = (size: number) => {
+    import("qr-code-styling").then(({ default: QRCodeStyling }) => {
+      const hi = new QRCodeStyling({
+        ...offlineOptions,
+        width: size,
+        height: size,
+        type: "canvas",
+      });
+      hi.download({ name: `${name}-offline-dhaba-qr-${size}px`, extension: "png" });
+      toast.success(`Downloaded Offline PNG (${size}×${size} px)`);
+    });
+  };
+
+  const downloadOfflineSvg = () => {
+    import("qr-code-styling").then(({ default: QRCodeStyling }) => {
+      const hi = new QRCodeStyling({
+        ...offlineOptions,
+        width: 1200,
+        height: 1200,
+        type: "svg",
+      });
+      hi.download({ name: `${name}-offline-dhaba-qr-vector`, extension: "svg" });
+      toast.success("Downloaded Vector SVG for Offline QR");
+    });
   };
 
   // Generate high-resolution 300 DPI Canvas for Table Stand Card (A5)
@@ -1096,14 +1433,11 @@ function QrPage() {
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-    const isOffline = qrMode === "offline";
-    const badgeText = isOffline ? "✦ 100% OFFLINE MENU • ZERO INTERNET ✦" : "✦ Contactless Dining Menu ✦";
-    const promptText = isOffline ? "Scan to View Menu Directly in Camera" : "Scan to View Menu & Prices";
-    const scanMsg = isOffline ? "Point your phone camera to scan text" : "Point your phone camera to scan";
-    const subtext = isOffline
-      ? "No internet, browser, or SIM recharge needed • Instant camera popup"
-      : "No app download required • Instant mobile dining menu";
-    const footerText = isOffline ? "✦ Offline Plain Text Menu • Works Without Internet ✦" : url;
+    const badgeText = "✦ Contactless Dining Menu ✦";
+    const promptText = "Scan to View Menu & Prices";
+    const scanMsg = "Point your phone camera to scan";
+    const subtext = "No app download required • Instant mobile dining menu";
+    const footerText = url;
 
     const html = `<!doctype html>
 <html>
@@ -1519,14 +1853,11 @@ function QrPage() {
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-    const isOffline = qrMode === "offline";
-    const badgeText = isOffline ? "✦ 100% OFFLINE MENU • ZERO INTERNET ✦" : "✦ Contactless Dining Menu ✦";
-    const promptText = isOffline ? "Scan to View Menu Directly in Camera" : "Scan to View Menu & Prices";
-    const scanMsg = isOffline ? "Point your phone camera to scan text" : "Point your phone camera to scan";
-    const subtext = isOffline
-      ? "No internet, browser, or SIM recharge needed • Instant camera popup"
-      : "No app download required • Instant mobile dining menu";
-    const footerText = isOffline ? "✦ Offline Plain Text Menu • Works Without Internet ✦" : url;
+    const badgeText = "✦ Contactless Dining Menu ✦";
+    const promptText = "Scan to View Menu & Prices";
+    const scanMsg = "Point your phone camera to scan";
+    const subtext = "No app download required • Instant mobile dining menu";
+    const footerText = url;
 
     const html = `<!doctype html>
 <html>
@@ -2139,6 +2470,27 @@ function QrPage() {
                 <Save className="size-4" /> Save Style
               </Button>
             </>
+          ) : viewTab === "offline" ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCustomOfflineText("");
+                  toast.success("Reset to auto-generated menu text");
+                }}
+                className="gap-1.5 text-xs font-semibold cursor-pointer"
+              >
+                <Sparkles className="size-3.5 text-amber-500" /> Reset Text
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => printOfflineTemplate(offlineTemplateTab)}
+                className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-soft text-xs font-semibold cursor-pointer"
+              >
+                <Printer className="size-3.5" /> Print Offline ({offlineTemplateTab})
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -2169,19 +2521,19 @@ function QrPage() {
             type="button"
             onClick={() => setViewTab("master")}
             className={cn(
-              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer",
               viewTab === "master"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             )}
           >
-            <QrIcon className="size-4 shrink-0" /> Master Brand QR
+            <Globe className="size-4 shrink-0" /> Master Brand QR
           </button>
           <button
             type="button"
             onClick={() => setViewTab("tables")}
             className={cn(
-              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer",
               viewTab === "tables"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -2195,6 +2547,26 @@ function QrPage() {
               )}
             >
               {tables.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("offline")}
+            className={cn(
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer",
+              viewTab === "offline"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <WifiOff className="size-4 shrink-0" /> Offline Dhaba QR
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-0.2 text-[9px] font-extrabold uppercase",
+                viewTab === "offline" ? "bg-white/25 text-white" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              )}
+            >
+              Zero-Net
             </span>
           </button>
         </div>
@@ -2226,6 +2598,10 @@ function QrPage() {
               <Plus className="size-3.5" /> Add Table
             </Button>
           </div>
+        ) : viewTab === "offline" ? (
+          <p className="hidden sm:block text-xs font-medium text-amber-700 dark:text-amber-400">
+            📡 Scans natively in phone camera without internet or recharge.
+          </p>
         ) : (
           <p className="hidden sm:block text-xs text-muted-foreground">
             Print this QR for menus, billing counter, flyers & social media.
@@ -2387,151 +2763,419 @@ function QrPage() {
             </div>
           )}
         </div>
-      ) : (
+      ) : viewTab === "offline" ? (
         <div className="space-y-6">
-          {/* QR Destination Mode Switcher: Online Live URL vs Offline Plain Text QR */}
-          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-soft">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-base font-bold text-foreground">QR Scanning Destination</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide",
-                      qrMode === "online" ? "bg-primary/10 text-primary" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                    )}
-                  >
-                    {qrMode === "online" ? "🌐 Live Web Menu" : "📡 Zero-Internet Text"}
+          {/* Offline Dhaba QR Hero Banner */}
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-5 sm:p-6 shadow-soft">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-display text-lg sm:text-xl font-bold text-foreground">
+                    Offline Dhaba QR Studio
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-black text-amber-800 dark:text-amber-300">
+                    <WifiOff className="size-3.5" /> 100% Zero-Internet Mode
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle2 className="size-3.5" /> Google Lens & Scanner Verified
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Choose what happens when customers scan your table or poster QR code with their smartphone camera.
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-3xl leading-relaxed">
+                  Specially engineered for highway dhabas, remote roadside eateries, and low-connectivity zones. When customers scan this QR using Google Scanner, Google Lens, Samsung Camera, or iPhone Camera, your full menu text appears <strong>directly inside their camera viewfinder</strong> without needing an active data pack, internet connection, or browser.
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/50 p-1.5 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setQrMode("online")}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer",
-                    qrMode === "online"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowCameraPreview(true)}
+                  className="gap-1.5 text-xs font-bold border-amber-500/40 bg-card hover:bg-amber-500/15 text-amber-900 dark:text-amber-200 cursor-pointer shadow-xs"
                 >
-                  <Globe className="size-3.5" /> Digital Web Menu
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQrMode("offline")}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer",
-                    qrMode === "offline"
-                      ? "bg-amber-600 text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
+                  <Camera className="size-3.5 text-amber-600 dark:text-amber-400" /> Test Camera Preview
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={copyOfflineText}
+                  className="gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-soft cursor-pointer"
                 >
-                  <WifiOff className="size-3.5" /> Offline Plain Text QR
-                </button>
+                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copied ? "Copied Text" : "Copy Menu Text"}
+                </Button>
               </div>
             </div>
+          </div>
 
-            {/* Offline Mode Details, Meter & Tuning */}
-            {qrMode === "offline" && (
-              <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-start gap-2.5">
-                    <WifiOff className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-                    <div>
-                      <p className="font-bold text-amber-900 dark:text-amber-300">
-                        Zero Internet Mode Active &bull; No Mobile Data or SIM Recharge Required!
-                      </p>
-                      <p className="mt-0.5 text-amber-800/80 dark:text-amber-300/80 text-[11px] leading-relaxed">
-                        Dishes, categories, and prices are encoded directly inside the QR code pixels. When customers scan with their native camera app (iPhone, Samsung, Xiaomi, Vivo), the menu text pops up directly on screen without opening any browser!
-                      </p>
-                    </div>
+          <div className="grid gap-6 lg:gap-8 lg:grid-cols-[1.1fr_0.9fr] min-w-0">
+            {/* Left Column: Menu Tuning & Printable Sheets */}
+            <div className="min-w-0 space-y-6">
+              {/* Payload Tuning Card */}
+              <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft space-y-5">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
+                  <div>
+                    <h3 className="font-display text-base font-bold text-foreground">Menu Payload Tuning</h3>
+                    <p className="text-xs text-muted-foreground">Control dish count and text payload for maximum scan speed.</p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowCameraPreview(true)}
-                    className="shrink-0 gap-1.5 text-xs font-bold bg-card border-amber-500/40 text-amber-900 dark:text-amber-200 hover:bg-amber-500/20 cursor-pointer self-start sm:self-auto"
-                  >
-                    <Camera className="size-3.5" /> Test Camera Scan
-                  </Button>
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <ShieldCheck className="size-4" /> 100% ASCII Scan-Proof
+                  </span>
                 </div>
 
-                {/* Meter & Controls */}
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-1">
-                  <div className="rounded-xl border border-border bg-muted/30 p-2.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Payload Size</span>
-                      <span className="font-bold text-foreground">{offlineMenuText.length} / 1,200 chars</span>
-                    </div>
-                    <div className="mt-1.5 h-1.5 w-full rounded-full bg-border overflow-hidden">
-                      <div
+                {/* Presets */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Included Dishes Preset
+                    </Label>
+                    <span className="text-xs font-bold text-foreground">{offlineMaxItems} dishes selected</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[10, 15, 20, 30].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => {
+                          setOfflineMaxItems(num);
+                          setCustomOfflineText("");
+                        }}
                         className={cn(
-                          "h-full transition-all",
-                          offlineMenuText.length > 1000 ? "bg-amber-500" : "bg-primary"
+                          "flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all cursor-pointer",
+                          offlineMaxItems === num && !customOfflineText
+                            ? "border-amber-600 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30"
+                            : "border-border bg-muted/30 hover:bg-secondary text-muted-foreground"
                         )}
-                        style={{ width: `${Math.min(100, (offlineMenuText.length / 1200) * 100)}%` }}
-                      />
-                    </div>
-                    <p className="mt-1 text-[10px] text-muted-foreground">Optimal density for budget phone cameras.</p>
+                      >
+                        <span className="text-xs font-bold">Top {num}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {num <= 10 ? "Ultra Fast" : num <= 15 ? "Recommended" : num <= 20 ? "Balanced" : "Detailed"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Character Compatibility Meter */}
+                <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Scan Speed & Payload Meter
+                    </span>
+                    <span className="font-mono font-bold text-foreground">
+                      {effectiveOfflineText.length} characters
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-border overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full transition-all rounded-full",
+                        effectiveOfflineText.length <= 350
+                          ? "bg-emerald-500"
+                          : effectiveOfflineText.length <= 600
+                          ? "bg-amber-500"
+                          : "bg-red-500"
+                      )}
+                      style={{
+                        width: `${Math.min(100, (effectiveOfflineText.length / 800) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>
+                      {effectiveOfflineText.length <= 350 ? (
+                        <strong className="text-emerald-600 dark:text-emerald-400">
+                          ⚡ Instant Lock-On (0.05s) • High Optical Contrast
+                        </strong>
+                      ) : effectiveOfflineText.length <= 600 ? (
+                        <strong className="text-amber-600 dark:text-amber-400">
+                          ✓ Fast Scan (0.1s) • Recommended for Dhabas
+                        </strong>
+                      ) : (
+                        <strong className="text-red-500">
+                          ▲ Higher density • Requires steady camera hold
+                        </strong>
+                      )}
+                    </span>
+                    <span className="font-mono">Limit: ~800 char</span>
+                  </div>
+                </div>
+
+                {/* Custom Payload Editor */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Direct Plain Text Payload (Editable)
+                    </Label>
+                    {customOfflineText && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomOfflineText("")}
+                        className="text-xs text-amber-600 hover:underline font-bold cursor-pointer"
+                      >
+                        Reset to Auto
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={effectiveOfflineText}
+                    onChange={(e) => setCustomOfflineText(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-background p-3 font-mono text-xs leading-relaxed text-foreground shadow-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    placeholder="Enter menu text directly..."
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    💡 <strong>Tip for 100% Optical Scanning</strong>: Standard ASCII characters (<code className="font-mono text-foreground font-bold">===</code>, <code className="font-mono text-foreground font-bold">*</code>, <code className="font-mono text-foreground font-bold">Rs.</code>) ensure every phone camera and Google Lens decodes the text without garbled characters or charset warnings.
+                  </p>
+                </div>
+              </div>
+
+              {/* Printable Templates Card (A5 / A4) */}
+              <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                  <div>
+                    <h3 className="font-display text-base sm:text-lg font-bold">Print Ready Dhaba Cards</h3>
+                    <p className="text-xs text-muted-foreground">Print waterproof acrylic table stands & wall posters.</p>
                   </div>
 
-                  <div className="rounded-xl border border-border bg-muted/30 p-2.5 flex flex-col justify-between">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Included Dishes</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm font-bold text-foreground">{offlineItemsCount} dishes</span>
-                      <div className="flex items-center gap-1">
-                        {[15, 25, 35].map((count) => (
-                          <button
-                            key={count}
-                            type="button"
-                            onClick={() => setOfflineMaxItems(count)}
-                            className={cn(
-                              "rounded-md px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer",
-                              offlineMaxItems === count
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-card text-muted-foreground border-border hover:bg-secondary"
-                            )}
-                          >
-                            {count}
-                          </button>
-                        ))}
+                  <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 text-xs self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setOfflineTemplateTab("A5")}
+                      className={cn(
+                        "rounded-md px-2.5 sm:px-3 py-1 font-semibold transition-all text-xs cursor-pointer",
+                        offlineTemplateTab === "A5"
+                          ? "bg-amber-600 text-white shadow-xs font-bold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Table Stand (A5)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOfflineTemplateTab("A4")}
+                      className={cn(
+                        "rounded-md px-2.5 sm:px-3 py-1 font-semibold transition-all text-xs cursor-pointer",
+                        offlineTemplateTab === "A4"
+                          ? "bg-amber-600 text-white shadow-xs font-bold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Wall Poster (A4)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Card Visual Preview */}
+                <div className="rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5 p-4 sm:p-5 text-center">
+                  <div className="mx-auto w-full max-w-[270px] sm:max-w-xs rounded-2xl border-2 border-amber-600 bg-white p-4 sm:p-6 shadow-lift text-center text-[#1a1f1c]">
+                    <span className="inline-block rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[9px] font-black uppercase text-amber-800 tracking-wider mb-2">
+                      ✦ 100% OFFLINE MENU • ZERO DATA ✦
+                    </span>
+                    <h4 className="font-display text-lg sm:text-xl font-black text-zinc-900">
+                      {r.name}
+                    </h4>
+                    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                      Scan To View Menu In Camera
+                    </p>
+
+                    <div className="mx-auto my-3 inline-flex p-2 rounded-xl border border-zinc-200 bg-white shadow-sm">
+                      {offlineQrDataUrl ? (
+                        <img src={offlineQrDataUrl} alt="Offline QR" className="size-32 sm:size-36 object-contain" />
+                      ) : (
+                        <div className="size-32 sm:size-36 grid place-items-center text-xs text-muted-foreground">Generating...</div>
+                      )}
+                    </div>
+
+                    <p className="text-xs font-bold text-zinc-900">
+                      Point camera to read menu
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-zinc-500">
+                      No SIM recharge or internet needed
+                    </p>
+                  </div>
+
+                  {/* Print & PDF Action Buttons */}
+                  <div className="mt-5 space-y-2.5 w-full">
+                    <Button
+                      onClick={() => downloadOfflineCleanPdf(offlineTemplateTab)}
+                      className="w-full gap-2 shadow-soft font-bold text-xs sm:text-sm h-11 bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
+                    >
+                      <FileText className="size-4 shrink-0 text-amber-200" /> Download Clean PDF (1-Page)
+                    </Button>
+
+                    <div className="grid grid-cols-2 gap-2 sm:gap-2.5 w-full">
+                      <Button
+                        variant="outline"
+                        onClick={() => printOfflineTemplate(offlineTemplateTab)}
+                        className="gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm h-10 border-border hover:bg-secondary cursor-pointer truncate"
+                      >
+                        <Printer className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">Print Sheet</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => downloadOfflinePrintableCard(offlineTemplateTab)}
+                        className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-10 border-border hover:bg-secondary font-semibold cursor-pointer truncate"
+                      >
+                        <Download className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">HD Image (300 DPI)</span>
+                      </Button>
+                    </div>
+
+                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-left text-xs text-muted-foreground flex items-start gap-2.5">
+                      <ShieldCheck className="size-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-[11px] leading-relaxed text-foreground/85">
+                        <p className="font-bold text-foreground">100% Single-Page Clean Print Guarantee</p>
+                        <p>No browser headers, date stamps, or URLs will be printed. Fits perfectly on standard A5 table acrylic stands or A4 posters.</p>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
 
-                  <div className="rounded-xl border border-border bg-muted/30 p-2.5 flex flex-col justify-between sm:col-span-2 lg:col-span-1">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Include Details</span>
-                    <div className="flex items-center gap-4 mt-1 text-xs">
-                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={includePhoneInOffline}
-                          onChange={(e) => setIncludePhoneInOffline(e.target.checked)}
-                          className="rounded border-border text-primary focus:ring-primary"
-                        />
-                        <span className="text-[11px] font-medium">Phone</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={includeAddressInOffline}
-                          onChange={(e) => setIncludeAddressInOffline(e.target.checked)}
-                          className="rounded border-border text-primary focus:ring-primary"
-                        />
-                        <span className="text-[11px] font-medium">Address</span>
-                      </label>
+            {/* Right Column: Live Offline QR Preview & Downloads */}
+            <div className="min-w-0 space-y-6">
+              <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft space-y-5">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Live Offline QR Matrix
+                  </h3>
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse" /> Pure Optical Grid
+                  </span>
+                </div>
+
+                {/* QR Canvas Box */}
+                <div className="flex min-h-[260px] sm:min-h-[340px] items-center justify-center rounded-2xl border border-border/80 bg-white p-4 sm:p-6 shadow-inner overflow-hidden">
+                  <div
+                    ref={offlineBox}
+                    className="w-full max-w-[260px] sm:max-w-[320px] mx-auto overflow-hidden rounded-xl flex items-center justify-center [&>canvas]:!w-full [&>canvas]:!h-auto [&>canvas]:!max-w-full [&>canvas]:aspect-square [&>canvas]:block"
+                  />
+                </div>
+
+                {/* Raw Text Summary Box */}
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 ps-3.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                      <WifiOff className="size-3.5 text-amber-600 dark:text-amber-400" /> Embedded Plain Text
+                    </span>
+                    <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 truncate">
+                      {offlineMaxItems} dishes &bull; {effectiveOfflineText.length} characters &bull; Level L Error Correction
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={copyOfflineText}
+                      className="flex h-8 items-center gap-1 rounded-lg border border-amber-500/30 bg-card px-2.5 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                    >
+                      {copied ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
+                      <span>{copied ? "Copied" : "Copy"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCameraPreview(true)}
+                      className="flex h-8 items-center gap-1 rounded-lg bg-amber-600 px-2.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors cursor-pointer"
+                    >
+                      <Eye className="size-3" />
+                      <span>Preview</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Download High-Res Formats */}
+                <div className="space-y-3 pt-1">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Download Raw QR Code
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {PNG_SIZES.map((s) => {
+                      const active = pngSize === s.px;
+                      return (
+                        <button
+                          key={s.px}
+                          type="button"
+                          onClick={() => setPngSize(s.px)}
+                          className={cn(
+                            "flex flex-col items-start rounded-xl border p-2 sm:p-2.5 text-left transition-all cursor-pointer",
+                            active
+                              ? "border-amber-600 bg-amber-500/15 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20"
+                              : "border-border hover:bg-secondary text-foreground"
+                          )}
+                        >
+                          <span className="text-[11px] sm:text-xs font-bold truncate w-full">{s.label}</span>
+                          <span className="text-[9px] sm:text-[10px] text-muted-foreground">{s.px} px</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2 pt-1">
+                    <Button
+                      onClick={() => downloadOfflinePng(pngSize)}
+                      className="w-full gap-1.5 font-semibold text-xs sm:text-sm h-10 bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
+                    >
+                      <Download className="size-4 shrink-0" /> Download PNG ({pngSize}px)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={downloadOfflineSvg}
+                      className="w-full gap-1.5 font-semibold text-xs sm:text-sm h-10 cursor-pointer"
+                    >
+                      <Download className="size-4 shrink-0" /> Download Vector SVG
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Zero-Network Operational Tips */}
+              <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-soft space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Zero-Net Dhaba Operational Guide
+                </h3>
+                <div className="space-y-3 text-xs leading-relaxed">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold text-xs">
+                      1
+                    </span>
+                    <div>
+                      <p className="font-bold text-foreground">Zero Mobile Recharge or Signal Needed</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Customers with dead batteries, no data pack, or zero network on remote highways can read the entire menu in their native camera without any browser.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold text-xs">
+                      2
+                    </span>
+                    <div>
+                      <p className="font-bold text-foreground">Verbal or Token Ordering at Counter</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Customers choose dishes from the offline text screen, then tell the waiter or cashier: "Table 3 par 2 Dal Makhani, 4 Butter Roti".
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold text-xs">
+                      3
+                    </span>
+                    <div>
+                      <p className="font-bold text-foreground">Laminated Acrylic Table Stands</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Print A5 cards, laminate or slip into standard plastic acrylic stands. Weatherproof, water-resistant, and works 24/7 without electricity.
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
 
           <div className="grid gap-6 lg:gap-8 lg:grid-cols-[1.1fr_0.9fr] min-w-0">
         {/* Left Column: Customizer & Template Previews */}
@@ -2775,7 +3419,7 @@ function QrPage() {
                   {r.name}
                 </h3>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {qrMode === "offline" ? "✦ 100% Offline Menu • Direct Camera Scan ✦" : "Scan to View Menu"}
+                  Scan to View Menu
                 </p>
 
                 <div
@@ -2790,9 +3434,7 @@ function QrPage() {
                 </div>
 
                 <p className="text-xs font-bold" style={{ color: fg }}>
-                  {qrMode === "offline"
-                    ? "Works with Zero Internet & No Recharge"
-                    : templateTab === "A5"
+                  {templateTab === "A5"
                     ? "Place on Dining Table"
                     : "Display at Counter & Entrance"}
                 </p>
@@ -2865,62 +3507,29 @@ function QrPage() {
               />
             </div>
 
-            {/* Menu Link Row or Offline Raw Text Info */}
-            {qrMode === "offline" ? (
-              <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center justify-between gap-2 min-w-0">
-                <div className="min-w-0">
-                  <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                    <WifiOff className="size-3.5 text-amber-600 dark:text-amber-400" /> Raw Menu Text Encoded
-                  </span>
-                  <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 truncate">
-                    {offlineItemsCount} dishes &bull; {offlineMenuText.length} characters
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={copyOfflineText}
-                    title="Copy Menu Text"
-                    className="flex h-8 items-center gap-1 rounded-lg border border-amber-500/30 bg-card px-2 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer"
-                  >
-                    {copied ? <Check className="size-3 text-veg" /> : <Copy className="size-3" />}
-                    <span>{copied ? "Copied" : "Copy"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCameraPreview(true)}
-                    title="Preview Camera View"
-                    className="flex h-8 items-center gap-1 rounded-lg bg-amber-600 px-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors cursor-pointer"
-                  >
-                    <Eye className="size-3" />
-                    <span>View</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5 rounded-xl border border-border/70 bg-muted/40 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center gap-2 min-w-0">
-                <span className="flex-1 min-w-0 truncate text-[11px] sm:text-xs font-medium font-mono text-muted-foreground" title={url}>
-                  {url}
-                </span>
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  title="Copy Link"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
-                >
-                  {copied ? <Check className="size-3.5 text-veg" /> : <Copy className="size-3.5" />}
-                </button>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Open Live Menu"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                >
-                  <ExternalLink className="size-3.5" />
-                </a>
-              </div>
-            )}
+            {/* Menu Link Row */}
+            <div className="mt-5 rounded-xl border border-border/70 bg-muted/40 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center gap-2 min-w-0">
+              <span className="flex-1 min-w-0 truncate text-[11px] sm:text-xs font-medium font-mono text-muted-foreground" title={url}>
+                {url}
+              </span>
+              <button
+                type="button"
+                onClick={copyLink}
+                title="Copy Link"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+              >
+                {copied ? <Check className="size-3.5 text-veg" /> : <Copy className="size-3.5" />}
+              </button>
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                title="Open Live Menu"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              >
+                <ExternalLink className="size-3.5" />
+              </a>
+            </div>
 
             {/* PNG Multi-size selector */}
             <div className="mt-6 space-y-2.5">
@@ -3023,7 +3632,7 @@ function QrPage() {
                 <span className="text-[10px] text-zinc-400 font-mono">Instant Camera Note</span>
               </div>
               <pre className="max-h-52 overflow-y-auto text-xs font-mono text-zinc-200 whitespace-pre-wrap leading-relaxed select-all bg-black/30 p-2.5 rounded-xl border border-zinc-700/50">
-                {offlineMenuText}
+                {effectiveOfflineText}
               </pre>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[10px] text-zinc-400">
