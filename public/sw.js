@@ -1,5 +1,5 @@
-// Menuly Service Worker for Offline Menu Browsing & PWA Support
-const CACHE_NAME = "menuly-offline-v1";
+// Menuly Service Worker for Offline Menu Browsing, Data Saving & Instant PWA Updates
+const CACHE_NAME = "menuly-cache-v2";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
@@ -15,7 +15,7 @@ self.addEventListener("install", (event) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
         console.warn("[SW] Pre-cache partial failure:", err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -32,6 +32,13 @@ self.addEventListener("activate", (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+// Message Event - Handle SKIP_WAITING from client update prompt
+self.addEventListener("message", (event) => {
+  if (event.data && (event.data.type === "SKIP_WAITING" || event.data === "skipWaiting")) {
+    self.skipWaiting();
+  }
 });
 
 // Fetch Event - Network first with offline cache fallback for menus
@@ -68,7 +75,7 @@ self.addEventListener("fetch", (event) => {
           // Fallback to cached root or match by pathname
           const fallback = await caches.match(url.pathname);
           if (fallback) return fallback;
-          // If totally unavailable, throw original error
+          // If totally unavailable, throw friendly offline response
           return new Response("Offline menu unavailable. Please connect to internet once.", {
             status: 503,
             statusText: "Offline",
@@ -79,7 +86,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 2. Static Assets (scripts, styles, fonts, images) -> Stale-while-revalidate
+  // 2. Static Assets (scripts, styles, fonts, images) -> Cache First for instant loading
   if (
     url.pathname.startsWith("/assets/") ||
     url.pathname.endsWith(".js") ||
@@ -87,12 +94,17 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".png") ||
     url.pathname.endsWith(".jpg") ||
     url.pathname.endsWith(".svg") ||
+    url.pathname.endsWith(".webp") ||
     url.hostname.includes("fonts.googleapis.com") ||
     url.hostname.includes("fonts.gstatic.com")
   ) {
     event.respondWith(
       caches.match(req).then((cached) => {
-        const fetchPromise = fetch(req)
+        if (cached) {
+          // Return from cache immediately to save user's data & load in <10ms
+          return cached;
+        }
+        return fetch(req)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
               const copy = networkResponse.clone();
@@ -101,8 +113,6 @@ self.addEventListener("fetch", (event) => {
             return networkResponse;
           })
           .catch(() => cached);
-
-        return cached || fetchPromise;
       })
     );
     return;

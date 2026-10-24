@@ -313,9 +313,15 @@ function RootComponent() {
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch((err) => {
-          console.debug("[SW] Registration skipped or failed:", err);
-        });
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((reg) => {
+            // Check for service worker updates periodically or on load
+            reg.update().catch(() => {});
+          })
+          .catch((err) => {
+            console.debug("[SW] Registration skipped or failed:", err);
+          });
       });
     }
   }, []);

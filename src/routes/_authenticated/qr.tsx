@@ -346,20 +346,17 @@ function QrPage() {
     [effectiveOfflineText]
   );
 
-  // Render Master QR Canvas
+  // Render Master QR Canvas (Always clears and mounts fresh instance on tab switch)
   useEffect(() => {
     let alive = true;
     if (viewTab !== "master" || !r) return;
     import("qr-code-styling").then(({ default: QRCodeStyling }) => {
       if (!alive || !box.current) return;
-      if (!qr.current) {
-        qr.current = new QRCodeStyling(options);
-        box.current.innerHTML = "";
-        qr.current.append(box.current);
-      } else {
-        qr.current.update(options);
-      }
-      qr.current.getRawData("png").then((blob) => {
+      box.current.innerHTML = "";
+      const inst = new QRCodeStyling(options);
+      qr.current = inst;
+      inst.append(box.current);
+      inst.getRawData("png").then((blob) => {
         if (!alive || !blob) return;
         const fr = new FileReader();
         fr.onload = () => {
@@ -373,20 +370,17 @@ function QrPage() {
     };
   }, [options, viewTab, r]);
 
-  // Render Offline Dhaba QR Canvas
+  // Render Offline Dhaba QR Canvas (Always clears and mounts fresh instance on tab switch)
   useEffect(() => {
     let alive = true;
     if (viewTab !== "offline" || !r) return;
     import("qr-code-styling").then(({ default: QRCodeStyling }) => {
       if (!alive || !offlineBox.current) return;
-      if (!offlineQr.current) {
-        offlineQr.current = new QRCodeStyling(offlineOptions);
-        offlineBox.current.innerHTML = "";
-        offlineQr.current.append(offlineBox.current);
-      } else {
-        offlineQr.current.update(offlineOptions);
-      }
-      offlineQr.current.getRawData("png").then((blob) => {
+      offlineBox.current.innerHTML = "";
+      const inst = new QRCodeStyling(offlineOptions);
+      offlineQr.current = inst;
+      inst.append(offlineBox.current);
+      inst.getRawData("png").then((blob) => {
         if (!alive || !blob) return;
         const fr = new FileReader();
         fr.onload = () => {
@@ -2515,13 +2509,13 @@ function QrPage() {
       }
     >
       {/* Mode Switcher Pill */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 rounded-2xl border border-border/80 bg-card p-2 sm:p-3 shadow-soft min-w-0">
-        <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 rounded-2xl border border-border/80 bg-card p-2 sm:p-2.5 shadow-soft min-w-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <button
             type="button"
             onClick={() => setViewTab("master")}
             className={cn(
-              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0",
               viewTab === "master"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -2533,7 +2527,7 @@ function QrPage() {
             type="button"
             onClick={() => setViewTab("tables")}
             className={cn(
-              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0",
               viewTab === "tables"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -2553,7 +2547,7 @@ function QrPage() {
             type="button"
             onClick={() => setViewTab("offline")}
             className={cn(
-              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer",
+              "flex-1 sm:flex-none justify-center flex items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0",
               viewTab === "offline"
                 ? "bg-amber-600 text-white shadow-sm"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -2829,7 +2823,7 @@ function QrPage() {
                     </Label>
                     <span className="text-xs font-bold text-foreground">{offlineMaxItems} dishes selected</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[10, 15, 20, 30].map((num) => (
                       <button
                         key={num}
@@ -2839,7 +2833,7 @@ function QrPage() {
                           setCustomOfflineText("");
                         }}
                         className={cn(
-                          "flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all cursor-pointer",
+                          "flex flex-col items-center justify-center rounded-xl border p-2 sm:p-2.5 text-center transition-all cursor-pointer",
                           offlineMaxItems === num && !customOfflineText
                             ? "border-amber-600 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30"
                             : "border-border bg-muted/30 hover:bg-secondary text-muted-foreground"
@@ -3599,52 +3593,81 @@ function QrPage() {
 
       {/* Test Camera Scan Simulator Dialog */}
       <Dialog open={showCameraPreview} onOpenChange={setShowCameraPreview}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-zinc-950 text-white border-zinc-800">
-          <div className="p-4 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Camera className="size-4 text-emerald-400" />
-              <DialogTitle className="text-sm font-bold text-white">Phone Camera Viewfinder Simulator</DialogTitle>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-border shadow-lift sm:rounded-3xl">
+          {/* Header with safe pr-12 for Radix DialogClose */}
+          <div className="flex items-center justify-between border-b border-border/80 bg-muted/40 px-4 py-3.5 sm:px-5 pr-12">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                <Camera className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="font-sans text-sm font-bold text-foreground truncate">
+                  Camera Scan Simulation
+                </DialogTitle>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  Google Lens & Native Phone Camera Preview
+                </p>
+              </div>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
-              Zero Internet
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> 0 MB Data
             </span>
           </div>
 
-          <div className="relative p-5 bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 flex flex-col justify-between">
-            {/* Viewfinder Target Brackets */}
-            <div className="relative mx-auto size-40 border border-white/20 rounded-2xl flex items-center justify-center">
-              <div className="absolute top-2 left-2 size-4 border-t-2 border-l-2 border-emerald-400" />
-              <div className="absolute top-2 right-2 size-4 border-t-2 border-r-2 border-emerald-400" />
-              <div className="absolute bottom-2 left-2 size-4 border-b-2 border-l-2 border-emerald-400" />
-              <div className="absolute bottom-2 right-2 size-4 border-b-2 border-r-2 border-emerald-400" />
-              <div className="text-center text-zinc-400 text-xs">
-                <QrIcon className="mx-auto size-10 text-zinc-600 mb-1 animate-pulse" />
-                <span className="text-[11px]">Camera Scanning QR...</span>
+          <div className="p-4 sm:p-5 space-y-4">
+            {/* Simulated Camera Viewfinder */}
+            <div className="relative mx-auto w-full rounded-2xl bg-zinc-950 p-4 text-white overflow-hidden shadow-inner">
+              <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/60 via-transparent to-zinc-950/80 pointer-events-none" />
+
+              {/* Viewfinder Target Brackets with Real QR Thumbnail */}
+              <div className="relative mx-auto size-36 sm:size-40 rounded-xl border border-white/20 flex items-center justify-center my-1.5 bg-black/40">
+                <div className="absolute -top-0.5 -left-0.5 size-4 border-t-2 border-l-2 border-amber-400 rounded-tl-sm" />
+                <div className="absolute -top-0.5 -right-0.5 size-4 border-t-2 border-r-2 border-amber-400 rounded-tr-sm" />
+                <div className="absolute -bottom-0.5 -left-0.5 size-4 border-b-2 border-l-2 border-amber-400 rounded-bl-sm" />
+                <div className="absolute -bottom-0.5 -right-0.5 size-4 border-b-2 border-r-2 border-amber-400 rounded-br-sm" />
+
+                {offlineQrDataUrl ? (
+                  <img src={offlineQrDataUrl} alt="Scanning QR" className="size-28 sm:size-32 object-contain rounded-md" />
+                ) : (
+                  <QrIcon className="size-12 text-zinc-500 animate-pulse" />
+                )}
+
+                <div className="absolute inset-x-2 h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" />
+              </div>
+
+              <div className="text-center mt-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900/90 border border-zinc-700/80 px-2.5 py-0.5 text-[10px] font-semibold text-zinc-300">
+                  <CheckCircle2 className="size-3 text-emerald-400" /> QR Locked (0.05s Instant Optical Scan)
+                </span>
               </div>
             </div>
 
-            {/* Simulated Camera Text Popup Card (Google Lens / iOS Camera style) */}
-            <div className="mt-4 rounded-2xl border border-white/10 bg-zinc-800/95 backdrop-blur-md p-4 shadow-2xl space-y-2.5">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-700/80">
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="size-3.5" /> Plain Text QR Detected
-                </span>
-                <span className="text-[10px] text-zinc-400 font-mono">Instant Camera Note</span>
+            {/* Simulated Native Camera Note Card (Google Lens / iOS Camera style) */}
+            <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-soft space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-border/70">
+                <div className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-foreground">Phone Note / Screen Popup</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground font-mono">No Browser Opened</span>
               </div>
-              <pre className="max-h-52 overflow-y-auto text-xs font-mono text-zinc-200 whitespace-pre-wrap leading-relaxed select-all bg-black/30 p-2.5 rounded-xl border border-zinc-700/50">
-                {effectiveOfflineText}
-              </pre>
+
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-border/80 bg-muted/40 p-3 select-all">
+                <pre className="whitespace-pre-wrap font-mono text-[11px] sm:text-xs leading-relaxed text-foreground">
+                  {effectiveOfflineText}
+                </pre>
+              </div>
+
               <div className="flex items-center justify-between pt-1">
-                <span className="text-[10px] text-zinc-400">
-                  Direct hardware scan &bull; 0 MB data used
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground">
+                  Direct hardware scan &bull; 0 KB internet used
                 </span>
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={copyOfflineText}
-                  className="h-7 text-xs gap-1 bg-zinc-700 border-zinc-600 text-white hover:bg-zinc-600 cursor-pointer"
+                  className="gap-1.5 text-xs font-bold h-8 bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
                 >
-                  {copied ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                   <span>{copied ? "Copied" : "Copy Text"}</span>
                 </Button>
               </div>
