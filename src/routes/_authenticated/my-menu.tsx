@@ -50,6 +50,7 @@ import {
   addDishHelper,
   updateDishHelper,
   deleteDishHelper,
+  toggleItemAvailableHelper,
   type Category,
   type MenuItem,
   type FullMenu,
@@ -162,7 +163,7 @@ function MyMenu() {
 
   const [isAddingCat, setIsAddingCat] = useState(false);
   const [isSavingItem, setIsSavingItem] = useState(false);
-  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
+  const [pendingItemIds, setPendingItemIds] = useState<Record<string, boolean>>({});
   const [duplicatingItemId, setDuplicatingItemId] = useState<string | null>(null);
 
   const [confirmingPreset, setConfirmingPreset] = useState<string | null>(null);
@@ -404,12 +405,16 @@ function MyMenu() {
     }
   };
 
+  // Ultra-Fast 0ms Optimistic Dish Availability Toggle
   const toggleAvail = async (i: MenuItem) => {
-    if (togglingItemId === i.id) return;
+    if (pendingItemIds[i.id]) return;
     const newAvailable = !i.available;
-    setTogglingItemId(i.id);
 
-    // Optimistic instant toggle in memory
+    // 1. Mark item as actively syncing in background (never blocks UI or other dish toggles)
+    setPendingItemIds((prev) => ({ ...prev, [i.id]: true }));
+
+    // 2. Instant 0ms Optimistic Update in TanStack Query memory
+    // Flips the button switch, badge, and live phone preview on the right in 0ms!
     qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
       if (!old) return old;
       return {
@@ -420,16 +425,69 @@ function MyMenu() {
       };
     });
 
-    toast.success(
-      newAvailable ? `"${i.name}" marked In Stock` : `"${i.name}" marked Sold Out`
-    );
+    // 3. Clear, instant feedback with 1-click Undo
+    if (newAvailable) {
+      toast.success(`"${i.name}" is now In Stock`, {
+        description: "Customers can order this dish immediately.",
+      });
+    } else {
+      toast.info(`"${i.name}" marked Sold Out`, {
+        description: "Unavailable on customer phones.",
+        action: {
+          label: "Undo",
+          onClick: () => toggleAvail({ ...i, available: false }),
+        },
+      });
+    }
+
+    // 4. Background Server Sync using dedicated fast endpoint
+    try {
+      await toggleItemAvailableHelper(i.id);
+    } catch (err) {
+      // Revert optimistic update on failure
+      qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((item) =>
+            item.id === i.id ? { ...item, available: i.available } : item
+          ),
+        };
+      });
+      toast.error(`Failed to update "${i.name}". Restored previous status.`);
+    } finally {
+      setPendingItemIds((prev) => {
+        const next = { ...prev };
+        delete next[i.id];
+        return next;
+      });
+      // NOTE: We deliberately do NOT call refresh() on success!
+      // This eliminates the 1-2 second full-menu refetch latency and eliminates UI flickering.
+    }
+  };
+
+  // 1-Click Restock All Sold Out Dishes
+  const restockAll = async () => {
+    const soldOutItems = data.items.filter((item) => !item.available);
+    if (soldOutItems.length === 0) return;
+
+    // Instant 0ms optimistic update
+    qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        items: old.items.map((item) => ({ ...item, available: true })),
+      };
+    });
+
+    toast.success(`Restocked ${soldOutItems.length} dishes!`, {
+      description: "All dishes are now active and In Stock for customer ordering.",
+    });
 
     try {
-      await updateDishHelper(i.id, { available: newAvailable });
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setTogglingItemId(null);
+      await Promise.all(soldOutItems.map((item) => toggleItemAvailableHelper(item.id)));
+    } catch {
+      toast.error("Failed to restock some items. Refreshing menu...");
       refresh();
     }
   };
@@ -835,7 +893,7 @@ function MyMenu() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0 pb-28 lg:pb-8">
           {/* Left Column: Categories & Dishes */}
           <div className="min-w-0 space-y-4">
-            {/* Search Input Row */}
+            {/* Search Input & Quick Status Filter Row */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -846,9 +904,60 @@ function MyMenu() {
                   onChange={(e) => setQ(e.target.value)}
                 />
               </div>
-              <span className="text-xs font-semibold text-muted-foreground px-1 self-end sm:self-center">
-                Showing {data.items.filter(match).length} of {data.items.length} dishes
-              </span>
+
+              {/* Status Filters: All vs Sold Out */}
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setFilter("all")}
+                  className={cn(
+                    "rounded-xl px-3 py-2 text-xs font-bold transition-all border cursor-pointer",
+                    filter === "all"
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-card border-border/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  All ({data.items.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilter(filter === "soldout" ? "all" : "soldout")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all border cursor-pointer",
+                    filter === "soldout"
+                      ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                      : soldOut > 0
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20"
+                      : "bg-card border-border/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <span>Sold Out</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.2 text-[10px] font-extrabold",
+                      filter === "soldout"
+                        ? "bg-white/25 text-white"
+                        : soldOut > 0
+                        ? "bg-rose-500 text-white"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {soldOut}
+                  </span>
+                </button>
+
+                {soldOut > 0 && (
+                  <button
+                    type="button"
+                    onClick={restockAll}
+                    title="Mark all sold-out dishes back in stock with 1 click"
+                    className="flex items-center gap-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 transition-all shadow-2xs cursor-pointer"
+                  >
+                    <RefreshCw className="size-3" />
+                    <span>Restock All ({soldOut})</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* DEDICATED HORIZONTAL CATEGORY TABS (Clean, Responsive, No Awkward Stacking) */}
@@ -969,8 +1078,10 @@ function MyMenu() {
                           <li
                             key={i.id}
                             className={cn(
-                              "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 transition-colors hover:bg-muted/10",
-                              !i.available && "opacity-60 bg-muted/20"
+                              "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 transition-all duration-200 hover:bg-muted/10",
+                              !i.available
+                                ? "bg-rose-500/5 opacity-80 border-l-4 border-l-rose-500"
+                                : "border-l-4 border-l-transparent"
                             )}
                           >
                             <div className="flex items-center gap-3 min-w-0">
@@ -997,31 +1108,31 @@ function MyMenu() {
                                     {i.description}
                                   </p>
                                 )}
-                                <p className="text-xs sm:text-sm font-extrabold text-primary mt-1">
-                                  {formatPrice(i.price)}
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  <span className="text-xs sm:text-sm font-extrabold text-primary">
+                                    {formatPrice(i.price)}
+                                  </span>
                                   {!i.available && (
-                                    <span className="ml-2 text-xs font-bold text-destructive">
-                                      · Sold Out
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/15 border border-rose-500/25 px-2 py-0.2 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                                      <span className="size-1 rounded-full bg-rose-500" /> Sold Out
                                     </span>
                                   )}
-                                </p>
+                                </div>
                               </div>
                             </div>
 
                             {/* Clean Action Cluster (Guaranteed No Stacking or Wrapping) */}
                             <div className="flex items-center justify-between sm:justify-end gap-2.5 pt-1.5 sm:pt-0 border-t sm:border-0 border-border/40 shrink-0">
-                              {/* Human-Crafted Tactile Kitchen Availability Switch (No generic AI dots!) */}
+                              {/* Advanced 0ms Tactile Kitchen Availability Switch */}
                               <button
                                 type="button"
-                                disabled={togglingItemId === i.id}
                                 onClick={() => toggleAvail(i)}
                                 title={i.available ? "Click to mark as Sold Out" : "Click to mark as In Stock"}
                                 className={cn(
-                                  "group shrink-0 whitespace-nowrap inline-flex items-center gap-2 rounded-xl px-2.5 py-1 text-xs font-bold transition-all border select-none shadow-2xs cursor-pointer",
+                                  "group shrink-0 whitespace-nowrap inline-flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all border select-none shadow-2xs cursor-pointer w-[114px] sm:w-[122px]",
                                   i.available
-                                    ? "bg-veg/10 border-veg/30 text-veg hover:bg-veg/15"
-                                    : "bg-muted/70 border-border text-muted-foreground hover:bg-muted",
-                                  togglingItemId === i.id && "opacity-70 pointer-events-none"
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95"
+                                    : "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95"
                                 )}
                               >
                                 {/* Micro Physical Slider */}
@@ -1029,27 +1140,24 @@ function MyMenu() {
                                   aria-hidden
                                   className={cn(
                                     "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out p-0.5",
-                                    i.available ? "bg-veg" : "bg-muted-foreground/30"
+                                    i.available ? "bg-emerald-600" : "bg-rose-500/40"
                                   )}
                                 >
                                   <span
                                     className={cn(
-                                      "pointer-events-none inline-block size-3 rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out",
-                                      i.available ? "translate-x-3" : "translate-x-0"
+                                      "pointer-events-none inline-block size-3 rounded-full shadow-xs transition-transform duration-200 ease-in-out",
+                                      i.available ? "translate-x-3 bg-white" : "translate-x-0 bg-rose-500"
                                     )}
                                   />
                                 </span>
-                                <span className="text-[11px] font-extrabold tracking-tight">
-                                  {togglingItemId === i.id ? (
-                                    <span className="flex items-center gap-1">
-                                      <RefreshCw className="size-2.5 animate-spin" /> Saving
-                                    </span>
-                                  ) : i.available ? (
-                                    "In Stock"
-                                  ) : (
-                                    "Sold Out"
-                                  )}
+                                <span className="flex-1 text-center text-[11px] font-extrabold tracking-tight">
+                                  {i.available ? "In Stock" : "Sold Out"}
                                 </span>
+
+                                {/* Subtle sync indicator dot */}
+                                {pendingItemIds[i.id] && (
+                                  <span className="size-1.5 rounded-full bg-current animate-ping shrink-0" />
+                                )}
                               </button>
 
                               {/* Action Buttons */}
