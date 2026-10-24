@@ -10,6 +10,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  WifiOff,
 } from "lucide-react";
 import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
 import { formatPrice, whatsappLink, APP_NAME } from "@/lib/config";
@@ -24,16 +25,33 @@ export function MenuView({
   menu,
   compact = false,
   table,
+  isOfflineCache = false,
+  cachedDate,
 }: {
   menu: FullMenu;
   compact?: boolean;
   table?: string | undefined;
+  isOfflineCache?: boolean;
+  cachedDate?: string | null;
 }) {
   const { restaurant: r, categories, items } = menu;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateOnline = () => setIsOffline(!navigator.onLine);
+    updateOnline();
+    window.addEventListener("online", updateOnline);
+    window.addEventListener("offline", updateOnline);
+    return () => {
+      window.removeEventListener("online", updateOnline);
+      window.removeEventListener("offline", updateOnline);
+    };
+  }, []);
 
   // Robust category normalization & deduplication
   const { normalizedCategories, categoryItemsMap } = useMemo(() => {
@@ -166,6 +184,20 @@ export function MenuView({
 
   return (
     <div className={cn("bg-background text-foreground", !compact ? "min-h-screen pb-28" : "min-h-full pb-16")}>
+      {/* Offline Alert Banner */}
+      {(isOfflineCache || isOffline) && !compact && (
+        <div className="bg-amber-500/10 border-b border-amber-500/25 px-4 py-2.5 text-center">
+          <div className="mx-auto max-w-2xl flex items-center justify-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+            <WifiOff className="size-4 shrink-0 text-amber-600 dark:text-amber-400 animate-pulse" />
+            <span>
+              {isOfflineCache
+                ? `Offline Mode Active • Loaded from device memory${cachedDate ? ` (saved ${cachedDate})` : ""}. Fully functional without internet.`
+                : "Offline Mode • Internet disconnected. Browsing continues smoothly from device cache."}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Restaurant Header */}
       <header className={cn("bg-hero text-center transition-all border-b border-border/50", compact ? "px-3 pb-3 pt-3" : "px-4 pb-6 pt-7")}>
         <div className="mx-auto max-w-2xl animate-rise">

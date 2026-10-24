@@ -24,6 +24,12 @@ import {
   FileText,
   Upload,
   Image as ImageIcon,
+  Wifi,
+  WifiOff,
+  Globe,
+  Camera,
+  SlidersHorizontal,
+  CheckCircle2,
 } from "lucide-react";
 import type QRCodeStylingType from "qr-code-styling";
 import type { Options } from "qr-code-styling";
@@ -243,25 +249,89 @@ function QrPage() {
   const box = useRef<HTMLDivElement>(null);
   const qr = useRef<QRCodeStylingType | null>(null);
 
+  const categories = useMemo(() => data?.categories || [], [data?.categories]);
+  const items = useMemo(() => data?.items || [], [data?.items]);
+
+  // Offline Plain Text QR state
+  const [qrMode, setQrMode] = useState<"online" | "offline">("online");
+  const [offlineMaxItems, setOfflineMaxItems] = useState<number>(25);
+  const [includePhoneInOffline, setIncludePhoneInOffline] = useState(true);
+  const [includeAddressInOffline, setIncludeAddressInOffline] = useState(true);
+  const [showCameraPreview, setShowCameraPreview] = useState(false);
+
   const url = typeof window !== "undefined" && r?.slug ? `${window.location.origin}/menu/${r.slug}` : "";
   const name = slugify(r?.name || "") || "menu";
+
+  // Formatted offline plain-text menu payload for direct phone camera scanning (0 data needed)
+  const offlineMenuText = useMemo(() => {
+    if (!r) return "";
+    const lines: string[] = [];
+    lines.push(`🍽️ ${r.name.toUpperCase()}`);
+    if (includePhoneInOffline && r.phone) lines.push(`📞 ${r.phone}`);
+    if (includeAddressInOffline && r.address) lines.push(`📍 ${r.address}`);
+    lines.push("─".repeat(24));
+
+    // Group available items by category
+    const catMap = new Map<string, typeof items>();
+    for (const item of items) {
+      if (item.available === false) continue;
+      const list = catMap.get(item.category_id) || [];
+      list.push(item);
+      catMap.set(item.category_id, list);
+    }
+
+    let count = 0;
+    for (const cat of categories) {
+      const catItems = catMap.get(cat.id) || [];
+      if (catItems.length === 0) continue;
+      if (count >= offlineMaxItems) break;
+
+      lines.push(`\n[${cat.name.toUpperCase()}]`);
+      for (const item of catItems) {
+        if (count >= offlineMaxItems) break;
+        lines.push(`• ${item.name}: ₹${item.price}`);
+        count++;
+      }
+    }
+
+    lines.push("\n" + "─".repeat(24));
+    lines.push("✦ 100% Offline Menu • No Internet Needed");
+    lines.push("✦ Pay at Counter / UPI / Cash");
+
+    return lines.join("\n");
+  }, [r, categories, items, offlineMaxItems, includePhoneInOffline, includeAddressInOffline]);
+
+  const offlineItemsCount = useMemo(() => {
+    let count = 0;
+    for (const cat of categories) {
+      for (const item of items) {
+        if (item.category_id === cat.id && item.available !== false) {
+          count++;
+          if (count >= offlineMaxItems) return count;
+        }
+      }
+    }
+    return count;
+  }, [categories, items, offlineMaxItems]);
+
+  const activeQrData = qrMode === "offline" ? offlineMenuText : (url || "https://menuly.app");
 
   const options = useMemo<Options>(
     () => ({
       width: 320,
       height: 320,
       type: "canvas",
-      data: url || "https://menuly.app",
+      data: activeQrData,
       margin: 8,
-      ...(showLogo && r?.logo_url ? { image: r.logo_url } : {}),
-      qrOptions: { errorCorrectionLevel: "H" },
+      ...(showLogo && r?.logo_url && qrMode !== "offline" ? { image: r.logo_url } : {}),
+      qrOptions: { errorCorrectionLevel: qrMode === "offline" ? "M" : "H" },
       imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.3, hideBackgroundDots: true },
       dotsOptions: { color: fg, type: corners[corner].dots },
       cornersSquareOptions: { color: fg, type: corners[corner].sq },
       cornersDotOptions: { color: fg, type: corners[corner].dot },
       backgroundOptions: { color: bg },
     }),
-    [url, r?.id, r?.logo_url, showLogo, fg, bg, corner]
+    [activeQrData, qrMode, r?.id, r?.logo_url, showLogo, fg, bg, corner]
   );
 
   useEffect(() => {
@@ -315,6 +385,17 @@ function QrPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy link");
+    }
+  };
+
+  const copyOfflineText = async () => {
+    try {
+      await navigator.clipboard.writeText(offlineMenuText);
+      setCopied(true);
+      toast.success("Offline menu text copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy offline text");
     }
   };
 
@@ -558,21 +639,27 @@ function QrPage() {
     const contentCenterX = width / 2;
     let currentY = margin + (isA4 ? 110 : 80);
 
-    // Top badge: "CONTACTLESS DINING MENU"
-    const badgeW = isA4 ? 680 : 520;
+    const isOfflineMode = qrMode === "offline";
+
+    // Top badge: "CONTACTLESS DINING MENU" or "100% OFFLINE MENU"
+    const badgeW = isA4 ? (isOfflineMode ? 780 : 680) : (isOfflineMode ? 600 : 520);
     const badgeH = isA4 ? 64 : 50;
     ctx.save();
-    ctx.fillStyle = "#ecfdf5";
+    ctx.fillStyle = isOfflineMode ? "#fef3c7" : "#ecfdf5";
     drawRoundedRect(ctx, contentCenterX - badgeW / 2, currentY, badgeW, badgeH, badgeH / 2);
     ctx.fill();
-    ctx.strokeStyle = "#a7f3d0";
+    ctx.strokeStyle = isOfflineMode ? "#fcd34d" : "#a7f3d0";
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = "#047857";
+    ctx.fillStyle = isOfflineMode ? "#b45309" : "#047857";
     ctx.font = `bold ${isA4 ? "26px" : "20px"} -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("✦ CONTACTLESS DINING MENU ✦", contentCenterX, currentY + badgeH / 2);
+    ctx.fillText(
+      isOfflineMode ? "✦ 100% OFFLINE MENU • ZERO INTERNET ✦" : "✦ CONTACTLESS DINING MENU ✦",
+      contentCenterX,
+      currentY + badgeH / 2
+    );
     ctx.restore();
 
     currentY += badgeH + (isA4 ? 60 : 45);
@@ -626,9 +713,13 @@ function QrPage() {
     currentY += isA4 ? 50 : 38;
 
     // Subtitle
-    ctx.fillStyle = "#64748b";
+    ctx.fillStyle = isOfflineMode ? "#b45309" : "#64748b";
     ctx.font = `bold ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.fillText("SCAN TO VIEW MENU & PRICES", contentCenterX, currentY);
+    ctx.fillText(
+      isOfflineMode ? "SCAN TO VIEW MENU DIRECTLY IN CAMERA" : "SCAN TO VIEW MENU & PRICES",
+      contentCenterX,
+      currentY
+    );
 
     currentY += isA4 ? 65 : 45;
 
@@ -679,12 +770,22 @@ function QrPage() {
     ctx.font = `bold ${isA4 ? "52px" : "40px"} -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Point your phone camera to scan", contentCenterX, currentY);
+    ctx.fillText(
+      isOfflineMode ? "Point your phone camera to scan text" : "Point your phone camera to scan",
+      contentCenterX,
+      currentY
+    );
 
     currentY += isA4 ? 44 : 34;
     ctx.fillStyle = "#64748b";
     ctx.font = `500 ${isA4 ? "30px" : "22px"} -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.fillText("No app download required • Instant mobile dining", contentCenterX, currentY);
+    ctx.fillText(
+      isOfflineMode
+        ? "No internet, browser, or SIM recharge needed • Instant camera popup"
+        : "No app download required • Instant mobile dining",
+      contentCenterX,
+      currentY
+    );
 
     if (r.hours || r.address) {
       currentY += isA4 ? 42 : 32;
@@ -697,7 +798,11 @@ function QrPage() {
     currentY += isA4 ? 50 : 38;
     ctx.fillStyle = "#94a3b8";
     ctx.font = `500 ${isA4 ? "24px" : "18px"} monospace`;
-    ctx.fillText(url, contentCenterX, currentY);
+    ctx.fillText(
+      isOfflineMode ? "✦ Offline Plain Text Menu • Works Without Internet ✦" : url,
+      contentCenterX,
+      currentY
+    );
 
     return canvas;
   };
@@ -991,6 +1096,15 @@ function QrPage() {
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
+    const isOffline = qrMode === "offline";
+    const badgeText = isOffline ? "✦ 100% OFFLINE MENU • ZERO INTERNET ✦" : "✦ Contactless Dining Menu ✦";
+    const promptText = isOffline ? "Scan to View Menu Directly in Camera" : "Scan to View Menu & Prices";
+    const scanMsg = isOffline ? "Point your phone camera to scan text" : "Point your phone camera to scan";
+    const subtext = isOffline
+      ? "No internet, browser, or SIM recharge needed • Instant camera popup"
+      : "No app download required • Instant mobile dining menu";
+    const footerText = isOffline ? "✦ Offline Plain Text Menu • Works Without Internet ✦" : url;
+
     const html = `<!doctype html>
 <html>
 <head>
@@ -1278,7 +1392,7 @@ function QrPage() {
   <div class="page-wrap">
     <div class="sheet">
       <div class="header-box">
-        <div class="top-badge">✦ Contactless Dining Menu ✦</div>
+        <div class="top-badge">${badgeText}</div>
         <div class="logo-container">
           ${
             r.logo_url
@@ -1287,16 +1401,16 @@ function QrPage() {
           }
         </div>
         <h1 class="rest-name">${esc(r.name)}</h1>
-        <div class="prompt">Scan to View Menu & Prices</div>
+        <div class="prompt">${promptText}</div>
       </div>
 
       <div class="qr-box">
         <div class="qr-frame">
           <img class="qr-img" src="${dataUrl}" alt="QR Code" />
         </div>
-        <div class="scan-msg">Point your phone camera to scan</div>
+        <div class="scan-msg">${scanMsg}</div>
         <div class="subtext">
-          No app download required • Instant mobile dining menu
+          ${subtext}
         </div>
         ${
           r.hours || r.address
@@ -1310,7 +1424,7 @@ function QrPage() {
       </div>
 
       <div class="footer-box">
-        <div class="footer-url">${esc(url)}</div>
+        <div class="footer-url">${esc(footerText)}</div>
         <div class="cut-guide">✂ Cut along the line for ${format} display stand</div>
       </div>
     </div>
@@ -1404,6 +1518,15 @@ function QrPage() {
     const tableUrl = `${url}?table=${encodeURIComponent(tbl.table_number)}`;
     const esc = (s: string) =>
       s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+    const isOffline = qrMode === "offline";
+    const badgeText = isOffline ? "✦ 100% OFFLINE MENU • ZERO INTERNET ✦" : "✦ Contactless Dining Menu ✦";
+    const promptText = isOffline ? "Scan to View Menu Directly in Camera" : "Scan to View Menu & Prices";
+    const scanMsg = isOffline ? "Point your phone camera to scan text" : "Point your phone camera to scan";
+    const subtext = isOffline
+      ? "No internet, browser, or SIM recharge needed • Instant camera popup"
+      : "No app download required • Instant mobile dining menu";
+    const footerText = isOffline ? "✦ Offline Plain Text Menu • Works Without Internet ✦" : url;
 
     const html = `<!doctype html>
 <html>
@@ -2265,7 +2388,152 @@ function QrPage() {
           )}
         </div>
       ) : (
-        <div className="grid gap-6 lg:gap-8 lg:grid-cols-[1.1fr_0.9fr] min-w-0">
+        <div className="space-y-6">
+          {/* QR Destination Mode Switcher: Online Live URL vs Offline Plain Text QR */}
+          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-soft">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-base font-bold text-foreground">QR Scanning Destination</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide",
+                      qrMode === "online" ? "bg-primary/10 text-primary" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                    )}
+                  >
+                    {qrMode === "online" ? "🌐 Live Web Menu" : "📡 Zero-Internet Text"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Choose what happens when customers scan your table or poster QR code with their smartphone camera.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/50 p-1.5 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setQrMode("online")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    qrMode === "online"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Globe className="size-3.5" /> Digital Web Menu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrMode("offline")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    qrMode === "offline"
+                      ? "bg-amber-600 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <WifiOff className="size-3.5" /> Offline Plain Text QR
+                </button>
+              </div>
+            </div>
+
+            {/* Offline Mode Details, Meter & Tuning */}
+            {qrMode === "offline" && (
+              <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <WifiOff className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                    <div>
+                      <p className="font-bold text-amber-900 dark:text-amber-300">
+                        Zero Internet Mode Active &bull; No Mobile Data or SIM Recharge Required!
+                      </p>
+                      <p className="mt-0.5 text-amber-800/80 dark:text-amber-300/80 text-[11px] leading-relaxed">
+                        Dishes, categories, and prices are encoded directly inside the QR code pixels. When customers scan with their native camera app (iPhone, Samsung, Xiaomi, Vivo), the menu text pops up directly on screen without opening any browser!
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowCameraPreview(true)}
+                    className="shrink-0 gap-1.5 text-xs font-bold bg-card border-amber-500/40 text-amber-900 dark:text-amber-200 hover:bg-amber-500/20 cursor-pointer self-start sm:self-auto"
+                  >
+                    <Camera className="size-3.5" /> Test Camera Scan
+                  </Button>
+                </div>
+
+                {/* Meter & Controls */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-1">
+                  <div className="rounded-xl border border-border bg-muted/30 p-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Payload Size</span>
+                      <span className="font-bold text-foreground">{offlineMenuText.length} / 1,200 chars</span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 w-full rounded-full bg-border overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all",
+                          offlineMenuText.length > 1000 ? "bg-amber-500" : "bg-primary"
+                        )}
+                        style={{ width: `${Math.min(100, (offlineMenuText.length / 1200) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-muted-foreground">Optimal density for budget phone cameras.</p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-muted/30 p-2.5 flex flex-col justify-between">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Included Dishes</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm font-bold text-foreground">{offlineItemsCount} dishes</span>
+                      <div className="flex items-center gap-1">
+                        {[15, 25, 35].map((count) => (
+                          <button
+                            key={count}
+                            type="button"
+                            onClick={() => setOfflineMaxItems(count)}
+                            className={cn(
+                              "rounded-md px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer",
+                              offlineMaxItems === count
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card text-muted-foreground border-border hover:bg-secondary"
+                            )}
+                          >
+                            {count}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-muted/30 p-2.5 flex flex-col justify-between sm:col-span-2 lg:col-span-1">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Include Details</span>
+                    <div className="flex items-center gap-4 mt-1 text-xs">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={includePhoneInOffline}
+                          onChange={(e) => setIncludePhoneInOffline(e.target.checked)}
+                          className="rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span className="text-[11px] font-medium">Phone</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={includeAddressInOffline}
+                          onChange={(e) => setIncludeAddressInOffline(e.target.checked)}
+                          className="rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span className="text-[11px] font-medium">Address</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-6 lg:gap-8 lg:grid-cols-[1.1fr_0.9fr] min-w-0">
         {/* Left Column: Customizer & Template Previews */}
         <div className="min-w-0 space-y-6">
           {/* Customizer Panel */}
@@ -2507,7 +2775,7 @@ function QrPage() {
                   {r.name}
                 </h3>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Scan to View Menu
+                  {qrMode === "offline" ? "✦ 100% Offline Menu • Direct Camera Scan ✦" : "Scan to View Menu"}
                 </p>
 
                 <div
@@ -2522,7 +2790,11 @@ function QrPage() {
                 </div>
 
                 <p className="text-xs font-bold" style={{ color: fg }}>
-                  {templateTab === "A5" ? "Place on Dining Table" : "Display at Counter & Entrance"}
+                  {qrMode === "offline"
+                    ? "Works with Zero Internet & No Recharge"
+                    : templateTab === "A5"
+                    ? "Place on Dining Table"
+                    : "Display at Counter & Entrance"}
                 </p>
                 {r.address && <p className="mt-1 text-[10px] text-muted-foreground">{r.address}</p>}
               </div>
@@ -2593,29 +2865,62 @@ function QrPage() {
               />
             </div>
 
-            {/* Menu Link Row */}
-            <div className="mt-5 rounded-xl border border-border/70 bg-muted/40 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center gap-2 min-w-0">
-              <span className="flex-1 min-w-0 truncate text-[11px] sm:text-xs font-medium font-mono text-muted-foreground" title={url}>
-                {url}
-              </span>
-              <button
-                type="button"
-                onClick={copyLink}
-                title="Copy Link"
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-              >
-                {copied ? <Check className="size-3.5 text-veg" /> : <Copy className="size-3.5" />}
-              </button>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                title="Open Live Menu"
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              >
-                <ExternalLink className="size-3.5" />
-              </a>
-            </div>
+            {/* Menu Link Row or Offline Raw Text Info */}
+            {qrMode === "offline" ? (
+              <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center justify-between gap-2 min-w-0">
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <WifiOff className="size-3.5 text-amber-600 dark:text-amber-400" /> Raw Menu Text Encoded
+                  </span>
+                  <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 truncate">
+                    {offlineItemsCount} dishes &bull; {offlineMenuText.length} characters
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={copyOfflineText}
+                    title="Copy Menu Text"
+                    className="flex h-8 items-center gap-1 rounded-lg border border-amber-500/30 bg-card px-2 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                  >
+                    {copied ? <Check className="size-3 text-veg" /> : <Copy className="size-3" />}
+                    <span>{copied ? "Copied" : "Copy"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCameraPreview(true)}
+                    title="Preview Camera View"
+                    className="flex h-8 items-center gap-1 rounded-lg bg-amber-600 px-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors cursor-pointer"
+                  >
+                    <Eye className="size-3" />
+                    <span>View</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-xl border border-border/70 bg-muted/40 p-2 sm:p-2.5 ps-3 sm:ps-3.5 flex items-center gap-2 min-w-0">
+                <span className="flex-1 min-w-0 truncate text-[11px] sm:text-xs font-medium font-mono text-muted-foreground" title={url}>
+                  {url}
+                </span>
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  title="Copy Link"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {copied ? <Check className="size-3.5 text-veg" /> : <Copy className="size-3.5" />}
+                </button>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open Live Menu"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+            )}
 
             {/* PNG Multi-size selector */}
             <div className="mt-6 space-y-2.5">
@@ -2680,7 +2985,64 @@ function QrPage() {
           </div>
         </div>
       </div>
+      </div>
       )}
+
+      {/* Test Camera Scan Simulator Dialog */}
+      <Dialog open={showCameraPreview} onOpenChange={setShowCameraPreview}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-zinc-950 text-white border-zinc-800">
+          <div className="p-4 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Camera className="size-4 text-emerald-400" />
+              <DialogTitle className="text-sm font-bold text-white">Phone Camera Viewfinder Simulator</DialogTitle>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+              Zero Internet
+            </span>
+          </div>
+
+          <div className="relative p-5 bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 flex flex-col justify-between">
+            {/* Viewfinder Target Brackets */}
+            <div className="relative mx-auto size-40 border border-white/20 rounded-2xl flex items-center justify-center">
+              <div className="absolute top-2 left-2 size-4 border-t-2 border-l-2 border-emerald-400" />
+              <div className="absolute top-2 right-2 size-4 border-t-2 border-r-2 border-emerald-400" />
+              <div className="absolute bottom-2 left-2 size-4 border-b-2 border-l-2 border-emerald-400" />
+              <div className="absolute bottom-2 right-2 size-4 border-b-2 border-r-2 border-emerald-400" />
+              <div className="text-center text-zinc-400 text-xs">
+                <QrIcon className="mx-auto size-10 text-zinc-600 mb-1 animate-pulse" />
+                <span className="text-[11px]">Camera Scanning QR...</span>
+              </div>
+            </div>
+
+            {/* Simulated Camera Text Popup Card (Google Lens / iOS Camera style) */}
+            <div className="mt-4 rounded-2xl border border-white/10 bg-zinc-800/95 backdrop-blur-md p-4 shadow-2xl space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-zinc-700/80">
+                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="size-3.5" /> Plain Text QR Detected
+                </span>
+                <span className="text-[10px] text-zinc-400 font-mono">Instant Camera Note</span>
+              </div>
+              <pre className="max-h-52 overflow-y-auto text-xs font-mono text-zinc-200 whitespace-pre-wrap leading-relaxed select-all bg-black/30 p-2.5 rounded-xl border border-zinc-700/50">
+                {offlineMenuText}
+              </pre>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-zinc-400">
+                  Direct hardware scan &bull; 0 MB data used
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={copyOfflineText}
+                  className="h-7 text-xs gap-1 bg-zinc-700 border-zinc-600 text-white hover:bg-zinc-600 cursor-pointer"
+                >
+                  {copied ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                  <span>{copied ? "Copied" : "Copy Text"}</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Table Dialog */}
       <Dialog open={showAddTable} onOpenChange={setShowAddTable}>

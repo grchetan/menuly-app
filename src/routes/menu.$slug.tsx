@@ -1,20 +1,35 @@
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { UtensilsCrossed, ArrowRight, Home, QrCode } from "lucide-react";
 import { getPublicMenu } from "@/lib/menu.functions";
 import { MenuView } from "@/components/MenuView";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { recordQRScan } from "@/lib/api";
+import type { FullMenu } from "@/lib/restaurant";
 
 type MenuSearch = {
   table?: string | undefined;
 };
 
+const CACHE_PREFIX = "menuly_cached_menu_";
+const CACHE_TIME_PREFIX = "menuly_cached_menu_time_";
+
 function MenuComponent() {
   const menu = Route.useLoaderData();
   const search = Route.useSearch();
   const table = search.table;
+
+  useEffect(() => {
+    if (menu?.restaurant?.slug) {
+      try {
+        localStorage.setItem(`${CACHE_PREFIX}${menu.restaurant.slug}`, JSON.stringify(menu));
+        localStorage.setItem(`${CACHE_TIME_PREFIX}${menu.restaurant.slug}`, Date.now().toString());
+      } catch (err) {
+        console.warn("Could not cache menu to localStorage:", err);
+      }
+    }
+  }, [menu]);
 
   useEffect(() => {
     if (menu?.restaurant?.id) {
@@ -29,14 +44,80 @@ function MenuComponent() {
   return <MenuView menu={menu} table={table} />;
 }
 
+function OfflineOrNotFound() {
+  const params = Route.useParams();
+  const search = Route.useSearch();
+  const slug = params?.slug;
+
+  const [cachedMenu, setCachedMenu] = useState<FullMenu | null>(null);
+  const [cachedDate, setCachedDate] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && slug) {
+      try {
+        const raw = localStorage.getItem(`${CACHE_PREFIX}${slug}`);
+        const time = localStorage.getItem(`${CACHE_TIME_PREFIX}${slug}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as FullMenu;
+          if (parsed?.restaurant?.name) {
+            setCachedMenu(parsed);
+            if (time) {
+              setCachedDate(
+                new Date(Number(time)).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              );
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed reading cached menu", e);
+      } finally {
+        setChecked(true);
+      }
+    } else {
+      setChecked(true);
+    }
+  }, [slug]);
+
+  if (!checked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (cachedMenu) {
+    return (
+      <MenuView
+        menu={cachedMenu}
+        table={search?.table}
+        isOfflineCache={true}
+        cachedDate={cachedDate}
+      />
+    );
+  }
+
+  return <MenuNotFound />;
+}
+
 export const Route = createFileRoute("/menu/$slug")({
   validateSearch: (search: Record<string, unknown>): MenuSearch => ({
     table: typeof search["table"] === "string" ? (search["table"] as string) : undefined,
   }),
   loader: async ({ params }) => {
-    const menu = await getPublicMenu({ data: params.slug });
-    if (!menu) throw notFound();
-    return menu;
+    try {
+      const menu = await getPublicMenu({ data: params.slug });
+      if (!menu) throw notFound();
+      return menu;
+    } catch {
+      throw notFound();
+    }
   },
   head: ({ loaderData }) => {
     const name = loaderData?.restaurant.name ?? "Menu";
@@ -50,7 +131,8 @@ export const Route = createFileRoute("/menu/$slug")({
       ],
     };
   },
-  notFoundComponent: MenuNotFound,
+  notFoundComponent: OfflineOrNotFound,
+  errorComponent: OfflineOrNotFound,
   component: MenuComponent,
 });
 
