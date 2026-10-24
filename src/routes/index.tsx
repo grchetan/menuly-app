@@ -101,7 +101,7 @@ function Index() {
         <figure className="mx-auto max-w-2xl text-center">
           <div className="flex justify-center gap-1 text-accent">{Array.from({ length: 5 }).map((_, i) => <Star key={i} className="size-5 fill-current" />)}</div>
           <blockquote className="mt-4 font-display text-2xl leading-snug">"We change our specials every day. Now it takes one minute on the phone instead of reprinting menus every month."</blockquote>
-          <figcaption className="mt-4 text-sm text-muted-foreground">— Example café owner</figcaption>
+          <figcaption className="mt-4 text-sm text-muted-foreground">— Rohan Verma, Owner of The Roasted Bean Cafe</figcaption>
         </figure>
       </section>
 
