@@ -27,6 +27,15 @@ const OTP_EXPIRY_MINUTES = Number(process.env["OTP_EXPIRY_MINUTES"]) || 10;
 const OTP_MAX_ATTEMPTS = Number(process.env["OTP_MAX_ATTEMPTS"]) || 5;
 
 /**
+ * Security guard: Never expose devOtp in production under any circumstance.
+ * Only allowed in explicit test suites or local development environments lacking SMTP.
+ */
+function shouldExposeDevOtp(): boolean {
+  if (process.env["NODE_ENV"] === "production") return false;
+  return !process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test";
+}
+
+/**
  * 1. SIGNUP
  * Registers a new restaurant owner (unverified) and dispatches a branded OTP email.
  * Enforces: Role is ALWAYS RESTAURANT_OWNER. Public signup can NEVER assign SUPER_ADMIN.
@@ -111,7 +120,7 @@ export async function signupUser(params: {
     data: {
       email: normalized,
       requiresVerification: true,
-      ...(!process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test" ? { devOtp: rawOtp } : {}),
+      ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
     },
   };
 }
@@ -279,7 +288,7 @@ export async function resendUserOtp(params: {
     message: `A new verification code has been sent to ${normalized}.`,
     data: {
       email: normalized,
-      ...(!process.env["SMTP_PASS"] ? { devOtp: rawOtp } : {}),
+      ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
     },
   };
 }
@@ -353,7 +362,7 @@ export async function loginUser(params: {
       data: {
         requiresVerification: true,
         email: normalized,
-        ...(!process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test" ? { devOtp: rawOtp } : {}),
+        ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
       },
     };
   }
@@ -430,7 +439,7 @@ export async function forgotPassword(params: {
 
     await sendOtpEmail(normalized, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
 
-    if (!process.env["SMTP_PASS"] || process.env["NODE_ENV"] === "test") {
+    if (shouldExposeDevOtp()) {
       devOtp = rawOtp;
     }
   }
@@ -666,27 +675,35 @@ export async function changeUserPassword(params: {
 
 /**
  * 10. SEED SUPER ADMIN
- * Safe script helper to create or update the initial Super Admin.
+ * Safe script helper to create the initial Super Admin account without risking password overwrite.
  */
 export async function seedSuperAdmin(
   adminEmail = process.env["SUPER_ADMIN_EMAIL"] || "menulyofficial@gmail.com",
-  adminPassword = process.env["SUPER_ADMIN_PASSWORD"] || "AdminPassword123!"
+  adminPassword = process.env["SUPER_ADMIN_PASSWORD"] || "AdminPassword123!",
+  forceReset = false
 ): Promise<StoredUser> {
   const normalized = adminEmail.toLowerCase().trim();
   const existing = await userStore.findByEmail(normalized);
-  const passwordHash = await hashPassword(adminPassword);
 
   if (existing) {
+    // If account already exists and is already verified as SUPER_ADMIN, protect the password!
+    if (existing.role === "SUPER_ADMIN" && !forceReset) {
+      console.log(`[Super Admin] Account ${normalized} is already initialized as SUPER_ADMIN. Existing credentials preserved.`);
+      return existing;
+    }
+
+    const passwordHash = forceReset ? await hashPassword(adminPassword) : (existing.passwordHash || await hashPassword(adminPassword));
     const updated = await userStore.update(existing.id, {
       role: "SUPER_ADMIN",
       passwordHash,
       isVerified: true,
-      fullName: "Super Admin",
+      fullName: existing.fullName || "Super Admin",
     });
-    console.log(`[Super Admin] Updated existing account: ${normalized} (Role: SUPER_ADMIN)`);
+    console.log(`[Super Admin] Preserved and verified super admin account: ${normalized}`);
     return updated || existing;
   }
 
+  const passwordHash = await hashPassword(adminPassword);
   const created = await userStore.create({
     email: normalized,
     passwordHash,

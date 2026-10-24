@@ -4,6 +4,10 @@ import jwt from "jsonwebtoken";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
+if (process.env["NODE_ENV"] === "production" && !process.env["JWT_SECRET"]) {
+  console.error("[CRITICAL SECURITY WARNING] JWT_SECRET is not configured in environment variables. Set a strong JWT_SECRET immediately.");
+}
+
 export interface TokenPayload {
   userId: string;
   email: string;

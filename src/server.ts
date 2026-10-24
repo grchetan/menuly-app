@@ -81,6 +81,8 @@ export default {
               "Content-Type": "text/html; charset=utf-8",
               "Retry-After": "120",
               "Cache-Control": "no-cache, no-store, must-revalidate",
+              "X-Content-Type-Options": "nosniff",
+              "X-Frame-Options": "SAMEORIGIN",
             },
           });
         }
@@ -94,7 +96,11 @@ export default {
       console.error(error);
       return new Response(renderErrorPage(), {
         status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "SAMEORIGIN",
+        },
       });
     }
   },

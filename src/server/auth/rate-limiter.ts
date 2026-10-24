@@ -75,4 +75,10 @@ export const AuthRateLimits = {
   VERIFY_OTP: { windowMs: 10 * 60 * 1000, max: 5 },
   // Max 3 password reset requests per 15 minutes per email
   FORGOT_PASSWORD: { windowMs: 15 * 60 * 1000, max: 3 },
+  // Max 5 public support / contact submissions per 15 minutes per IP (DoS & spam prevention)
+  CONTACT: { windowMs: 15 * 60 * 1000, max: 5 },
+  // Max 10 public feedback submissions per 15 minutes per IP (Spam prevention)
+  FEEDBACK: { windowMs: 15 * 60 * 1000, max: 10 },
+  // Max 3 admin seeding attempts per 15 minutes per IP
+  ADMIN_SEED: { windowMs: 15 * 60 * 1000, max: 3 },
 };

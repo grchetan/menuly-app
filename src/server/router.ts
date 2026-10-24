@@ -11,6 +11,7 @@ import {
   seedSuperAdmin,
 } from "./auth/service";
 import { verifyAccessToken } from "./auth/security";
+import { checkRateLimit, AuthRateLimits } from "./auth/rate-limiter";
 import { userStore } from "./auth/store";
 import { checkDatabaseConnection, prisma } from "./db";
 import { getPlatformSettings, updatePlatformSettings } from "./platform/service";
@@ -42,6 +43,10 @@ function json(data: unknown, status = 200, headers: Record<string, string> = {})
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "SAMEORIGIN",
+      "X-XSS-Protection": "1; mode=block",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
       ...headers,
     },
   });
@@ -454,9 +459,17 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 8. PUBLIC CONTACT & SUPPORT TICKET SUBMISSION
     // --------------------------------------------------------------------------
     if ((pathname === "/api/support/ticket" || pathname === "/api/contact/submit") && request.method === "POST") {
+      const rate = checkRateLimit(`contact:${clientIp}`, AuthRateLimits.CONTACT);
+      if (!rate.allowed) {
+        return json(
+          { error: `Too many submissions. Please wait ${rate.resetInSeconds}s before submitting again.` },
+          429
+        );
+      }
+
       const body = await request.json().catch(() => ({}));
-      const messageContent = (body.description || body.message || "").trim();
-      const subjectContent = (body.subject || body.category || "General Support Inquiry").trim();
+      const messageContent = (body.description || body.message || "").trim().slice(0, 3000);
+      const subjectContent = (body.subject || body.category || "General Support Inquiry").trim().slice(0, 200);
 
       if (!messageContent) {
         return json({ error: "Message content is required" }, 400);
@@ -475,8 +488,9 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       }
 
       const ticketId = `TKT-${Math.floor(1000 + Math.random() * 9000)}`;
-      const combinedDescription = body.additionalInfo?.trim()
-        ? `${messageContent}\n\n[Additional Context]\n${body.additionalInfo.trim()}`
+      const rawAdditionalInfo = (body.additionalInfo || "").trim().slice(0, 2000);
+      const combinedDescription = rawAdditionalInfo
+        ? `${messageContent}\n\n[Additional Context]\n${rawAdditionalInfo}`
         : messageContent;
 
       const ticket = await prisma.supportTicket.create({
@@ -484,13 +498,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           id: ticketId,
           userId,
           restaurantId,
-          restaurantName: body.restaurantName?.trim() || body.restaurant?.trim() || "Menuly Guest / Partner",
-          ownerEmail: body.ownerEmail?.trim() || body.email?.trim() || "menulyofficial@gmail.com",
-          ownerPhone: body.ownerPhone?.trim() || body.phone?.trim() || null,
-          category: body.category || "General Support",
+          restaurantName: (body.restaurantName?.trim() || body.restaurant?.trim() || "Menuly Guest / Partner").slice(0, 150),
+          ownerEmail: (body.ownerEmail?.trim() || body.email?.trim() || "menulyofficial@gmail.com").slice(0, 150),
+          ownerPhone: (body.ownerPhone?.trim() || body.phone?.trim() || "").slice(0, 30) || null,
+          category: (body.category || "General Support").slice(0, 100),
           subject: subjectContent,
           description: combinedDescription,
-          priority: body.priority || "medium",
+          priority: body.priority === "high" || body.priority === "urgent" ? body.priority : "medium",
           status: "open",
         },
       });
@@ -507,8 +521,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 8.1 PUBLIC CUSTOMER FEEDBACK SUBMISSION
     // --------------------------------------------------------------------------
     if (pathname === "/api/feedback/submit" && request.method === "POST") {
+      const rate = checkRateLimit(`feedback:${clientIp}`, AuthRateLimits.FEEDBACK);
+      if (!rate.allowed) {
+        return json(
+          { error: `Too many submissions. Please wait ${rate.resetInSeconds}s before sending more feedback.` },
+          429
+        );
+      }
+
       const body = await request.json().catch(() => ({}));
-      const message = (body.message || body.feedback || "").trim();
+      const message = (body.message || body.feedback || "").trim().slice(0, 2000);
       const rating = Math.min(5, Math.max(1, Number(body.rating) || 5));
 
       if (!message && !body.rating) {
@@ -518,12 +540,12 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const feedbackId = `FB-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
       const feedbackItem = {
         id: feedbackId,
-        name: body.name?.trim() || "Verified Diner / Partner",
-        email: body.email?.trim() || null,
-        phone: body.phone?.trim() || null,
-        restaurantName: body.restaurantName?.trim() || body.restaurant?.trim() || "Menuly Hospitality",
+        name: (body.name?.trim() || "Verified Diner / Partner").slice(0, 100),
+        email: (body.email?.trim() || "").slice(0, 150) || null,
+        phone: (body.phone?.trim() || "").slice(0, 30) || null,
+        restaurantName: (body.restaurantName?.trim() || body.restaurant?.trim() || "Menuly Hospitality").slice(0, 150),
         rating,
-        category: body.category || "Overall Experience",
+        category: (body.category || "Overall Experience").slice(0, 100),
         message: message || "No written remarks provided.",
         recommend: body.recommend !== false,
         wouldRecommend: body.recommend !== false,
@@ -586,6 +608,29 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // --------------------------------------------------------------------------
     // POST /api/admin/seed (Bootstrap/seed Super Admin)
     if (pathname === "/api/admin/seed" && request.method === "POST") {
+      const rate = checkRateLimit(`seed:${clientIp}`, AuthRateLimits.ADMIN_SEED);
+      if (!rate.allowed) {
+        return json({ error: `Too many requests. Please wait ${rate.resetInSeconds}s.` }, 429);
+      }
+
+      // Check if a super admin account already exists
+      const existingSuperAdmin = await prisma.user.findFirst({
+        where: { role: "SUPER_ADMIN" },
+      });
+
+      if (existingSuperAdmin) {
+        const seedSecret = request.headers.get("x-seed-secret");
+        const envSecret = process.env["ADMIN_SEED_SECRET"];
+
+        // Block unauthenticated calls once Super Admin is initialized
+        if (!envSecret || seedSecret !== envSecret) {
+          return json(
+            { error: "Super Admin account is already initialized. Seeding is locked." },
+            403
+          );
+        }
+      }
+
       const admin = await seedSuperAdmin();
       return json({ success: true, message: `Super admin ready: ${admin.email}` });
     }
@@ -872,6 +917,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[API Error]", message);
-    return json({ error: message || "Internal Server Error", message }, 500);
+    const isDev = process.env["NODE_ENV"] !== "production";
+    return json(
+      {
+        error: isDev ? (message || "Internal Server Error") : "An unexpected server error occurred. Please try again later.",
+        ...(isDev ? { details: message } : {}),
+      },
+      500
+    );
   }
 }
