@@ -1,13 +1,13 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard, User, LogOut, Shield } from "lucide-react";
+import { Mail, MessageCircle, Menu as MenuIcon, X, ArrowRight, QrCode, LayoutDashboard, User, LogOut, Shield, Instagram } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { AnimatedQR } from "./AnimatedQR";
 import { AnnouncementMarquee } from "./AnnouncementMarquee";
-import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
+import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink, INSTAGRAM_URL, FACEBOOK_URL } from "@/lib/config";
 import { isDemoMode } from "@/lib/restaurant";
 
 const publicLinks = [
@@ -394,6 +394,40 @@ export function SiteFooter() {
             <li><Link to="/contact" className="opacity-85 hover:opacity-100 hover:underline">Contact Desk</Link></li>
           </ul>
         </div>
+        {/* Social Media */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider opacity-60">Follow Us</p>
+          <div className="mt-3 flex flex-col gap-3">
+            <a
+              href={INSTAGRAM_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Menuly on Instagram"
+              className="inline-flex items-center gap-2.5 text-sm opacity-85 hover:opacity-100 transition-opacity group"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 via-fuchsia-500 to-amber-400 text-white shadow-xs group-hover:scale-110 transition-transform">
+                <Instagram className="size-4" />
+              </span>
+              <span className="hover:underline">@menulyofficial</span>
+            </a>
+            <a
+              href={FACEBOOK_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Menuly on Facebook"
+              className="inline-flex items-center gap-2.5 text-sm opacity-85 hover:opacity-100 transition-opacity group"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs group-hover:scale-110 transition-transform">
+                {/* Facebook SVG (lucide has no Facebook icon) */}
+                <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
+                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                </svg>
+              </span>
+              <span className="hover:underline">Menuly</span>
+            </a>
+          </div>
+        </div>
+
         <div className="w-28 animate-float hidden md:block"><AnimatedQR /></div>
       </div>
       <div className="relative border-t border-primary-foreground/15 py-5 px-5 text-xs opacity-75">

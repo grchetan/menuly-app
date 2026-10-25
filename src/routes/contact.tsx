@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   ThumbsUp,
   ThumbsDown,
+  Instagram,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SitePage } from "@/components/SiteLayout";
@@ -21,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
+import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink, INSTAGRAM_URL, FACEBOOK_URL } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/contact")({
@@ -314,6 +315,41 @@ function ContactPage() {
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours.
             </p>
+          </div>
+
+          {/* Social Media Links */}
+          <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-3">
+            <p className="text-xs font-bold text-foreground">Follow &amp; Stay Updated</p>
+            <a
+              href={INSTAGRAM_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex items-center gap-3 rounded-xl p-2 -mx-2 transition-all hover:bg-secondary/60"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 via-fuchsia-500 to-amber-400 text-white shadow-xs group-hover:scale-105 transition-transform">
+                <Instagram className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-foreground">Instagram</p>
+                <p className="text-xs text-muted-foreground truncate">@menulyofficial</p>
+              </div>
+            </a>
+            <a
+              href={FACEBOOK_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex items-center gap-3 rounded-xl p-2 -mx-2 transition-all hover:bg-secondary/60"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs group-hover:scale-105 transition-transform">
+                <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
+                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                </svg>
+              </span>
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-foreground">Facebook</p>
+                <p className="text-xs text-muted-foreground truncate">Menuly Official</p>
+              </div>
+            </a>
           </div>
         </aside>
 

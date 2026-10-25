@@ -2,6 +2,8 @@
 export const APP_NAME = "Menuly";
 export const SUPPORT_WHATSAPP = "919999999999"; // digits only, with country code
 export const SUPPORT_EMAIL = "menulyofficial@gmail.com";
+export const INSTAGRAM_URL = "https://www.instagram.com/menulyofficial";
+export const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61595926229139";
 export const CURRENCY = "₹";
 
 export const formatPrice = (n: number | string) =>
