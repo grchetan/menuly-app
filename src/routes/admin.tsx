@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -21,6 +21,7 @@ import {
   EyeOff,
   RefreshCw,
   Copy,
+  ChevronLeft,
   ChevronRight,
   Filter,
   Lock,
@@ -323,6 +324,51 @@ function AdminPage() {
   const [analyticsPeriod, setAnalyticsPeriod] = useState<"today" | "7d" | "30d" | "all">("7d");
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Tab Switcher Horizontal Scroll State (Responsive on Mobile & Desktop)
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 6);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [checkScroll, restaurants.length, plans.length, users.length, tickets.length, feedbacks.length]);
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({
+        left: direction === "left" ? -240 : 240,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const handleTabSelect = (tabId: typeof activeTab, e?: React.MouseEvent<HTMLButtonElement>) => {
+    setActiveTab(tabId);
+    if (e?.currentTarget) {
+      e.currentTarget.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  };
 
   // Load live platform settings from PostgreSQL
   useEffect(() => {
@@ -1337,91 +1383,204 @@ function AdminPage() {
           </div>
         )}
 
-        {/* Tab Switcher - 6 Core Pillars */}
-        <div className="flex items-center gap-2 border-b pb-3 overflow-x-auto no-scrollbar flex-nowrap">
-          <button
-            onClick={() => setActiveTab("restaurants")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "restaurants"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
-          >
-            <Store className="size-4" /> Restaurants ({restaurants.length})
-          </button>
+        {/* Tab Switcher - Responsive with scroll controls & indicators */}
+        <div className="relative border-b pb-3">
+          {/* Left Arrow Button (Desktop/Tablet) */}
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() => scrollTabs("left")}
+              aria-label="Scroll tabs left"
+              className="hidden md:flex absolute -left-2 top-1/2 -translate-y-[calc(50%+6px)] z-20 size-8 items-center justify-center rounded-full bg-card/95 border border-border shadow-md text-foreground hover:bg-muted hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          )}
 
-          <button
-            onClick={() => setActiveTab("plans")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "plans"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
-          >
-            <CreditCard className="size-4" /> Plans & Pricing ({plans.length})
-          </button>
+          {/* Left Fade Gradient Mask */}
+          {canScrollLeft && (
+            <div className="pointer-events-none absolute left-0 top-0 bottom-3 w-8 sm:w-12 bg-gradient-to-r from-background via-background/80 to-transparent z-10" />
+          )}
 
-          <button
-            onClick={() => setActiveTab("users")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "users"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
-          >
-            <Users className="size-4" /> Users & Owners ({users.length})
-          </button>
+          {/* Right Fade Gradient Mask */}
+          {canScrollRight && (
+            <div className="pointer-events-none absolute right-0 top-0 bottom-3 w-8 sm:w-12 bg-gradient-to-l from-background via-background/80 to-transparent z-10" />
+          )}
 
-          <button
-            onClick={() => setActiveTab("tickets")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "tickets"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
-          >
-            <LifeBuoy className="size-4" /> Support Desk ({openTicketsCount} pending)
-          </button>
+          {/* Right Arrow Button (Desktop/Tablet) */}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() => scrollTabs("right")}
+              aria-label="Scroll tabs right"
+              className="hidden md:flex absolute -right-2 top-1/2 -translate-y-[calc(50%+6px)] z-20 size-8 items-center justify-center rounded-full bg-card/95 border border-border shadow-md text-foreground hover:bg-muted hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          )}
 
-          <button
-            onClick={() => setActiveTab("feedbacks")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "feedbacks"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
+          {/* Scrollable Tabs Bar */}
+          <div
+            ref={tabsContainerRef}
+            className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap px-1 py-1 -mx-1 touch-pan-x"
+            style={{ WebkitOverflowScrolling: "touch" }}
           >
-            <Star className="size-4 text-amber-400 fill-amber-400" /> Customer Feedback ({feedbacks.length})
-          </button>
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("restaurants", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "restaurants"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <Store className="size-4 shrink-0" />
+              <span>Restaurants</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-none",
+                  activeTab === "restaurants"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {restaurants.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("analytics")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "analytics"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
-          >
-            <BarChart3 className="size-4" /> Analytics
-          </button>
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("plans", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "plans"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <CreditCard className="size-4 shrink-0" />
+              <span className="hidden sm:inline">Plans & Pricing</span>
+              <span className="sm:hidden">Plans</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-none",
+                  activeTab === "plans"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {plans.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("settings")}
-            className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors whitespace-nowrap",
-              activeTab === "settings"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-foreground hover:bg-secondary/80"
-            )}
-          >
-            <Settings className="size-4" /> Platform Settings
-          </button>
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("users", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "users"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <Users className="size-4 shrink-0" />
+              <span className="hidden sm:inline">Users & Owners</span>
+              <span className="sm:hidden">Users</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-none",
+                  activeTab === "users"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {users.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("tickets", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "tickets"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <LifeBuoy className="size-4 shrink-0" />
+              <span className="hidden sm:inline">Support Desk</span>
+              <span className="sm:hidden">Support</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-none",
+                  activeTab === "tickets"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : openTicketsCount > 0
+                    ? "bg-destructive/15 text-destructive font-bold"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {openTicketsCount}
+                <span className="hidden sm:inline ml-1 font-normal opacity-85">pending</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("feedbacks", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "feedbacks"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <Star className="size-4 shrink-0 text-amber-400 fill-amber-400" />
+              <span className="hidden sm:inline">Customer Feedback</span>
+              <span className="sm:hidden">Feedback</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-none",
+                  activeTab === "feedbacks"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {feedbacks.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("analytics", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "analytics"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <BarChart3 className="size-4 shrink-0" />
+              <span>Analytics</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("settings", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "settings"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <Settings className="size-4 shrink-0" />
+              <span className="hidden sm:inline">Platform Settings</span>
+              <span className="sm:hidden">Settings</span>
+            </button>
+          </div>
         </div>
 
         {/* TAB 1: BUSINESS & META ADS ANALYTICS */}
@@ -1872,13 +2031,13 @@ function AdminPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 self-start sm:self-auto">
+              <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
                 {(["all", "open", "in_progress", "resolved"] as const).map((st) => (
                   <button
                     key={st}
                     onClick={() => setTicketFilter(st)}
                     className={cn(
-                      "rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
+                      "shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
                       ticketFilter === st
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-foreground hover:bg-secondary/80"
@@ -2443,13 +2602,13 @@ function AdminPage() {
               </div>
 
               {/* Role Filter */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {(["all", "owner", "super_admin"] as const).map((r) => (
                   <button
                     key={r}
                     onClick={() => setUserRoleFilter(r)}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-bold transition-all",
+                      "shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
                       userRoleFilter === r
                         ? "bg-primary text-primary-foreground shadow-xs"
                         : "bg-secondary text-foreground hover:bg-secondary/80"
