@@ -6,13 +6,14 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
-  let url = process.env["DIRECT_URL"] || process.env["DATABASE_URL"] || "";
+  // Prefer DATABASE_URL (Supabase Transaction Pooler on port 6543) for high-concurrency production traffic
+  let url = process.env["DATABASE_URL"] || process.env["DIRECT_URL"] || "";
   if (url) {
     if (url.includes("connection_limit=1")) {
-      url = url.replace("connection_limit=1", "connection_limit=10&pool_timeout=25");
+      url = url.replace("connection_limit=1", "connection_limit=20&pool_timeout=20");
     } else if (!url.includes("connection_limit")) {
       const sep = url.includes("?") ? "&" : "?";
-      url = `${url}${sep}connection_limit=10&pool_timeout=25`;
+      url = `${url}${sep}connection_limit=20&pool_timeout=20`;
     }
   }
 
@@ -32,9 +33,8 @@ function createPrismaClient(): PrismaClient {
 
 export const prisma = globalThis.__prisma ?? createPrismaClient();
 
-if (process.env["NODE_ENV"] !== "production") {
-  globalThis.__prisma = prisma;
-}
+// Ensure single Prisma instance across hot reloads and concurrent requests
+globalThis.__prisma = prisma;
 
 /**
  * Checks if the database is connected and accessible.
@@ -50,5 +50,34 @@ export async function checkDatabaseConnection(): Promise<{ connected: boolean; e
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { connected: false, error: message };
+  }
+}
+
+/**
+ * Returns telemetry regarding database latency, pooler connection, and health.
+ */
+export async function getDatabaseMetrics(): Promise<{
+  connected: boolean;
+  latencyMs: number;
+  poolMode: "Supabase Transaction Pooler (Port 6543)" | "Direct Connection (Port 5432)" | "Unknown";
+  error?: string;
+}> {
+  const start = Date.now();
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    const latencyMs = Date.now() - start;
+    const isPooler = (process.env["DATABASE_URL"] || "").includes(":6543") || (process.env["DATABASE_URL"] || "").includes("pooler");
+    return {
+      connected: true,
+      latencyMs,
+      poolMode: isPooler ? "Supabase Transaction Pooler (Port 6543)" : "Direct Connection (Port 5432)",
+    };
+  } catch (err: unknown) {
+    return {
+      connected: false,
+      latencyMs: Date.now() - start,
+      poolMode: "Unknown",
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }

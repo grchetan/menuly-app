@@ -213,3 +213,22 @@ model PlatformSetting {
 
   @@map("platform_settings")
 }
+
+model VisitorEvent {
+  id        String   @id @default(uuid())
+  path      String   @default("/")
+  source    String   @default("direct")
+  medium    String?
+  campaign  String?
+  device    String   @default("mobile")
+  browser   String?
+  ipHash    String   @map("ip_hash")
+  sessionId String?  @map("session_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([source, createdAt(sort: Desc)])
+  @@index([ipHash, createdAt(sort: Desc)])
+  @@index([path])
+  @@map("visitor_events")
+}

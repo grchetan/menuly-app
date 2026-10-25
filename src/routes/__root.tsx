@@ -22,6 +22,7 @@ import { AutoUpdateDetector } from "@/components/AutoUpdateDetector";
 import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
 import { CustomCursor } from "@/components/CustomCursor";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
+import { VisitorTracker } from "@/components/VisitorTracker";
 
 function NotFoundComponent() {
   return (
@@ -332,6 +333,7 @@ function RootComponent() {
       <CustomCursor />
       <AutoUpdateDetector />
       <NetworkStatusIndicator />
+      <VisitorTracker />
       <RootInner />
       <CookieConsentBanner />
       <Toaster position="bottom-right" closeButton />

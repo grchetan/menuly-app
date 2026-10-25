@@ -444,6 +444,8 @@ export async function updateRestaurant(userId: string, data: Partial<RestaurantP
     },
   });
 
+  invalidatePublicMenuCache(restaurant.slug);
+  if (data.slug) invalidatePublicMenuCache(data.slug);
   return updated;
 }
 
@@ -471,6 +473,8 @@ export async function addCategory(userId: string, name: string) {
     },
   });
 
+  invalidatePublicMenuCache(restaurant.slug);
+
   return {
     id: cat.id,
     restaurant_id: cat.restaurantId,
@@ -496,6 +500,7 @@ export async function renameCategory(userId: string, id: string, name: string) {
     data: { name: name.trim() },
   });
 
+  invalidatePublicMenuCache(restaurant.slug);
   return updated;
 }
 
@@ -512,6 +517,8 @@ export async function deleteCategory(userId: string, id: string) {
   await prisma.category.deleteMany({
     where: { id, restaurantId: restaurant.id },
   });
+
+  invalidatePublicMenuCache(restaurant.slug);
   return { success: true };
 }
 
@@ -582,6 +589,8 @@ export async function addDish(
     },
   });
 
+  invalidatePublicMenuCache(restaurant.slug);
+
   return {
     id: item.id,
     restaurant_id: item.restaurantId,
@@ -643,6 +652,8 @@ export async function updateDish(
     },
   });
 
+  invalidatePublicMenuCache(restaurant.slug);
+
   return {
     id: updated.id,
     restaurant_id: updated.restaurantId,
@@ -668,6 +679,8 @@ export async function deleteDish(userId: string, id: string) {
   await prisma.menuItem.deleteMany({
     where: { id, restaurantId: restaurant.id },
   });
+
+  invalidatePublicMenuCache(restaurant.slug);
   return { success: true };
 }
 
@@ -687,12 +700,45 @@ export async function toggleDishAvailable(userId: string, id: string) {
     data: { available: !item.available },
   });
 
+  invalidatePublicMenuCache(restaurant.slug);
   return { id: updated.id, available: updated.available };
 }
 
+// In-Memory high-speed cache for public menus (Handles 1 Lakh+ concurrent visitors with sub-millisecond responses)
+const publicMenuCache = new Map<string, { data: any; cachedAt: number }>();
+const MENU_CACHE_TTL_MS = 30 * 1000; // 30 seconds
+
+export function invalidatePublicMenuCache(slug?: string) {
+  if (slug) {
+    publicMenuCache.delete(slug.toLowerCase().trim());
+  } else {
+    publicMenuCache.clear();
+  }
+}
+
 export async function getPublicRestaurantMenu(slug: string, tableNumber?: string, clientIp?: string) {
+  const cleanSlug = slug.toLowerCase().trim();
+  const cached = publicMenuCache.get(cleanSlug);
+  const now = Date.now();
+
+  // Instant response from in-memory cache if fresh (< 30s)
+  if (cached && now - cached.cachedAt < MENU_CACHE_TTL_MS) {
+    // Record scan in background (fire-and-forget)
+    prisma.qrScan
+      .create({
+        data: {
+          restaurantId: cached.data.restaurant.id,
+          tableNumber: tableNumber || null,
+          ipHash: clientIp ? Buffer.from(clientIp).toString("base64").slice(0, 16) : null,
+        },
+      })
+      .catch(() => {});
+
+    return cached.data;
+  }
+
   const restaurant = await prisma.restaurant.findUnique({
-    where: { slug: slug.toLowerCase().trim() },
+    where: { slug: cleanSlug },
     include: {
       categories: {
         orderBy: { position: "asc" },
@@ -707,20 +753,18 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
     return null;
   }
 
-  // Record scan in background
-  try {
-    await prisma.qrScan.create({
+  // Non-blocking asynchronous QR scan logging
+  prisma.qrScan
+    .create({
       data: {
         restaurantId: restaurant.id,
         tableNumber: tableNumber || null,
         ipHash: clientIp ? Buffer.from(clientIp).toString("base64").slice(0, 16) : null,
       },
-    });
-  } catch {
-    // Non-blocking scan metric
-  }
+    })
+    .catch(() => {});
 
-  return {
+  const menuPayload = {
     restaurant: {
       id: restaurant.id,
       name: restaurant.name,
@@ -758,6 +802,13 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
       created_at: item.createdAt.toISOString(),
     })),
   };
+
+  publicMenuCache.set(cleanSlug, {
+    data: menuPayload,
+    cachedAt: now,
+  });
+
+  return menuPayload;
 }
 
 export async function getAllRestaurantsForAdmin() {

@@ -15,6 +15,7 @@ import { checkRateLimit, AuthRateLimits } from "./auth/rate-limiter";
 import { userStore } from "./auth/store";
 import { checkDatabaseConnection, prisma } from "./db";
 import { getPlatformSettings, updatePlatformSettings } from "./platform/service";
+import { trackVisitor, getExecutiveAnalytics } from "./analytics/service";
 import { APP_VERSION, BUILD_TIMESTAMP } from "../lib/version";
 import {
   getOrCreateUserRestaurant,
@@ -604,6 +605,29 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // 8.2 PUBLIC VISITOR & META ADS ANALYTICS BEACON: POST /api/analytics/track
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/analytics/track" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      const userAgent = request.headers.get("user-agent") || "";
+      const isMobile = userAgent.toLowerCase().includes("mobi") || userAgent.toLowerCase().includes("android") || userAgent.toLowerCase().includes("iphone");
+
+      const res = await trackVisitor({
+        path: body.path || "/",
+        source: body.source,
+        medium: body.medium,
+        campaign: body.campaign,
+        referrer: body.referrer || request.headers.get("referer") || undefined,
+        device: body.device || (isMobile ? "mobile" : "desktop"),
+        browser: body.browser,
+        sessionId: body.sessionId,
+        clientIp,
+      });
+
+      return json({ success: true, live: res.liveActiveCount });
+    }
+
+    // --------------------------------------------------------------------------
     // 9. SUPER ADMIN SEED & PROTECTED APIS
     // --------------------------------------------------------------------------
     // POST /api/admin/seed (Bootstrap/seed Super Admin)
@@ -905,6 +929,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           success: true,
           message: "Platform settings updated and persisted to PostgreSQL",
           settings: updated,
+        });
+      }
+
+      // GET /api/admin/analytics
+      if (pathname === "/api/admin/analytics" && request.method === "GET") {
+        const periodParam = (url.searchParams.get("period") || "7d") as "today" | "7d" | "30d" | "all";
+        const analytics = await getExecutiveAnalytics(periodParam);
+        return json({
+          success: true,
+          analytics,
         });
       }
 
