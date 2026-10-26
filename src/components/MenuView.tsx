@@ -252,9 +252,9 @@ export function MenuView({
     return availableItems.slice(0, 8);
   }, [availableItems]);
 
-  // Cover image for the hero card
+  // Cover image for the hero card (priority: restaurant custom cover_url -> ambient dining banner, NEVER the logo)
   const heroCoverPhoto =
-    r.logo_url ||
+    (r as any).cover_url ||
     "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80";
 
   const contact = r.whatsapp || r.phone;
@@ -337,7 +337,17 @@ export function MenuView({
             className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
           {/* Subtle bottom-to-top luxury vignette */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/5" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
+
+          {/* Top Badges */}
+          <div className="absolute top-3.5 left-3.5 flex items-center gap-2">
+            {Boolean((r as any).is_pure_veg) && (
+              <div className="bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 text-emerald-300 font-black text-[10px] sm:text-xs px-2.5 py-1 rounded-full shadow-xs flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                PURE VEGETARIAN
+              </div>
+            )}
+          </div>
 
           {table && (
             <div className="absolute top-3.5 right-3.5 bg-black/60 backdrop-blur-md border border-white/20 text-white font-bold text-xs px-3.5 py-1 rounded-full shadow-xs">
@@ -346,10 +356,10 @@ export function MenuView({
           )}
 
           <div className="absolute bottom-4 left-4 right-4 text-white space-y-1">
-            <p className="font-medium text-xs sm:text-sm text-white/95 drop-shadow-sm line-clamp-1">
+            <p className="font-semibold text-xs sm:text-sm text-white/95 drop-shadow-sm line-clamp-1">
               Pure Indian vegetarian kitchen &amp; dine-in
             </p>
-            <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-white/80 font-medium drop-shadow-sm">
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-white/85 font-medium drop-shadow-sm">
               <MapPin className="size-3.5 text-orange-400 shrink-0" />
               <span className="truncate">{r.address || "Dine-in, Takeaway & Table Service"}</span>
             </div>
@@ -441,57 +451,6 @@ export function MenuView({
               </Button>
             </div>
           )}
-        </section>
-      )}
-
-      {/* RECOMMENDED FOR YOU HORIZONTAL CAROUSEL */}
-      {!searchQuery && recommendedDishes.length > 0 && (
-        <section className="mx-auto max-w-2xl px-4 mt-6">
-          <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 mb-3">
-            <Sparkles className="size-3.5 text-orange-500" /> RECOMMENDED FOR YOU
-          </div>
-
-          <div className="flex gap-3.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
-            {recommendedDishes.map((dish) => (
-              <div
-                key={dish.id}
-                onClick={() => setSelectedDish(dish)}
-                className="group w-44 sm:w-48 shrink-0 rounded-2xl border border-border/70 bg-card p-2.5 shadow-xs hover:shadow-soft hover:border-orange-500/40 transition-all duration-200 cursor-pointer flex flex-col justify-between"
-              >
-                <div>
-                  <div className="h-28 w-full rounded-xl overflow-hidden bg-muted border border-border/50 relative">
-                    {dish.image_url ? (
-                      <img
-                        src={dish.image_url}
-                        alt={dish.name}
-                        className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="size-full flex items-center justify-center text-3xl">🍲</div>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-foreground mt-2 truncate group-hover:text-orange-600 transition-colors">
-                    {dish.name}
-                  </h4>
-                </div>
-                <div className="flex items-center justify-between mt-2 pt-1 border-t border-border/40">
-                  <span className="font-extrabold text-xs sm:text-sm text-foreground/90">
-                    {formatPrice(dish.price)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addToCart(dish);
-                    }}
-                    className="size-7 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors shadow-xs"
-                  >
-                    <Plus className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
         </section>
       )}
 
@@ -717,6 +676,67 @@ export function MenuView({
             </section>
           );
         })}
+
+        {/* RECOMMENDED FOR YOU (Curated Carousel at Bottom of Menu) */}
+        {!searchQuery && recommendedDishes.length > 0 && (
+          <section className="pt-10 pb-4 border-t border-border/60 mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400">
+                  <Sparkles className="size-4" />
+                </span>
+                <div>
+                  <h3 className="font-serif font-bold text-lg sm:text-xl text-foreground tracking-tight">
+                    Recommended For You
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Chef's handpicked signature culinary pairings</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3.5 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
+              {recommendedDishes.map((dish) => (
+                <div
+                  key={dish.id}
+                  onClick={() => setSelectedDish(dish)}
+                  className="group w-44 sm:w-48 shrink-0 rounded-2xl border border-border/70 bg-card p-3 shadow-xs hover:shadow-soft hover:border-orange-500/50 transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="h-28 w-full rounded-xl overflow-hidden bg-muted border border-border/50 relative">
+                      {dish.image_url ? (
+                        <img
+                          src={dish.image_url}
+                          alt={dish.name}
+                          className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="size-full flex items-center justify-center text-3xl">🍲</div>
+                      )}
+                    </div>
+                    <h4 className="font-bold text-xs sm:text-sm text-foreground mt-2.5 truncate group-hover:text-orange-600 transition-colors">
+                      {dish.name}
+                    </h4>
+                  </div>
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-border/40">
+                    <span className="font-extrabold text-xs sm:text-sm text-orange-600 dark:text-orange-400">
+                      {formatPrice(dish.price)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(dish);
+                      }}
+                      className="size-7 rounded-xl bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors shadow-xs active:scale-95"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Footer Branding Badge */}
         <footer className={cn("text-center flex flex-col items-center justify-center gap-2", compact ? "py-6 text-[10px]" : "py-12 text-xs")}>

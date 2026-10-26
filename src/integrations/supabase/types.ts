@@ -106,6 +106,7 @@ export type Database = {
       restaurants: {
         Row: {
           address: string | null
+          cover_url: string | null
           created_at: string
           hours: string | null
           id: string
@@ -119,9 +120,11 @@ export type Database = {
           slug: string
           updated_at: string
           whatsapp: string | null
+          is_pure_veg?: boolean
         }
         Insert: {
           address?: string | null
+          cover_url?: string | null
           created_at?: string
           hours?: string | null
           id?: string
@@ -135,9 +138,11 @@ export type Database = {
           slug: string
           updated_at?: string
           whatsapp?: string | null
+          is_pure_veg?: boolean
         }
         Update: {
           address?: string | null
+          cover_url?: string | null
           created_at?: string
           hours?: string | null
           id?: string
@@ -151,6 +156,7 @@ export type Database = {
           slug?: string
           updated_at?: string
           whatsapp?: string | null
+          is_pure_veg?: boolean
         }
         Relationships: []
       }

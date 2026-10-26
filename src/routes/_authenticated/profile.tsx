@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { myMenuQuery, setDemoMode, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
+import { compressImage } from "@/lib/image-compress";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -66,8 +67,12 @@ function ProfilePage() {
   const [restaurantName, setRestaurantName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [logoSummary, setLogoSummary] = useState<string | null>(null);
+  const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [coverSummary, setCoverSummary] = useState<string | null>(null);
+  const [isCompressingCover, setIsCompressingCover] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Form states: Password
@@ -100,7 +105,9 @@ function ProfilePage() {
     if (restaurant) {
       if (restaurant.name) setRestaurantName(restaurant.name);
       if (restaurant.phone) setPhone(restaurant.phone);
+      if (restaurant.address) setAddress(restaurant.address);
       if (restaurant.logo_url) setLogo(restaurant.logo_url);
+      if (restaurant.cover_url) setCoverImage(restaurant.cover_url);
     }
   }, [restaurant]);
 
@@ -159,14 +166,16 @@ function ProfilePage() {
         }
       }
 
-      // Always sync linked restaurant details (including logo)
+      // Always sync linked restaurant details (including address, logo & cover banner)
       await updateRestaurantHelper({
         name: restaurantName,
         phone,
+        address: address.trim() || null,
         logoUrl: logo,
+        coverUrl: coverImage,
       });
 
-      toast.success("Profile, restaurant details & logo saved successfully!");
+      toast.success("Profile, address & banner photo saved successfully!");
       qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -422,6 +431,28 @@ function ProfilePage() {
                   </div>
                 </div>
 
+                {/* Restaurant Address / Location */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="profileAddress" className="text-xs font-bold text-foreground flex items-center justify-between">
+                    <span>Restaurant Address / City Location</span>
+                    <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">📍 Menu Header me Show Hoga</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="profileAddress"
+                      type="text"
+                      placeholder="e.g. 14, MG Road, Indore, Madhya Pradesh"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="pl-10 h-11 rounded-xl text-sm"
+                    />
+                    <MapPin className="absolute left-3.5 top-3 size-4 text-orange-500" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Yeh address / location aapke public digital menu ke banner par map pin ke sath show hoga taki customers ko exact location pata chal sake.
+                  </p>
+                </div>
+
                 {/* Restaurant Brand Logo Upload */}
                 <div className="space-y-2 pt-1 border-t border-border/60">
                   <Label className="text-xs font-bold text-foreground flex items-center justify-between">
@@ -472,6 +503,102 @@ function ProfilePage() {
                           </span>
                         )}
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Header Banner Cover Image */}
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <Label className="text-xs font-bold text-foreground flex items-center justify-between">
+                    <span>Menu Header Cover Banner Photo</span>
+                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">Public Menu Luxury Banner</span>
+                  </Label>
+                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <div className="relative shrink-0 w-full sm:w-36 h-20 rounded-xl overflow-hidden border border-border/80 bg-card shadow-xs">
+                        {coverImage ? (
+                          <img
+                            src={coverImage}
+                            alt="Cover Banner"
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="size-full bg-secondary flex flex-col items-center justify-center text-muted-foreground text-xs font-semibold">
+                            <ImageIcon className="size-5 mb-1 opacity-50" />
+                            Default Dining Banner
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 w-full space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={isCompressingCover}
+                              onChange={async (e) => {
+                                const f = e.target.files?.[0];
+                                if (!f) return;
+                                setIsCompressingCover(true);
+                                try {
+                                  const res = await compressImage(f, {
+                                    maxWidth: 1200,
+                                    maxHeight: 600,
+                                    quality: 0.80,
+                                    mimeType: "image/webp",
+                                  });
+                                  setCoverImage(res.dataUrl);
+                                  setCoverSummary(res.summary);
+                                  toast.success(`Banner photo compressed & applied! (${res.summary})`);
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Failed to compress image");
+                                } finally {
+                                  setIsCompressingCover(false);
+                                }
+                              }}
+                            />
+                            <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3.5 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs cursor-pointer">
+                              {isCompressingCover ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
+                              {isCompressingCover ? "Compressing WebP..." : (coverImage ? "Change Banner Photo" : "Upload Banner Photo")}
+                            </span>
+                          </label>
+
+                          {coverImage && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCoverImage(null);
+                                setCoverSummary(null);
+                              }}
+                              className="text-xs text-destructive hover:underline font-semibold cursor-pointer"
+                            >
+                              Reset to Default
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Direct URL Input */}
+                        <Input
+                          value={coverImage?.startsWith("data:") ? "" : (coverImage || "")}
+                          onChange={(e) => {
+                            setCoverImage(e.target.value || null);
+                            setCoverSummary(null);
+                          }}
+                          placeholder="Or paste direct image URL (https://...)"
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                      <span>Yeh banner image aapke customer menu header par luxury ambience background ke roop me show hogi (~90% auto-compressed).</span>
+                      {coverSummary && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
+                          ⚡ {coverSummary}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

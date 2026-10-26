@@ -51,6 +51,7 @@ export const INITIAL_DEMO_MENU: FullMenu = {
     whatsapp: "919876543210",
     hours: "Mon–Sun, 10:00 AM – 11:00 PM",
     logo_url: null,
+    cover_url: null,
     qr_fg: "#2e7d52",
     qr_bg: "#ffffff",
     qr_corner: "rounded",
@@ -251,6 +252,7 @@ export async function updateRestaurantHelper(updates: {
   whatsapp?: string | null;
   hours?: string | null;
   logoUrl?: string | null;
+  coverUrl?: string | null;
   qrFg?: string;
   qrBg?: string;
   qrCorner?: string;
@@ -266,6 +268,7 @@ export async function updateRestaurantHelper(updates: {
       ...(updates.whatsapp !== undefined ? { whatsapp: updates.whatsapp } : {}),
       ...(updates.hours !== undefined ? { hours: updates.hours } : {}),
       ...(updates.logoUrl !== undefined ? { logo_url: updates.logoUrl } : {}),
+      ...(updates.coverUrl !== undefined ? { cover_url: updates.coverUrl } : {}),
       ...(updates.qrFg ? { qr_fg: updates.qrFg } : {}),
       ...(updates.qrBg ? { qr_bg: updates.qrBg } : {}),
       ...(updates.qrCorner ? { qr_corner: updates.qrCorner } : {}),

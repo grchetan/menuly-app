@@ -10,6 +10,7 @@ export interface RestaurantPayload {
   address?: string | null;
   hours?: string | null;
   logoUrl?: string | null;
+  coverUrl?: string | null;
   qrFg?: string;
   qrBg?: string;
   qrCorner?: string;
@@ -169,6 +170,7 @@ export async function getOrCreateUserRestaurant(
       address: restaurant.address,
       hours: restaurant.hours,
       logo_url: restaurant.logoUrl,
+      cover_url: restaurant.coverUrl,
       plan_slug: restaurant.planSlug,
       is_active: restaurant.isActive,
       is_pure_veg: restaurant.isPureVeg,
@@ -548,6 +550,7 @@ export async function updateRestaurant(userId: string, data: Partial<RestaurantP
       ...(data.address !== undefined ? { address: data.address?.trim() || null } : {}),
       ...(data.hours !== undefined ? { hours: data.hours?.trim() || null } : {}),
       ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl || null } : {}),
+      ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl || null } : {}),
       ...(data.qrFg ? { qrFg: data.qrFg } : {}),
       ...(data.qrBg ? { qrBg: data.qrBg } : {}),
       ...(data.qrCorner ? { qrCorner: data.qrCorner } : {}),
@@ -884,6 +887,7 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
       address: restaurant.address,
       hours: restaurant.hours,
       logo_url: restaurant.logoUrl,
+      cover_url: restaurant.coverUrl,
       is_pure_veg: restaurant.isPureVeg,
       qr_fg: restaurant.qrFg,
       qr_bg: restaurant.qrBg,

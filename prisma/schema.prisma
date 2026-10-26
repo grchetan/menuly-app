@@ -96,6 +96,7 @@ model Restaurant {
   address   String?
   hours     String?  @default("Mon–Sun, 10:00 AM – 11:00 PM")
   logoUrl   String?  @map("logo_url")
+  coverUrl  String?  @map("cover_url")
   planSlug  String   @default("starter") @map("plan_slug")
   isActive  Boolean  @default(true) @map("is_active")
   isPureVeg Boolean  @default(true) @map("is_pure_veg")

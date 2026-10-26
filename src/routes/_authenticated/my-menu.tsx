@@ -29,6 +29,7 @@ import {
   Coffee,
   Store,
   RefreshCw,
+  Image as ImageIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { MenuView } from "@/components/MenuView";
@@ -639,6 +640,11 @@ function MyMenu() {
       title="Easy Menu Studio"
       actions={
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs font-semibold">
+            <Link to="/profile">
+              <ImageIcon className="size-3.5 text-orange-500" /> Banner &amp; Address
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -672,15 +678,25 @@ function MyMenu() {
               <span className="flex size-5 items-center justify-center rounded-full bg-veg text-[10px] font-bold text-white">✓</span>
               <span className="font-bold text-foreground">Restaurant:</span>
               <span className="text-muted-foreground truncate">{data.restaurant.name}</span>
+              {data.restaurant.address && (
+                <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  • 📍 {data.restaurant.address}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">2</span>
               <span className="font-bold text-foreground">Dishes:</span>
               <span className="text-muted-foreground">{data.items.length} dishes live</span>
             </div>
-            <Link to="/qr" className="flex items-center gap-1.5 font-bold text-primary hover:underline self-start sm:self-auto">
-              <QrCode className="size-3.5" /> Step 3: Print Table QR →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link to="/profile" className="flex items-center gap-1 font-bold text-xs text-orange-600 dark:text-orange-400 hover:underline">
+                <ImageIcon className="size-3.5" /> Banner &amp; Address →
+              </Link>
+              <Link to="/qr" className="flex items-center gap-1.5 font-bold text-primary hover:underline self-start sm:self-auto">
+                <QrCode className="size-3.5" /> Print QR →
+              </Link>
+            </div>
           </div>
         </div>
 

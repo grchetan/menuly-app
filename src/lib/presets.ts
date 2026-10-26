@@ -61,7 +61,7 @@ export const STARTER_PRESETS: PresetTemplate[] = [
         categoryIndex: 2,
         price: 70,
         description: "Clay oven leavened bread glazed with minced garlic and butter.",
-        image_url: "https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=600&q=80",
+        image_url: "https://upload.wikimedia.org/wikipedia/commons/7/79/Butter_Naan.jpg",
       },
       {
         name: "Jeera Basmati Pulao",
@@ -75,7 +75,7 @@ export const STARTER_PRESETS: PresetTemplate[] = [
         categoryIndex: 3,
         price: 110,
         description: "Warm golden khoya dumplings served with chilled thick rabdi.",
-        image_url: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80",
+        image_url: "https://upload.wikimedia.org/wikipedia/commons/5/56/Gulab_Jamun.jpg",
       },
     ],
   },
