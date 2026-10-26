@@ -227,7 +227,7 @@ export function renderOtpEmail({
       <!-- Top Luxury Header with Official Logo -->
       <div class="email-header">
         <img
-          src="https://menuly-app-blush.vercel.app/assets/menuly-badge.png"
+          src="https://cdn.jsdelivr.net/gh/grchetan/menuly-app@main/public/assets/menuly-badge.png?v=2"
           alt="Menuly Official Logo"
           class="logo-img"
           width="82"
@@ -241,7 +241,7 @@ export function renderOtpEmail({
       <!-- Mascot Avatar Showcase Banner -->
       <div class="mascot-banner">
         <img
-          src="https://menuly-app-blush.vercel.app/assets/menuly-banner.png"
+          src="https://cdn.jsdelivr.net/gh/grchetan/menuly-app@main/public/assets/menuly-banner.png?v=2"
           alt="Menuly - Your Menu. One Scan Away."
           class="mascot-img"
           width="540"
