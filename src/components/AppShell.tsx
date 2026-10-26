@@ -84,9 +84,7 @@ export function AppShell({
     }
   }, []);
 
-  const links = isSuperAdmin
-    ? [{ to: "/admin", label: "Admin Console" }, ...DASHBOARD_LINKS]
-    : DASHBOARD_LINKS;
+  const links = DASHBOARD_LINKS;
 
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 40);
@@ -210,7 +208,6 @@ export function AppShell({
                         : "text-background/70 hover:text-background"
                     )}
                   >
-                    {l.to === "/admin" && <Shield className="size-3.5 text-amber-400 inline -mt-0.5" />}
                     {l.label}
                   </Link>
                 );
@@ -293,21 +290,28 @@ export function AppShell({
         {/* Mobile Dropdown (Identical to SiteHeader) */}
         {open && (
           <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift md:hidden">
+            {/* Admin Console link — only in mobile menu for super admins */}
+            {isSuperAdmin && (
+              <Link
+                to="/admin"
+                onClick={() => setOpen(false)}
+                className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl text-amber-400 font-bold"
+              >
+                <span className="flex items-center gap-2">
+                  <Shield className="size-5 text-amber-400" /> Admin Console
+                </span>
+                <ArrowRight className="size-5 opacity-60" />
+              </Link>
+            )}
             {links.map((l, i) => (
               <Link
                 key={l.to}
                 to={l.to}
                 onClick={() => setOpen(false)}
                 style={{ animationDelay: `${i * 70}ms` }}
-                className={cn(
-                  "animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent",
-                  l.to === "/admin" && "text-amber-400 font-bold"
-                )}
+                className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent"
               >
-                <span className="flex items-center gap-2">
-                  {l.to === "/admin" && <Shield className="size-5 text-amber-400" />}
-                  {l.label}
-                </span>
+                <span>{l.label}</span>
                 <ArrowRight className="size-5 opacity-60" />
               </Link>
             ))}
