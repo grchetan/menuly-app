@@ -227,7 +227,7 @@ export function renderOtpEmail({
       <!-- Top Luxury Header with Official Logo -->
       <div class="email-header">
         <img
-          src="cid:menuly-logo"
+          src="cid:menuly-logo@menuly.com"
           alt="Menuly Official Logo"
           class="logo-img"
         />
@@ -238,7 +238,7 @@ export function renderOtpEmail({
       <!-- Mascot Avatar Showcase Banner -->
       <div class="mascot-banner">
         <img
-          src="cid:menuly-mascot"
+          src="cid:menuly-mascot@menuly.com"
           alt="Menuly - Your Menu. One Scan Away."
           class="mascot-img"
         />

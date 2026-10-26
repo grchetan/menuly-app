@@ -85,30 +85,71 @@ export async function sendOtpEmail(
   }
 
   try {
-    // Build inline CID image attachments from in-memory cache so email clients render them without blocking
-    const attachments: Array<{ filename: string; content: Buffer; cid: string }> = [];
-    const logoPath = path.resolve(process.cwd(), "public", "assets", "menuly-logo.jpg");
-    const mascotPath = path.resolve(process.cwd(), "public", "assets", "menuly-mascot-banner.png");
-
-    if (!cachedLogoBuffer && fs.existsSync(logoPath)) {
-      try { cachedLogoBuffer = fs.readFileSync(logoPath); } catch {}
+    // 1. Resolve Logo Buffer (checking public and src assets for user's official badge)
+    let logoBuffer = cachedLogoBuffer;
+    if (!logoBuffer) {
+      const logoPaths = [
+        path.resolve(process.cwd(), "public", "assets", "menuly-badge.png"),
+        path.resolve(process.cwd(), "src", "assets", "Menuly Digital QR Menu Badge.png"),
+        path.resolve(process.cwd(), "public", "assets", "menuly-logo.png"),
+        path.resolve(process.cwd(), "public", "assets", "menuly-logo.jpg"),
+      ];
+      for (const p of logoPaths) {
+        if (fs.existsSync(p)) {
+          try {
+            logoBuffer = fs.readFileSync(p);
+            cachedLogoBuffer = logoBuffer;
+            break;
+          } catch {}
+        }
+      }
     }
-    if (!cachedMascotBuffer && fs.existsSync(mascotPath)) {
-      try { cachedMascotBuffer = fs.readFileSync(mascotPath); } catch {}
+
+    // 2. Resolve Mascot Banner Buffer (checking public and src assets)
+    let mascotBuffer = cachedMascotBuffer;
+    if (!mascotBuffer) {
+      const mascotPaths = [
+        path.resolve(process.cwd(), "public", "assets", "menuly-banner.png"),
+        path.resolve(process.cwd(), "src", "assets", "Menuly QR Menu Banner.png"),
+        path.resolve(process.cwd(), "public", "assets", "menuly-mascot-banner.png"),
+      ];
+      for (const p of mascotPaths) {
+        if (fs.existsSync(p)) {
+          try {
+            mascotBuffer = fs.readFileSync(p);
+            cachedMascotBuffer = mascotBuffer;
+            break;
+          } catch {}
+        }
+      }
     }
 
-    if (cachedLogoBuffer) {
+    // RFC 2392 / RFC 2111 compliant inline CID attachments for flawless Gmail / Outlook mobile rendering
+    const attachments: Array<{
+      filename: string;
+      content: Buffer;
+      cid: string;
+      contentType: string;
+      contentDisposition: "inline";
+    }> = [];
+
+    if (logoBuffer) {
       attachments.push({
-        filename: "menuly-logo.jpg",
-        content: cachedLogoBuffer,
-        cid: "menuly-logo",
+        filename: "menuly-badge.png",
+        content: logoBuffer,
+        cid: "menuly-logo@menuly.com",
+        contentType: "image/png",
+        contentDisposition: "inline",
       });
     }
-    if (cachedMascotBuffer) {
+
+    if (mascotBuffer) {
       attachments.push({
-        filename: "menuly-mascot-banner.png",
-        content: cachedMascotBuffer,
-        cid: "menuly-mascot",
+        filename: "menuly-banner.png",
+        content: mascotBuffer,
+        cid: "menuly-mascot@menuly.com",
+        contentType: "image/png",
+        contentDisposition: "inline",
       });
     }
 
