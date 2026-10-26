@@ -1048,7 +1048,10 @@ function AdminPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        queryClient.invalidateQueries({ queryKey: ["starter-presets"] });
+        queryClient.setQueryData(["starter-presets"], {
+          presets: customPresets,
+          defaultPresetId: customDefault || "dhaba",
+        });
         toast.success("1-Click Starter Menu Packs successfully saved to PostgreSQL!");
       } else {
         throw new Error(data.error || "Failed to save starter presets");

@@ -288,7 +288,12 @@ export async function updateRestaurantHelper(updates: {
   }
 }
 
-export const myMenuQuery = queryOptions({ queryKey: ["my-menu"], queryFn: loadMyMenu });
+export const myMenuQuery = queryOptions({
+  queryKey: ["my-menu"],
+  queryFn: loadMyMenu,
+  staleTime: 1000 * 60 * 3, // 3 minutes - Instant page transitions, eliminates DB queries on navigation
+  refetchOnWindowFocus: false, // Prevents reloading the entire database every time user focuses window
+});
 
 export interface UploadImageResult {
   url: string;

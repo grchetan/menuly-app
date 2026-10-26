@@ -152,7 +152,7 @@ function MyMenu() {
   const [filter, setFilter] = useState<"all" | "soldout">("all");
   const [showPresets, setShowPresets] = useState(Boolean(data?.items?.length === 0));
 
-  // Live Starter Packs Query (Reflects Admin customizations immediately)
+  // Live Starter Packs Query (Reflects Admin customizations immediately, cached for 5 min to eliminate DB round-trips)
   const { data: starterPacksData } = useQuery<{ presets: PresetTemplate[]; defaultPresetId: string }>({
     queryKey: ["starter-presets"],
     queryFn: async () => {
@@ -166,6 +166,8 @@ function MyMenu() {
       }
     },
     initialData: { presets: STARTER_PRESETS, defaultPresetId: "dhaba" },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
   const activeStarterPresets: PresetTemplate[] = starterPacksData?.presets || STARTER_PRESETS;
 
@@ -294,28 +296,39 @@ function MyMenu() {
       setQuickName("");
       setQuickPrice("");
       setQuickDesc("");
-      refresh();
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setIsQuickAdding(false);
     }
   };
 
-  // 1-Click Starter Preset Apply (Saved directly to live PostgreSQL database)
+  // 1-Click Starter Preset Apply (High-speed batch execution directly into live PostgreSQL)
   const handleApplyPreset = async (presetId: string) => {
     if (data.items.length > 0) {
       setConfirmingPreset(presetId);
       return;
     }
     setApplyingPresetId(presetId);
+    setShowPresets(false);
     try {
-      await applyPresetHelper(presetId);
+      const updated = await applyPresetHelper(presetId);
+      if (updated?.restaurant && updated?.categories) {
+        qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            restaurant: updated.restaurant as any,
+            categories: updated.categories,
+            items: updated.items || [],
+          };
+        });
+      }
       toast.success("Starter menu pack loaded! You can now adjust names and prices.");
-      setShowPresets(false);
-      refresh();
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setApplyingPresetId(null);
     }
@@ -323,15 +336,28 @@ function MyMenu() {
 
   const confirmApplyPreset = async () => {
     if (!confirmingPreset) return;
-    setApplyingPresetId(confirmingPreset);
+    const targetPresetId = confirmingPreset;
+    setApplyingPresetId(targetPresetId);
+    // Instant modal dismissal for 0ms visual responsiveness
+    setConfirmingPreset(null);
+    setShowPresets(false);
     try {
-      await applyPresetHelper(confirmingPreset);
+      const updated = await applyPresetHelper(targetPresetId);
+      if (updated?.restaurant && updated?.categories) {
+        qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            restaurant: updated.restaurant as any,
+            categories: updated.categories,
+            items: updated.items || [],
+          };
+        });
+      }
       toast.success("Starter menu pack loaded! You can now adjust names and prices.");
-      setShowPresets(false);
-      setConfirmingPreset(null);
-      refresh();
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setApplyingPresetId(null);
     }
@@ -341,16 +367,24 @@ function MyMenu() {
   const handleAddCat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCat.trim() || isAddingCat) return;
+    const catName = newCat.trim();
     setIsAddingCat(true);
     try {
-      const added = await addCategoryHelper(rid, newCat.trim());
+      const added = await addCategoryHelper(rid, catName);
+      qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          categories: [...old.categories.filter((c) => c.id !== added.id), added],
+        };
+      });
       setNewCat("");
       setShowAddCat(false);
       if (!quickCatId) setQuickCatId(added.id);
-      toast.success(`Category "${newCat.trim()}" created`);
-      refresh();
+      toast.success(`Category "${catName}" created`);
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setIsAddingCat(false);
     }
@@ -377,16 +411,16 @@ function MyMenu() {
         categories: old.categories.map((c) => (c.id === targetId ? { ...c, name: newName } : c)),
       };
     });
+    setRenamingCat(null);
+    toast.success(`Category renamed to "${newName}"`);
 
     try {
       await renameCategoryHelper(targetId, newName);
-      toast.success(`Category renamed to "${newName}"`);
-      setRenamingCat(null);
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setIsRenamingCat(false);
-      refresh();
     }
   };
 
@@ -419,9 +453,9 @@ function MyMenu() {
       await deleteCategoryHelper(targetId);
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setIsDeletingCat(false);
-      refresh();
     }
   };
 
@@ -540,9 +574,9 @@ function MyMenu() {
       await deleteDishHelper(targetId);
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setIsDeletingDish(false);
-      refresh();
     }
   };
 
@@ -550,7 +584,7 @@ function MyMenu() {
     if (duplicatingItemId === i.id) return;
     setDuplicatingItemId(i.id);
     try {
-      await addDishHelper({
+      const duplicated = await addDishHelper({
         restaurant_id: rid,
         category_id: i.category_id,
         name: `${i.name} (Copy)`,
@@ -558,10 +592,17 @@ function MyMenu() {
         description: i.description ?? "",
         image_url: i.image_url,
       });
+      qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: [...old.items, duplicated],
+        };
+      });
       toast.success(`Duplicated "${i.name}"`);
-      refresh();
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setDuplicatingItemId(null);
     }
@@ -603,34 +644,65 @@ function MyMenu() {
       return;
     }
 
+    const currentDraft = draft;
     setIsSavingItem(true);
     try {
-      if (draft.id) {
-        await updateDishHelper(draft.id, {
-          name: draft.name.trim(),
-          description: draft.description.trim() || null,
-          price,
-          category_id: draft.category_id,
-          image_url: draft.image_url,
-          available: draft.available,
-          is_veg: draft.is_veg,
+      if (currentDraft.id) {
+        // High-Speed Optimistic Update: Reflect changes in UI immediately with 0ms delay
+        qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: old.items.map((it) =>
+              it.id === currentDraft.id
+                ? {
+                    ...it,
+                    name: currentDraft.name.trim(),
+                    description: currentDraft.description.trim() || "",
+                    price,
+                    category_id: currentDraft.category_id,
+                    image_url: currentDraft.image_url,
+                    available: currentDraft.available,
+                    is_veg: currentDraft.is_veg,
+                  }
+                : it
+            ),
+          };
         });
+        setDraft(null);
         toast.success("Dish updated");
-      } else {
-        await addDishHelper({
-          restaurant_id: rid,
-          category_id: draft.category_id,
-          name: draft.name.trim(),
-          description: draft.description.trim() || undefined,
+
+        await updateDishHelper(currentDraft.id, {
+          name: currentDraft.name.trim(),
+          description: currentDraft.description.trim() || null,
           price,
-          image_url: draft.image_url,
+          category_id: currentDraft.category_id,
+          image_url: currentDraft.image_url,
+          available: currentDraft.available,
+          is_veg: currentDraft.is_veg,
         });
+      } else {
+        const addedItem = await addDishHelper({
+          restaurant_id: rid,
+          category_id: currentDraft.category_id,
+          name: currentDraft.name.trim(),
+          description: currentDraft.description.trim() || undefined,
+          price,
+          image_url: currentDraft.image_url,
+        });
+        qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: [...old.items.filter((it) => it.id !== addedItem.id), addedItem],
+          };
+        });
+        setDraft(null);
         toast.success("Dish added");
       }
-      setDraft(null);
-      refresh();
     } catch (err) {
       toast.error((err as Error).message);
+      refresh();
     } finally {
       setIsSavingItem(false);
     }
