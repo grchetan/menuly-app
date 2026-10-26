@@ -1,6 +1,13 @@
 import { prisma } from "../db";
 import { slugify } from "../../lib/config";
 import { STARTER_PRESETS, type PresetTemplate } from "../../lib/presets";
+import {
+  sanitizeText,
+  sanitizePrice,
+  sanitizeUrl,
+  sanitizeColor,
+  sanitizePhone,
+} from "../security/sanitize";
 
 export interface RestaurantPayload {
   name: string;
@@ -610,8 +617,10 @@ export async function saveTableForRestaurant(
   });
   if (!restaurant) throw new Error("Restaurant not found.");
 
-  const cleanNum = tableNumber.trim();
+  const cleanNum = sanitizeText(tableNumber, 20);
   if (!cleanNum) throw new Error("Table number is required.");
+
+  const cleanLabel = label ? sanitizeText(label, 60) : null;
 
   const table = await prisma.restaurantTable.upsert({
     where: {
@@ -621,12 +630,12 @@ export async function saveTableForRestaurant(
       },
     },
     update: {
-      label: label?.trim() || null,
+      label: cleanLabel,
     },
     create: {
       restaurantId: restaurant.id,
       tableNumber: cleanNum,
-      label: label?.trim() || null,
+      label: cleanLabel,
     },
   });
 
@@ -664,11 +673,12 @@ export async function bulkCreateTablesForRestaurant(
   if (!restaurant) throw new Error("Restaurant not found.");
 
   const total = Math.min(Math.max(1, count), 100);
+  const cleanPrefix = sanitizeText(prefix, 25) || "Table ";
   const created: any[] = [];
 
   for (let i = 1; i <= total; i++) {
     const tableNum = String(i);
-    const label = `${prefix.trim()} ${i}`.trim();
+    const label = `${cleanPrefix.trim()} ${i}`.trim();
     const t = await prisma.restaurantTable.upsert({
       where: {
         restaurantId_tableNumber: {
@@ -718,17 +728,17 @@ export async function updateRestaurant(userId: string, data: Partial<RestaurantP
   const updated = await prisma.restaurant.update({
     where: { id: restaurant.id },
     data: {
-      ...(data.name ? { name: data.name.trim() } : {}),
+      ...(data.name ? { name: sanitizeText(data.name, 120) } : {}),
       ...(data.slug ? { slug: data.slug } : {}),
-      ...(data.phone !== undefined ? { phone: data.phone?.trim() || null } : {}),
-      ...(data.whatsapp !== undefined ? { whatsapp: data.whatsapp?.trim() || null } : {}),
-      ...(data.address !== undefined ? { address: data.address?.trim() || null } : {}),
-      ...(data.hours !== undefined ? { hours: data.hours?.trim() || null } : {}),
-      ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl || null } : {}),
-      ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl || null } : {}),
-      ...(data.qrFg ? { qrFg: data.qrFg } : {}),
-      ...(data.qrBg ? { qrBg: data.qrBg } : {}),
-      ...(data.qrCorner ? { qrCorner: data.qrCorner } : {}),
+      ...(data.phone !== undefined ? { phone: sanitizePhone(data.phone) } : {}),
+      ...(data.whatsapp !== undefined ? { whatsapp: sanitizePhone(data.whatsapp) } : {}),
+      ...(data.address !== undefined ? { address: data.address ? sanitizeText(data.address, 300) : null } : {}),
+      ...(data.hours !== undefined ? { hours: data.hours ? sanitizeText(data.hours, 120) : null } : {}),
+      ...(data.logoUrl !== undefined ? { logoUrl: sanitizeUrl(data.logoUrl) } : {}),
+      ...(data.coverUrl !== undefined ? { coverUrl: sanitizeUrl(data.coverUrl) } : {}),
+      ...(data.qrFg ? { qrFg: sanitizeColor(data.qrFg, "#0f5132") } : {}),
+      ...(data.qrBg ? { qrBg: sanitizeColor(data.qrBg, "#ffffff") } : {}),
+      ...(data.qrCorner ? { qrCorner: sanitizeColor(data.qrCorner, "#0f5132") } : {}),
     },
   });
 
@@ -749,6 +759,9 @@ export async function addCategory(userId: string, name: string) {
   }
   if (!restaurant) throw new Error("Restaurant not found.");
 
+  const cleanName = sanitizeText(name, 80);
+  if (!cleanName) throw new Error("Category name is required");
+
   const currentCount = await prisma.category.count({
     where: { restaurantId: restaurant.id },
   });
@@ -756,7 +769,7 @@ export async function addCategory(userId: string, name: string) {
   const cat = await prisma.category.create({
     data: {
       restaurantId: restaurant.id,
-      name: name.trim(),
+      name: cleanName,
       position: currentCount,
     },
   });
@@ -778,6 +791,9 @@ export async function renameCategory(userId: string, id: string, name: string) {
   });
   if (!restaurant) throw new Error("Restaurant not found.");
 
+  const cleanName = sanitizeText(name, 80);
+  if (!cleanName) throw new Error("Valid category name required");
+
   const cat = await prisma.category.findFirst({
     where: { id, restaurantId: restaurant.id },
   });
@@ -785,7 +801,7 @@ export async function renameCategory(userId: string, id: string, name: string) {
 
   const updated = await prisma.category.update({
     where: { id },
-    data: { name: name.trim() },
+    data: { name: cleanName },
   });
 
   invalidatePublicMenuCache(restaurant.slug);
@@ -832,6 +848,13 @@ export async function addDish(
   }
   if (!restaurant) throw new Error("Restaurant not found.");
 
+  const cleanName = sanitizeText(data.name, 120);
+  if (!cleanName) throw new Error("Dish name is required");
+
+  const cleanPrice = sanitizePrice(data.price);
+  const cleanDescription = data.description ? sanitizeText(data.description, 600) : null;
+  const cleanImageUrl = sanitizeUrl(data.imageUrl);
+
   // Resolve valid categoryId (guard against "__NEW__", invalid strings, deleted categories)
   let category = null;
   if (data.categoryId && data.categoryId !== "__NEW__") {
@@ -867,10 +890,10 @@ export async function addDish(
     data: {
       restaurantId: restaurant.id,
       categoryId: category.id,
-      name: data.name.trim(),
-      price: data.price,
-      description: data.description?.trim() || null,
-      imageUrl: data.imageUrl || null,
+      name: cleanName,
+      price: cleanPrice,
+      description: cleanDescription,
+      imageUrl: cleanImageUrl,
       isVeg: data.isVeg ?? true,
       available: true,
       position: currentCount,
@@ -930,10 +953,10 @@ export async function updateDish(
   const updated = await prisma.menuItem.update({
     where: { id },
     data: {
-      ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
-      ...(updates.price !== undefined ? { price: updates.price } : {}),
-      ...(updates.description !== undefined ? { description: updates.description?.trim() || null } : {}),
-      ...(updates.imageUrl !== undefined ? { imageUrl: updates.imageUrl || null } : {}),
+      ...(updates.name !== undefined ? { name: sanitizeText(updates.name, 120) } : {}),
+      ...(updates.price !== undefined ? { price: sanitizePrice(updates.price) } : {}),
+      ...(updates.description !== undefined ? { description: updates.description ? sanitizeText(updates.description, 600) : null } : {}),
+      ...(updates.imageUrl !== undefined ? { imageUrl: sanitizeUrl(updates.imageUrl) } : {}),
       ...(updates.isVeg !== undefined ? { isVeg: updates.isVeg } : {}),
       ...(updates.available !== undefined ? { available: updates.available } : {}),
       ...(validatedCategoryId ? { categoryId: validatedCategoryId } : {}),

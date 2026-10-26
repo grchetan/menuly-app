@@ -79,7 +79,42 @@ import { STARTER_PRESETS, type PresetTemplate } from "@/lib/presets";
 import { compressImage } from "@/lib/image-compress";
 import { cn } from "@/lib/utils";
 
+function AdminSkeleton() {
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col pt-16 sm:pt-[70px]">
+      <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/70 bg-background/95 backdrop-blur-md">
+        <div className="px-3 sm:px-6 py-3">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-xl bg-muted animate-pulse" />
+              <div className="h-5 w-32 rounded-lg bg-muted animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-24 rounded-full bg-muted animate-pulse" />
+              <div className="h-8 w-20 rounded-full bg-muted animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6 sm:py-8 space-y-6 flex-1 w-full animate-pulse">
+        <div className="h-9 w-64 rounded-xl bg-muted" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 rounded-2xl border border-border/70 bg-card p-4 space-y-3">
+              <div className="h-3 w-20 rounded bg-muted" />
+              <div className="h-7 w-28 rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+        <div className="h-96 rounded-2xl border border-border/70 bg-card p-6" />
+      </main>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/admin")({
+  ssr: false,
+  pendingComponent: AdminSkeleton,
   head: () => ({
     meta: [
       { title: "Executive Command Center — Menuly" },
@@ -1238,6 +1273,12 @@ function AdminPage() {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <Button size="sm" variant="outline" asChild className="gap-1.5 text-xs font-semibold h-8 px-2.5">
+              <Link to="/dashboard">
+                <Store className="size-3.5" />
+                <span className="hidden xs:inline">Restaurant</span> Dashboard
+              </Link>
+            </Button>
             <Button size="sm" variant="outline" asChild className="hidden sm:inline-flex gap-1.5 text-xs font-semibold h-8 px-2.5">
               <Link to="/">
                 <ExternalLink className="size-3.5" /> Public Site

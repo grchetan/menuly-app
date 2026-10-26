@@ -25,6 +25,37 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { VisitorTracker } from "@/components/VisitorTracker";
 
 function NotFoundComponent() {
+  const routerState = useRouterState();
+  const isPending = routerState.status === "pending";
+  const pathname = routerState.location.pathname;
+
+  // Guard against transient route loading flashes on mobile & slow networks:
+  // If route transition is still pending or the target path is a known app route, show a sleek loading state instead of a jarring 404 page!
+  const isKnownRoute =
+    pathname === "/admin" ||
+    pathname.startsWith("/admin") ||
+    pathname === "/dashboard" ||
+    pathname === "/my-menu" ||
+    pathname === "/qr" ||
+    pathname === "/profile" ||
+    pathname === "/support" ||
+    pathname === "/auth" ||
+    pathname === "/" ||
+    pathname.startsWith("/menu/");
+
+  if (isPending || isKnownRoute) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-xs font-semibold text-muted-foreground animate-pulse">
+            Loading {pathname.startsWith("/admin") ? "Executive Console" : "Menuly"}...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-between bg-hero px-4 py-8 text-foreground selection:bg-primary/20">
       {/* Decorative background glow */}
@@ -278,11 +309,15 @@ function RootInner() {
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
 
-  // Digital restaurant menus (/menu/*), Admin console (/admin*), and API routes are strictly exempt
+  // Digital restaurant menus (/menu/*), Admin console (/admin*), Owner Dashboard, and API routes are strictly exempt
   const isExempt =
     pathname.startsWith("/menu/") ||
     pathname === "/menu" ||
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/my-menu") ||
+    pathname.startsWith("/qr") ||
+    pathname.startsWith("/profile") ||
     pathname.startsWith("/api/");
 
   const { data: platformData } = useQuery({

@@ -38,22 +38,62 @@ import {
   getEffectiveStarterPresets,
   saveStarterPresets,
 } from "./restaurant/service";
+import {
+  sanitizeObject,
+  sanitizeText,
+  sanitizePrice,
+  sanitizeUrl,
+  sanitizeEmail,
+  sanitizePhone,
+} from "./security/sanitize";
 
-function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return true;
+    if (host === "menuly.app" || host.endsWith(".menuly.app")) return true;
+    if (host === "menuly.in" || host.endsWith(".menuly.in")) return true;
+    if (host.endsWith(".vercel.app")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function getCorsHeaders(req: Request, pathname: string): Record<string, string> {
+  const origin = req.headers.get("origin");
+
+  // Public read-only endpoints allow any origin (QR customer menu, presets, version, health)
+  if (
+    pathname.startsWith("/api/public/") ||
+    pathname === "/api/starter-presets" ||
+    pathname === "/api/version" ||
+    pathname === "/api/health"
+  ) {
+    return {
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    };
+  }
+
+  // Sensitive or authenticated endpoints: reflect origin only if allowed
+  if (origin && isOriginAllowed(origin)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "SAMEORIGIN",
-      "X-XSS-Protection": "1; mode=block",
-      "Referrer-Policy": "strict-origin-when-cross-origin",
-      ...headers,
-    },
-  });
+      "Access-Control-Allow-Credentials": "true",
+      "Vary": "Origin",
+    };
+  }
+
+  return {
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
 }
 
 function extractBearerToken(req: Request): string | null {
@@ -82,16 +122,28 @@ function getClientIp(req: Request): string {
 export async function handleApiRoute(request: Request): Promise<Response | null> {
   const url = new URL(request.url);
   const pathname = url.pathname;
+  const corsHeaders = getCorsHeaders(request, pathname);
+
+  const json = (data: unknown, status = 200, headers: Record<string, string> = {}) => {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        ...corsHeaders,
+        ...headers,
+      },
+    });
+  };
 
   // Handle CORS Preflight
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
+      headers: corsHeaders,
     });
   }
 
@@ -114,7 +166,6 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         timestamp: new Date().toISOString(),
         database: dbStatus,
         smtp: {
-          user: process.env["SMTP_USER"] || "menulyoffcial@gmail.com",
           configured: Boolean(process.env["SMTP_PASS"] && process.env["SMTP_PASS"] !== ""),
         },
       });
@@ -179,7 +230,15 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 0. CHECK EMAIL: POST /api/auth/check-email (Ultra-fast real-time check)
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/check-email" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rate = checkRateLimit(`check_email:${clientIp}`, AuthRateLimits.CHECK_EMAIL);
+      if (!rate.allowed) {
+        return json(
+          { error: `Too many requests. Please wait ${rate.resetInSeconds}s before checking another email.` },
+          429
+        );
+      }
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await checkEmailAvailability(body.email || "");
       return json(res, res.status);
     }
@@ -188,7 +247,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 1. SIGNUP: POST /api/auth/signup
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/signup" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await signupUser({
         email: body.email,
         password: body.password,
@@ -202,7 +262,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 2. VERIFY OTP: POST /api/auth/verify-otp
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/verify-otp" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await verifyUserOtp({
         email: body.email,
         otp: body.otp,
@@ -216,7 +277,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 3. RESEND OTP: POST /api/auth/resend-otp
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/resend-otp" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await resendUserOtp({
         email: body.email,
         type: body.type || "SIGNUP",
@@ -229,7 +291,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 4. LOGIN: POST /api/auth/login
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/login" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await loginUser({
         email: body.email,
         password: body.password,
@@ -242,7 +305,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 5. FORGOT PASSWORD: POST /api/auth/forgot-password
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/forgot-password" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await forgotPassword({
         email: body.email,
         clientIp,
@@ -254,7 +318,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 6. RESET PASSWORD: POST /api/auth/reset-password
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/reset-password" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await resetPassword({
         email: body.email,
         otp: body.otp,
@@ -288,7 +353,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const auth = verifyAccessToken(token);
       if (!auth) return json({ error: "Session expired. Please log in again." }, 401);
 
-      const body = await request.json().catch(() => ({}));
+      const rate = checkRateLimit(`profile:${auth.userId}:${clientIp}`, AuthRateLimits.PROFILE_UPDATE);
+      if (!rate.allowed) {
+        return json({ error: `Too many profile updates. Please wait ${rate.resetInSeconds}s.` }, 429);
+      }
+
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await updateUserProfile({
         userId: auth.userId,
         fullName: body.fullName,
@@ -310,7 +381,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const auth = verifyAccessToken(token);
       if (!auth) return json({ error: "Session expired. Please log in again." }, 401);
 
-      const body = await request.json().catch(() => ({}));
+      const rate = checkRateLimit(`pwd:${auth.userId}:${clientIp}`, AuthRateLimits.CHANGE_PASSWORD);
+      if (!rate.allowed) {
+        return json({ error: `Too many password change attempts. Please wait ${rate.resetInSeconds}s.` }, 429);
+      }
+
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const res = await changeUserPassword({
         userId: auth.userId,
         currentPassword: body.currentPassword,
@@ -353,14 +430,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 2. POST /api/restaurant/update
       if (pathname === "/api/restaurant/update" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         const updated = await updateRestaurant(auth.userId, body);
         return json({ success: true, message: "Restaurant profile saved.", restaurant: updated });
       }
 
       // 3. POST /api/restaurant/category/add
       if (pathname === "/api/restaurant/category/add" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.name?.trim()) {
           return json({ error: "Category name is required" }, 400);
         }
@@ -370,7 +449,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 4. POST /api/restaurant/category/rename
       if (pathname === "/api/restaurant/category/rename" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.id || !body.name?.trim()) {
           return json({ error: "Category ID and name are required" }, 400);
         }
@@ -380,7 +460,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 5. POST /api/restaurant/category/delete
       if (pathname === "/api/restaurant/category/delete" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.id) {
           return json({ error: "Category ID required" }, 400);
         }
@@ -390,7 +471,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 6. POST /api/restaurant/item/add
       if (pathname === "/api/restaurant/item/add" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.name?.trim() || !body.categoryId) {
           return json({ error: "Dish name and category are required" }, 400);
         }
@@ -407,7 +489,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 7. POST /api/restaurant/item/update
       if (pathname === "/api/restaurant/item/update" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.id) {
           return json({ error: "Item ID required" }, 400);
         }
@@ -417,7 +500,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 8. POST /api/restaurant/item/delete
       if (pathname === "/api/restaurant/item/delete" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.id) {
           return json({ error: "Item ID required" }, 400);
         }
@@ -427,7 +511,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 9. POST /api/restaurant/item/toggle-available
       if (pathname === "/api/restaurant/item/toggle-available" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.id) {
           return json({ error: "Item ID required" }, 400);
         }
@@ -437,7 +522,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 10. POST /api/restaurant/preset (Load complete starter pack directly into database)
       if (pathname === "/api/restaurant/preset" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.presetId) {
           return json({ error: "Preset ID required" }, 400);
         }
@@ -453,7 +539,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 12. POST /api/restaurant/tables/save
       if (pathname === "/api/restaurant/tables/save" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.tableNumber?.trim()) {
           return json({ error: "Table number is required" }, 400);
         }
@@ -463,7 +550,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 13. POST /api/restaurant/tables/delete
       if (pathname === "/api/restaurant/tables/delete" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         if (!body.id) {
           return json({ error: "Table ID is required" }, 400);
         }
@@ -473,7 +561,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 14. POST /api/restaurant/tables/bulk
       if (pathname === "/api/restaurant/tables/bulk" && request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
+        const rawBody = await request.json().catch(() => ({}));
+        const body = sanitizeObject(rawBody);
         const count = Number(body.count) || 10;
         const prefix = body.prefix || "Table ";
         const tables = await bulkCreateTablesForRestaurant(auth.userId, count, prefix);
@@ -633,19 +722,27 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 8.2 PUBLIC VISITOR & META ADS ANALYTICS BEACON: POST /api/analytics/track
     // --------------------------------------------------------------------------
     if (pathname === "/api/analytics/track" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
+      const rate = checkRateLimit(`track:${clientIp}`, AuthRateLimits.TRACK_ANALYTICS);
+      if (!rate.allowed) {
+        return json({ success: true, live: 1 });
+      }
+
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
       const userAgent = request.headers.get("user-agent") || "";
       const isMobile = userAgent.toLowerCase().includes("mobi") || userAgent.toLowerCase().includes("android") || userAgent.toLowerCase().includes("iphone");
 
+      const cleanReferrer = (body.referrer ? sanitizeUrl(body.referrer) : null) || request.headers.get("referer");
+
       const res = await trackVisitor({
-        path: body.path || "/",
-        source: body.source,
-        medium: body.medium,
-        campaign: body.campaign,
-        referrer: body.referrer || request.headers.get("referer") || undefined,
-        device: body.device || (isMobile ? "mobile" : "desktop"),
-        browser: body.browser,
-        sessionId: body.sessionId,
+        path: sanitizeText(body.path || "/", 100),
+        ...(body.source ? { source: sanitizeText(body.source, 50) } : {}),
+        ...(body.medium ? { medium: sanitizeText(body.medium, 50) } : {}),
+        ...(body.campaign ? { campaign: sanitizeText(body.campaign, 50) } : {}),
+        ...(cleanReferrer ? { referrer: cleanReferrer.slice(0, 500) } : {}),
+        device: body.device ? String(body.device).slice(0, 30) : (isMobile ? "mobile" : "desktop"),
+        ...(body.browser ? { browser: sanitizeText(body.browser, 50) } : {}),
+        ...(body.sessionId ? { sessionId: sanitizeText(body.sessionId, 64) } : {}),
         clientIp,
       });
 

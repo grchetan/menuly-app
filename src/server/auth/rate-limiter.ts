@@ -81,4 +81,12 @@ export const AuthRateLimits = {
   FEEDBACK: { windowMs: 15 * 60 * 1000, max: 10 },
   // Max 3 admin seeding attempts per 15 minutes per IP
   ADMIN_SEED: { windowMs: 15 * 60 * 1000, max: 3 },
+  // Max 30 email checks per minute per IP (prevents scraping/enumeration bots)
+  CHECK_EMAIL: { windowMs: 60 * 1000, max: 30 },
+  // Max 10 profile updates per 10 minutes per user/IP
+  PROFILE_UPDATE: { windowMs: 10 * 60 * 1000, max: 10 },
+  // Max 5 password changes per 15 minutes per user/IP
+  CHANGE_PASSWORD: { windowMs: 15 * 60 * 1000, max: 5 },
+  // Max 60 analytics beacon pings per minute per IP (prevents DDoS on database)
+  TRACK_ANALYTICS: { windowMs: 60 * 1000, max: 60 },
 };
