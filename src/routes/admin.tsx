@@ -66,6 +66,7 @@ import {
   Flame,
   Image as ImageIcon,
   Edit3,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ import { Logo } from "@/components/Logo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AnnouncementMarquee } from "@/components/AnnouncementMarquee";
 import { STARTER_PRESETS, type PresetTemplate } from "@/lib/presets";
+import { compressImage } from "@/lib/image-compress";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
@@ -341,6 +343,7 @@ function AdminPage() {
   const [adminPresets, setAdminPresets] = useState<PresetTemplate[]>(STARTER_PRESETS);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("dhaba");
   const [savingPresets, setSavingPresets] = useState(false);
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
   const [editingDish, setEditingDish] = useState<{
     catIndex: number;
     dishIndex: number;
@@ -348,13 +351,21 @@ function AdminPage() {
     price: number;
     description: string;
     image_url: string;
+    compressionSummary?: string | null;
   } | null>(null);
   const [addingDishCatIndex, setAddingDishCatIndex] = useState<number | null>(null);
-  const [newDishForm, setNewDishForm] = useState({
+  const [newDishForm, setNewDishForm] = useState<{
+    name: string;
+    price: string;
+    description: string;
+    image_url: string;
+    compressionSummary: string | null;
+  }>({
     name: "",
     price: "",
     description: "",
     image_url: "",
+    compressionSummary: null,
   });
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [feedbacks, setFeedbacks] = useState<CustomerFeedbackItem[]>([]);
@@ -3195,7 +3206,7 @@ function AdminPage() {
                             variant="outline"
                             onClick={() => {
                               setAddingDishCatIndex(catIdx);
-                              setNewDishForm({ name: "", price: "", description: "", image_url: "" });
+                              setNewDishForm({ name: "", price: "", description: "", image_url: "", compressionSummary: null });
                             }}
                             className="w-full text-xs font-bold border-dashed gap-1 h-9"
                           >
@@ -3928,21 +3939,100 @@ function AdminPage() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">Photo URL</Label>
-                  <Input
-                    value={editingDish.image_url}
-                    onChange={(e) => setEditingDish({ ...editingDish, image_url: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
-                    className="h-10 text-xs"
-                  />
-                  {editingDish.image_url && (
-                    <img
-                      src={editingDish.image_url}
-                      alt="Preview"
-                      className="size-16 rounded-xl object-cover border mt-1"
-                    />
-                  )}
+                {/* 2-Option Photo Setup: Web Link OR Manual Upload with ~90% Compression */}
+                <div className="space-y-2 rounded-xl border border-border/80 bg-secondary/20 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground">Dish Photo (2 Options)</Label>
+                    {editingDish.image_url && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingDish({ ...editingDish, image_url: "", compressionSummary: null })}
+                        className="text-[11px] text-destructive hover:underline font-semibold"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    {editingDish.image_url ? (
+                      <img
+                        src={editingDish.image_url}
+                        alt="Preview"
+                        className="size-16 rounded-xl object-cover border border-border/80 shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="size-16 rounded-xl bg-secondary border border-border/70 flex items-center justify-center text-2xl shrink-0">
+                        🍲
+                      </div>
+                    )}
+
+                    <div className="flex-1 space-y-2">
+                      {/* Option A: Direct File Upload with 90%+ Compression */}
+                      <label className="cursor-pointer inline-block">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isCompressingImage}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            setIsCompressingImage(true);
+                            try {
+                              const res = await compressImage(f, {
+                                maxWidth: 800,
+                                maxHeight: 800,
+                                quality: 0.80,
+                                mimeType: "image/webp",
+                              });
+                              setEditingDish({
+                                ...editingDish,
+                                image_url: res.dataUrl,
+                                compressionSummary: res.summary,
+                              });
+                              toast.success(`Photo compressed & applied! (${res.summary})`);
+                            } catch (err: any) {
+                              toast.error(err?.message || "Failed to compress image");
+                            } finally {
+                              setIsCompressingImage(false);
+                            }
+                          }}
+                        />
+                        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
+                          {isCompressingImage ? (
+                            <RotateCw className="size-3.5 animate-spin text-primary" />
+                          ) : (
+                            <Upload className="size-3.5 text-primary" />
+                          )}
+                          {isCompressingImage ? "Compressing WebP..." : "Upload Manual Image"}
+                        </span>
+                      </label>
+
+                      {/* Option B: Direct URL Input */}
+                      <Input
+                        value={editingDish.image_url?.startsWith("data:") ? "" : editingDish.image_url}
+                        onChange={(e) =>
+                          setEditingDish({
+                            ...editingDish,
+                            image_url: e.target.value,
+                            compressionSummary: null,
+                          })
+                        }
+                        placeholder="Or paste direct image URL (https://...)"
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                    <span>Auto-compresses to lightweight WebP (~90% size reduction) for instant mobile loading.</span>
+                    {editingDish.compressionSummary && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
+                        ⚡ {editingDish.compressionSummary}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -4024,14 +4114,100 @@ function AdminPage() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">Photo URL</Label>
-                  <Input
-                    placeholder="https://images.unsplash.com/..."
-                    value={newDishForm.image_url}
-                    onChange={(e) => setNewDishForm({ ...newDishForm, image_url: e.target.value })}
-                    className="h-10 text-xs"
-                  />
+                {/* 2-Option Photo Setup: Web Link OR Manual Upload with ~90% Compression */}
+                <div className="space-y-2 rounded-xl border border-border/80 bg-secondary/20 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground">Dish Photo (2 Options)</Label>
+                    {newDishForm.image_url && (
+                      <button
+                        type="button"
+                        onClick={() => setNewDishForm({ ...newDishForm, image_url: "", compressionSummary: null })}
+                        className="text-[11px] text-destructive hover:underline font-semibold"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    {newDishForm.image_url ? (
+                      <img
+                        src={newDishForm.image_url}
+                        alt="Preview"
+                        className="size-16 rounded-xl object-cover border border-border/80 shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="size-16 rounded-xl bg-secondary border border-border/70 flex items-center justify-center text-2xl shrink-0">
+                        🍲
+                      </div>
+                    )}
+
+                    <div className="flex-1 space-y-2">
+                      {/* Option A: Direct File Upload with 90%+ Compression */}
+                      <label className="cursor-pointer inline-block">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isCompressingImage}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            setIsCompressingImage(true);
+                            try {
+                              const res = await compressImage(f, {
+                                maxWidth: 800,
+                                maxHeight: 800,
+                                quality: 0.80,
+                                mimeType: "image/webp",
+                              });
+                              setNewDishForm({
+                                ...newDishForm,
+                                image_url: res.dataUrl,
+                                compressionSummary: res.summary,
+                              });
+                              toast.success(`Photo compressed & applied! (${res.summary})`);
+                            } catch (err: any) {
+                              toast.error(err?.message || "Failed to compress image");
+                            } finally {
+                              setIsCompressingImage(false);
+                            }
+                          }}
+                        />
+                        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
+                          {isCompressingImage ? (
+                            <RotateCw className="size-3.5 animate-spin text-primary" />
+                          ) : (
+                            <Upload className="size-3.5 text-primary" />
+                          )}
+                          {isCompressingImage ? "Compressing WebP..." : "Upload Manual Image"}
+                        </span>
+                      </label>
+
+                      {/* Option B: Direct URL Input */}
+                      <Input
+                        value={newDishForm.image_url?.startsWith("data:") ? "" : newDishForm.image_url}
+                        onChange={(e) =>
+                          setNewDishForm({
+                            ...newDishForm,
+                            image_url: e.target.value,
+                            compressionSummary: null,
+                          })
+                        }
+                        placeholder="Or paste direct image URL (https://...)"
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                    <span>Auto-compresses to lightweight WebP (~90% size reduction) for instant mobile loading.</span>
+                    {newDishForm.compressionSummary && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
+                        ⚡ {newDishForm.compressionSummary}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

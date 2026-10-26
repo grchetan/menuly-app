@@ -1464,7 +1464,7 @@ function MyMenu() {
                         />
                         <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3.5 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
                           <Upload className="size-3.5 text-primary" />
-                          {draft.image_url ? "Change Photo" : "Upload Photo"}
+                          {draft.image_url ? "Change Photo" : "Upload Manual Image"}
                         </span>
                       </label>
                       {draft.image_url && (
@@ -1479,6 +1479,20 @@ function MyMenu() {
                           Remove Photo
                         </button>
                       )}
+                    </div>
+
+                    {/* Option 2: Direct Image URL */}
+                    <div className="pt-0.5">
+                      <Input
+                        type="url"
+                        value={draft.image_url?.startsWith("data:") ? "" : (draft.image_url || "")}
+                        onChange={(e) => {
+                          setDraft({ ...draft, image_url: e.target.value.trim() });
+                          setDishPhotoSummary(null);
+                        }}
+                        placeholder="Or paste direct image URL (https://...)"
+                        className="h-8 text-xs bg-background"
+                      />
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                       <span>Auto-compressed to WebP (~30KB) for instant loading & offline backup</span>
