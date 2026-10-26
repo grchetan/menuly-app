@@ -354,6 +354,12 @@ function AdminPage() {
     compressionSummary?: string | null;
   } | null>(null);
   const [addingDishCatIndex, setAddingDishCatIndex] = useState<number | null>(null);
+  const [renamingCategory, setRenamingCategory] = useState<{
+    presetId: string;
+    catIndex: number;
+    currentName: string;
+  } | null>(null);
+  const [renameCatValue, setRenameCatValue] = useState("");
   const [newDishForm, setNewDishForm] = useState<{
     name: string;
     price: string;
@@ -3116,13 +3122,28 @@ function AdminPage() {
                           className="rounded-2xl border border-border/70 bg-background/60 p-4 space-y-3"
                         >
                           <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                                 {catIdx + 1}
                               </span>
-                              <h4 className="font-bold text-sm text-foreground">{cat.name}</h4>
+                              <h4 className="font-bold text-sm text-foreground truncate">{cat.name}</h4>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRenamingCategory({
+                                    presetId: pack.id,
+                                    catIndex: catIdx,
+                                    currentName: cat.name,
+                                  });
+                                  setRenameCatValue(cat.name);
+                                }}
+                                className="size-6 shrink-0 rounded-md hover:bg-secondary text-muted-foreground hover:text-primary flex items-center justify-center transition-colors cursor-pointer"
+                                title={`Rename Category "${cat.name}"`}
+                              >
+                                <Edit3 className="size-3.5" />
+                              </button>
                             </div>
-                            <span className="text-[11px] font-semibold text-muted-foreground">
+                            <span className="text-[11px] font-semibold text-muted-foreground shrink-0 ml-2">
                               {catItems.length} dishes
                             </span>
                           </div>
@@ -4227,6 +4248,68 @@ function AdminPage() {
                   </Button>
                   <Button type="submit" size="sm" className="font-bold">
                     Add Dish
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Rename Starter Pack Category Dialog */}
+        <Dialog open={Boolean(renamingCategory)} onOpenChange={(open) => !open && setRenamingCategory(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit3 className="size-5 text-primary" /> Rename Starter Pack Category
+              </DialogTitle>
+            </DialogHeader>
+            {renamingCategory && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const trimmed = renameCatValue.trim();
+                  if (!trimmed) {
+                    toast.error("Category name cannot be empty");
+                    return;
+                  }
+                  const updatedPresets = adminPresets.map((p) => {
+                    if (p.id !== renamingCategory.presetId) return p;
+                    const categories = [...p.categories];
+                    const existingCat = categories[renamingCategory.catIndex];
+                    if (!existingCat) return p;
+                    categories[renamingCategory.catIndex] = {
+                      ...existingCat,
+                      name: trimmed,
+                    };
+                    return { ...p, categories };
+                  });
+                  setAdminPresets(updatedPresets);
+                  setRenamingCategory(null);
+                  toast.success(`Category renamed to "${trimmed}". Click "Save Packs to Database" to apply!`);
+                }}
+                className="space-y-4 pt-2"
+              >
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Category Name *</Label>
+                  <Input
+                    required
+                    autoFocus
+                    value={renameCatValue}
+                    onChange={(e) => setRenameCatValue(e.target.value)}
+                    placeholder="e.g. Starters & Appetizers"
+                    className="h-10 text-sm font-semibold"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    This updated category name will be displayed in this starter pack and automatically assigned to all newly registered restaurants.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRenamingCategory(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" className="font-bold bg-primary text-primary-foreground gap-1.5">
+                    <Save className="size-3.5" /> Save Category Name
                   </Button>
                 </div>
               </form>
