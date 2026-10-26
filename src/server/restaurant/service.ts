@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { slugify } from "../../lib/config";
-import { STARTER_PRESETS } from "../../lib/presets";
+import { STARTER_PRESETS, type PresetTemplate } from "../../lib/presets";
 
 export interface RestaurantPayload {
   name: string;
@@ -53,7 +53,7 @@ export async function getOrCreateUserRestaurant(
         ? "Menuly HQ (Official Demo)"
         : (userFullName ? `${userFullName}'s Restaurant` : "My Restaurant");
 
-    restaurant = await prisma.restaurant.create({
+    const createdRestaurant = await prisma.restaurant.create({
       data: {
         ownerId: userId,
         name: defaultName,
@@ -67,27 +67,93 @@ export async function getOrCreateUserRestaurant(
         menuItems: { orderBy: { position: "asc" } },
       },
     });
+    restaurant = createdRestaurant;
 
-    // Auto-create 2 starter categories for instant demonstration
+    // Auto-seed default starter pack for instant onboarding (so new users immediately see dishes & categories)
     try {
-      const cat1 = await prisma.category.create({
-        data: {
-          restaurantId: restaurant.id,
-          name: "Signature Dishes",
-          position: 0,
-        },
-      });
-      const cat2 = await prisma.category.create({
-        data: {
-          restaurantId: restaurant.id,
-          name: "Beverages & Drinks",
-          position: 1,
-        },
-      });
-      restaurant.categories = [cat1, cat2];
-    } catch {
-      // ignore
+      const presets = await getEffectiveStarterPresets();
+      let defaultPresetKey = "dhaba";
+      try {
+        const pref = await prisma.platformSetting.findUnique({
+          where: { key: "default_starter_preset" },
+        });
+        if (pref && typeof pref.value === "string") {
+          defaultPresetKey = pref.value;
+        }
+      } catch {}
+
+      const preset = presets.find((p) => p.id === defaultPresetKey) || presets[0] || STARTER_PRESETS[0];
+
+      if (preset && preset.categories?.length > 0) {
+        const restaurantId = createdRestaurant.id;
+        const createdCats = await Promise.all(
+          preset.categories.map((c, idx) =>
+            prisma.category.create({
+              data: {
+                restaurantId,
+                name: c.name,
+                position: idx,
+              },
+            })
+          )
+        );
+
+        const allItems: Array<{
+          restaurantId: string;
+          categoryId: string;
+          name: string;
+          price: number;
+          description: string;
+          imageUrl: string | null;
+          isVeg: boolean;
+          available: boolean;
+          position: number;
+        }> = [];
+
+        for (let idx = 0; idx < preset.categories.length; idx++) {
+          const createdCat = createdCats[idx];
+          if (!createdCat) continue;
+          const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
+          itemsForCategory.forEach((it, itIdx) => {
+            allItems.push({
+              restaurantId,
+              categoryId: createdCat.id,
+              name: it.name,
+              price: it.price,
+              description: it.description,
+              imageUrl: it.image_url,
+              isVeg: true,
+              available: true,
+              position: itIdx,
+            });
+          });
+        }
+
+        if (allItems.length > 0) {
+          await prisma.menuItem.createMany({
+            data: allItems,
+          });
+        }
+
+        // Reload categories and items for the return payload
+        const updated = await prisma.restaurant.findUnique({
+          where: { id: restaurantId },
+          include: {
+            categories: { orderBy: { position: "asc" } },
+            menuItems: { orderBy: { position: "asc" } },
+          },
+        });
+        if (updated) {
+          restaurant = updated;
+        }
+      }
+    } catch (err) {
+      console.error("[Restaurant Auto-seed Default Menu Failed]", err);
     }
+  }
+
+  if (!restaurant) {
+    throw new Error("Unable to retrieve or initialize restaurant profile.");
   }
 
   const analytics = await getRestaurantAnalytics(restaurant.id);
@@ -224,13 +290,57 @@ export async function getRestaurantAnalytics(restaurantId: string) {
   }
 }
 
+export async function getEffectiveStarterPresets(): Promise<PresetTemplate[]> {
+  try {
+    const row = await prisma.platformSetting.findUnique({
+      where: { key: "starter_menu_presets" },
+    });
+    if (row && Array.isArray(row.value) && row.value.length > 0) {
+      return row.value as unknown as PresetTemplate[];
+    }
+  } catch (err) {
+    console.error("[getEffectiveStarterPresets Error]", err);
+  }
+  return STARTER_PRESETS;
+}
+
+export async function saveStarterPresets(presets: PresetTemplate[], defaultPresetId?: string): Promise<boolean> {
+  await prisma.platformSetting.upsert({
+    where: { key: "starter_menu_presets" },
+    create: {
+      key: "starter_menu_presets",
+      value: presets as any,
+    },
+    update: {
+      value: presets as any,
+      updatedAt: new Date(),
+    },
+  });
+
+  if (defaultPresetId) {
+    await prisma.platformSetting.upsert({
+      where: { key: "default_starter_preset" },
+      create: {
+        key: "default_starter_preset",
+        value: defaultPresetId as any,
+      },
+      update: {
+        value: defaultPresetId as any,
+        updatedAt: new Date(),
+      },
+    });
+  }
+  return true;
+}
+
 export async function applyPresetToRestaurant(userId: string, presetId: string) {
   const restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
   });
   if (!restaurant) throw new Error("Restaurant not found.");
 
-  const preset = STARTER_PRESETS.find((p) => p.id === presetId) || STARTER_PRESETS[0]!;
+  const presets = await getEffectiveStarterPresets();
+  const preset = presets.find((p) => p.id === presetId) || presets[0] || STARTER_PRESETS[0]!;
 
   // 1. Clear existing items and categories in parallel
   await Promise.all([

@@ -34,6 +34,8 @@ import {
   saveTableForRestaurant,
   deleteTableForRestaurant,
   bulkCreateTablesForRestaurant,
+  getEffectiveStarterPresets,
+  saveStarterPresets,
 } from "./restaurant/service";
 
 function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -156,6 +158,19 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         success: true,
         message: "Platform settings updated and persisted to PostgreSQL",
         settings: updated,
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // STARTER PRESETS (Public GET): /api/starter-presets
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/starter-presets" && request.method === "GET") {
+      const presets = await getEffectiveStarterPresets();
+      const settings = await getPlatformSettings();
+      return json({
+        success: true,
+        presets,
+        defaultPresetId: settings.defaultStarterPreset || "dhaba",
       });
     }
 
@@ -940,6 +955,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           success: true,
           analytics,
         });
+      }
+
+      // POST /api/admin/starter-presets
+      if (pathname === "/api/admin/starter-presets" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!Array.isArray(body.presets)) {
+          return json({ error: "presets array is required" }, 400);
+        }
+        await saveStarterPresets(body.presets, body.defaultPresetId);
+        return json({ success: true, message: "Starter menu presets updated successfully" });
       }
 
       // Default Admin Route

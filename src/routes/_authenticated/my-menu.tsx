@@ -43,6 +43,7 @@ import {
   myMenuQuery,
   uploadImage,
   STARTER_PRESETS,
+  type PresetTemplate,
   applyPresetHelper,
   addCategoryHelper,
   renameCategoryHelper,
@@ -149,6 +150,23 @@ function MyMenu() {
   const [activeCatTab, setActiveCatTab] = useState<string>("all");
   const [filter, setFilter] = useState<"all" | "soldout">("all");
   const [showPresets, setShowPresets] = useState(Boolean(data?.items?.length === 0));
+
+  // Live Starter Packs Query (Reflects Admin customizations immediately)
+  const { data: starterPacksData } = useQuery<{ presets: PresetTemplate[]; defaultPresetId: string }>({
+    queryKey: ["starter-presets"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/starter-presets");
+        if (!res.ok) return { presets: STARTER_PRESETS, defaultPresetId: "dhaba" };
+        const d = await res.json();
+        return d?.presets?.length ? d : { presets: STARTER_PRESETS, defaultPresetId: "dhaba" };
+      } catch {
+        return { presets: STARTER_PRESETS, defaultPresetId: "dhaba" };
+      }
+    },
+    initialData: { presets: STARTER_PRESETS, defaultPresetId: "dhaba" },
+  });
+  const activeStarterPresets: PresetTemplate[] = starterPacksData?.presets || STARTER_PRESETS;
 
   // Custom Dialog States (No Native Browser prompt/confirm)
   const [renamingCat, setRenamingCat] = useState<Category | null>(null);
@@ -695,7 +713,7 @@ function MyMenu() {
             </div>
 
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-              {STARTER_PRESETS.map((p) => {
+              {activeStarterPresets.map((p: PresetTemplate) => {
                 const isLoadingThis = applyingPresetId === p.id;
                 const isAnyLoading = Boolean(applyingPresetId);
 
@@ -736,7 +754,7 @@ function MyMenu() {
 
                       {/* Sample Dishes Badges */}
                       <div className="mt-3 flex flex-wrap gap-1">
-                        {p.items.slice(0, 3).map((it, idx) => (
+                        {p.items.slice(0, 3).map((it: any, idx: number) => (
                           <span
                             key={idx}
                             className="inline-block rounded-md bg-secondary/70 px-2 py-0.5 text-[10px] font-semibold text-foreground/80 truncate max-w-[120px]"

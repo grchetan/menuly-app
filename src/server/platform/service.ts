@@ -9,6 +9,8 @@ export interface PlatformSettingsData {
   announcementTicker: string;
   announcementTickerEnabled: boolean;
   allowNewSignups: boolean;
+  demoMenuUrl: string;
+  defaultStarterPreset: string;
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
@@ -21,6 +23,8 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
     "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   announcementTickerEnabled: true,
   allowNewSignups: true,
+  demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
+  defaultStarterPreset: "dhaba",
 };
 
 let cachedSettings: PlatformSettingsData | null = null;
@@ -79,6 +83,16 @@ export async function getPlatformSettings(): Promise<PlatformSettingsData> {
         : map.has("allowNewSignups")
         ? Boolean(map.get("allowNewSignups"))
         : DEFAULT_PLATFORM_SETTINGS.allowNewSignups,
+      demoMenuUrl: map.has("demo_menu_url")
+        ? String(map.get("demo_menu_url"))
+        : map.has("demoMenuUrl")
+        ? String(map.get("demoMenuUrl"))
+        : DEFAULT_PLATFORM_SETTINGS.demoMenuUrl,
+      defaultStarterPreset: map.has("default_starter_preset")
+        ? String(map.get("default_starter_preset"))
+        : map.has("defaultStarterPreset")
+        ? String(map.get("defaultStarterPreset"))
+        : DEFAULT_PLATFORM_SETTINGS.defaultStarterPreset,
     };
 
     cachedSettings = settings;
@@ -108,6 +122,8 @@ export async function updatePlatformSettings(
     ["announcementTicker", "announcement_ticker"],
     ["announcementTickerEnabled", "announcement_ticker_enabled"],
     ["allowNewSignups", "allow_new_signups"],
+    ["demoMenuUrl", "demo_menu_url"],
+    ["defaultStarterPreset", "default_starter_preset"],
   ];
 
   for (const [prop, dbKey] of keyMap) {

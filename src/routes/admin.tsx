@@ -61,13 +61,19 @@ import {
   Compass,
   Gauge,
   Server,
+  Coffee,
+  Flame,
+  Image as ImageIcon,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/Logo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AnnouncementMarquee } from "@/components/AnnouncementMarquee";
+import { STARTER_PRESETS, type PresetTemplate } from "@/lib/presets";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
@@ -122,6 +128,8 @@ export type PlatformSettings = {
   announcementTicker: string;
   announcementTickerEnabled: boolean;
   allowNewSignups: boolean;
+  demoMenuUrl: string;
+  defaultStarterPreset: string;
 };
 
 export type AdminPlan = {
@@ -228,6 +236,8 @@ const DEFAULT_SETTINGS: PlatformSettings = {
   announcementTicker: "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   announcementTickerEnabled: true,
   allowNewSignups: true,
+  demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
+  defaultStarterPreset: "dhaba",
 };
 
 const DEFAULT_ADMIN_PLANS: AdminPlan[] = [
@@ -305,12 +315,32 @@ function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "settings">("restaurants");
+  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "starter-packs" | "settings">("restaurants");
   const [restaurants, setRestaurants] = useState<AdminRestaurant[]>([]);
   const [plans, setPlans] = useState<AdminPlan[]>(DEFAULT_ADMIN_PLANS);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Starter Menu Packs Admin State
+  const [adminPresets, setAdminPresets] = useState<PresetTemplate[]>(STARTER_PRESETS);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("dhaba");
+  const [savingPresets, setSavingPresets] = useState(false);
+  const [editingDish, setEditingDish] = useState<{
+    catIndex: number;
+    dishIndex: number;
+    name: string;
+    price: number;
+    description: string;
+    image_url: string;
+  } | null>(null);
+  const [addingDishCatIndex, setAddingDishCatIndex] = useState<number | null>(null);
+  const [newDishForm, setNewDishForm] = useState({
+    name: "",
+    price: "",
+    description: "",
+    image_url: "",
+  });
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [feedbacks, setFeedbacks] = useState<CustomerFeedbackItem[]>([]);
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
@@ -512,8 +542,14 @@ function AdminPage() {
       })
         .then((res) => res.json())
         .catch(() => ({ success: false })),
+      fetch("/api/starter-presets")
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
     ])
-      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes]) => {
+      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData]) => {
+        if (presetsData?.success && Array.isArray(presetsData.presets) && presetsData.presets.length > 0) {
+          setAdminPresets(presetsData.presets);
+        }
         if (settingsData?.success && settingsData.settings) {
           setSettings(settingsData.settings);
         }
@@ -954,6 +990,41 @@ function AdminPage() {
       toast.error("Network error saving settings to database");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleSaveStarterPresets = async (customPresets = adminPresets, customDefault = settings.defaultStarterPreset) => {
+    const token = typeof localStorage !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) {
+      toast.error("Admin authentication token missing. Please sign in again.");
+      return;
+    }
+
+    setSavingPresets(true);
+    try {
+      const res = await fetch("/api/admin/starter-presets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          presets: customPresets,
+          defaultPresetId: customDefault || "dhaba",
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        queryClient.invalidateQueries({ queryKey: ["starter-presets"] });
+        toast.success("1-Click Starter Menu Packs successfully saved to PostgreSQL!");
+      } else {
+        throw new Error(data.error || "Failed to save starter presets");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save starter presets");
+    } finally {
+      setSavingPresets(false);
     }
   };
 
@@ -1568,6 +1639,24 @@ function AdminPage() {
 
             <button
               type="button"
+              onClick={(e) => handleTabSelect("starter-packs", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "starter-packs"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <Sparkles className="size-4 shrink-0 text-amber-400" />
+              <span className="hidden sm:inline">1-Click Starter Packs</span>
+              <span className="sm:hidden">Starter Packs</span>
+              <span className="rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-bold">
+                {adminPresets.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={(e) => handleTabSelect("settings", e)}
               className={cn(
                 "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
@@ -2011,6 +2100,85 @@ function AdminPage() {
                       </div>
                     ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Real-Time Incoming Traffic Log & Ad Attribution */}
+            <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-4 gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex size-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500"></span>
+                    </span>
+                    <h3 className="text-base font-bold text-foreground">Live Incoming Traffic Activity Stream</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Real-world ad attribution: displays exactly which platform (Instagram Reels, Facebook Feed, WhatsApp, Direct) recent visitors arrived from
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground self-start sm:self-auto">
+                  <Clock className="size-3 text-primary" /> Live Updates
+                </span>
+              </div>
+
+              <div className="divide-y divide-border/60">
+                {analyticsData?.recentVisitors && analyticsData.recentVisitors.length > 0 ? (
+                  analyticsData.recentVisitors.map((v: any) => {
+                    const src = v.source.toLowerCase();
+                    const isMeta = src.includes("meta") || src.includes("ig") || src === "instagram" || src === "facebook" || src.includes("fb");
+                    const isWhatsApp = src.includes("whatsapp");
+                    const isGoogle = src.includes("google");
+
+                    return (
+                      <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 text-xs">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={cn(
+                              "size-8 rounded-xl flex items-center justify-center shrink-0 text-white shadow-xs",
+                              src === "instagram" && "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600",
+                              src === "facebook" && "bg-blue-600",
+                              src === "meta_ads" && "bg-blue-500",
+                              isWhatsApp && "bg-emerald-600",
+                              isGoogle && "bg-red-500",
+                              (!isMeta && !isWhatsApp && !isGoogle) && "bg-primary"
+                            )}
+                          >
+                            {src === "instagram" ? <Radio className="size-4" /> : isWhatsApp ? <MessageCircle className="size-4" /> : isGoogle ? <Globe className="size-4" /> : <Compass className="size-4" />}
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-foreground capitalize">
+                                {v.source.replace("_", " ")}
+                              </span>
+                              {isMeta && (
+                                <span className="rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 px-2 py-0.2 text-[9px] font-black uppercase">
+                                  Meta Ad
+                                </span>
+                              )}
+                              <span className="text-muted-foreground text-[11px]">
+                                via {v.device}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Landed on: <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px] text-foreground font-semibold">{v.path}</code>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 sm:self-center self-end text-muted-foreground text-[11px] font-medium">
+                          <Clock className="size-3" />
+                          <span>{v.timeAgo}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-6 text-center text-xs text-muted-foreground">
+                    Telemetry listening for incoming ad clicks and page impressions...
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2787,6 +2955,247 @@ function AdminPage() {
           </div>
         )}
 
+        {/* TAB: 1-CLICK STARTER MENU PACKS & AI ONBOARDING SETUP */}
+        {activeTab === "starter-packs" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-4 gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <h2 className="text-xl font-bold font-display text-foreground">
+                    1-Click Starter Menu Packs &amp; Onboarding Setup
+                  </h2>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Customize the 4 curated starter menus, add or edit dishes &amp; photos, and select which pack automatically pre-fills menus for newly registered restaurant owners.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm("Reset all 4 starter packs back to Menuly factory defaults?")) {
+                      setAdminPresets(STARTER_PRESETS);
+                      handleSaveStarterPresets(STARTER_PRESETS);
+                    }
+                  }}
+                  className="text-xs font-semibold"
+                >
+                  <RotateCw className="size-3.5 mr-1" /> Reset Defaults
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={savingPresets}
+                  onClick={() => handleSaveStarterPresets(adminPresets)}
+                  className="bg-primary text-primary-foreground font-bold text-xs shadow-soft"
+                >
+                  {savingPresets ? <RotateCw className="size-3.5 animate-spin mr-1" /> : <Save className="size-3.5 mr-1" />}
+                  {savingPresets ? "Saving..." : "Save Packs to Database"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Pack Selector Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {adminPresets.map((pack) => {
+                const isSelected = selectedPresetId === pack.id;
+                const isDefault = (settings.defaultStarterPreset || "dhaba") === pack.id;
+
+                return (
+                  <button
+                    key={pack.id}
+                    type="button"
+                    onClick={() => setSelectedPresetId(pack.id)}
+                    className={cn(
+                      "relative flex flex-col p-4 rounded-2xl border text-left transition-all cursor-pointer group",
+                      isSelected
+                        ? "bg-card border-primary ring-2 ring-primary/20 shadow-soft"
+                        : "bg-secondary/40 border-border/70 hover:bg-card hover:border-primary/40"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl">{pack.icon}</span>
+                      {isDefault && (
+                        <span className="rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase">
+                          Default Signup
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                      {pack.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                      {pack.categories.length} Categories · {pack.items.length} Dishes
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected Pack Management Panel */}
+            {(() => {
+              const pack = adminPresets.find((p) => p.id === selectedPresetId) || adminPresets[0];
+              if (!pack) return null;
+              const isDefault = (settings.defaultStarterPreset || "dhaba") === pack.id;
+
+              return (
+                <div className="rounded-3xl border border-border/80 bg-card p-6 shadow-soft space-y-6">
+                  {/* Pack Header & Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-4 gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl p-2 rounded-2xl bg-secondary">{pack.icon}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-foreground">{pack.title}</h3>
+                          <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-bold">
+                            {pack.badge}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{pack.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={isDefault ? "default" : "outline"}
+                        onClick={() => {
+                          const updated = { ...settings, defaultStarterPreset: pack.id };
+                          setSettings(updated);
+                          savePlatformSettings(updated, `"${pack.title}" is now the default onboarding pack for new users!`);
+                        }}
+                        className={cn(
+                          "text-xs font-bold gap-1.5",
+                          isDefault && "bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft"
+                        )}
+                      >
+                        <CheckCircle2 className="size-3.5" />
+                        {isDefault ? "Current Default Signup Pack" : "Set as Default Onboarding Pack"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 4 Categories in 2-Column Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {pack.categories.map((cat, catIdx) => {
+                      const catItems = pack.items.filter((it) => it.categoryIndex === catIdx);
+
+                      return (
+                        <div
+                          key={cat.id || catIdx}
+                          className="rounded-2xl border border-border/70 bg-background/60 p-4 space-y-3"
+                        >
+                          <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                                {catIdx + 1}
+                              </span>
+                              <h4 className="font-bold text-sm text-foreground">{cat.name}</h4>
+                            </div>
+                            <span className="text-[11px] font-semibold text-muted-foreground">
+                              {catItems.length} dishes
+                            </span>
+                          </div>
+
+                          {/* Dishes List */}
+                          <div className="space-y-2">
+                            {catItems.map((dish) => {
+                              const globalIndex = pack.items.indexOf(dish);
+
+                              return (
+                                <div
+                                  key={dish.name + globalIndex}
+                                  className="group flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-2.5 transition-all hover:border-primary/40"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {dish.image_url ? (
+                                      <img
+                                        src={dish.image_url}
+                                        alt={dish.name}
+                                        className="size-11 rounded-lg object-cover border shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="size-11 rounded-lg bg-secondary text-muted-foreground flex items-center justify-center shrink-0">
+                                        <UtensilsCrossed className="size-4" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-xs text-foreground truncate">{dish.name}</p>
+                                      <p className="text-[11px] text-muted-foreground line-clamp-1">{dish.description}</p>
+                                      <span className="font-extrabold text-xs text-primary">₹{dish.price}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="size-7 p-0 text-muted-foreground hover:text-foreground"
+                                      onClick={() => {
+                                        setEditingDish({
+                                          catIndex: catIdx,
+                                          dishIndex: globalIndex,
+                                          name: dish.name,
+                                          price: dish.price,
+                                          description: dish.description,
+                                          image_url: dish.image_url || "",
+                                        });
+                                      }}
+                                      title="Edit Dish"
+                                    >
+                                      <Edit3 className="size-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="size-7 p-0 text-muted-foreground hover:text-destructive"
+                                      onClick={() => {
+                                        const updatedPresets = adminPresets.map((p) => {
+                                          if (p.id !== pack.id) return p;
+                                          return {
+                                            ...p,
+                                            items: p.items.filter((_, idx) => idx !== globalIndex),
+                                          };
+                                        });
+                                        setAdminPresets(updatedPresets);
+                                        toast.success(`Removed "${dish.name}" from ${pack.title}`);
+                                      }}
+                                      title="Remove Dish"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Add Dish Button */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAddingDishCatIndex(catIdx);
+                              setNewDishForm({ name: "", price: "", description: "", image_url: "" });
+                            }}
+                            className="w-full text-xs font-bold border-dashed gap-1 h-9"
+                          >
+                            <Plus className="size-3.5" /> Add Dish to {cat.name}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* TAB: PLATFORM SETTINGS */}
         {activeTab === "settings" && (
           <div className="space-y-6 max-w-4xl">
@@ -2882,6 +3291,134 @@ function AdminPage() {
                       placeholder="support@menuly.com"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Homepage Interactive Demo Showcase & QR Code Controller */}
+              <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">
+                      Homepage Live Demo Menu &amp; QR Code Controller
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Controls the interactive demo link, real-time QR code, and phone mockup on the homepage. Change this anytime to showcase any live restaurant menu.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const updated = {
+                        ...settings,
+                        demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
+                      };
+                      setSettings(updated);
+                      savePlatformSettings(updated, "Reset to Menuly Official Demo link!");
+                    }}
+                    className="text-xs font-semibold self-start sm:self-auto shrink-0"
+                  >
+                    Set to Official Demo
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-5 items-start">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Demo Menu Full URL
+                      </Label>
+                      <Input
+                        value={settings.demoMenuUrl || ""}
+                        onChange={(e) => setSettings({ ...settings, demoMenuUrl: e.target.value })}
+                        className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
+                        placeholder="https://menuly-app-blush.vercel.app/menu/menuly-official"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        asChild
+                        variant="secondary"
+                        className="text-xs font-bold gap-1.5"
+                      >
+                        <a
+                          href={settings.demoMenuUrl || "https://menuly-app-blush.vercel.app/menu/menuly-official"}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <ExternalLink className="size-3.5" /> Test Open Demo Menu
+                        </a>
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={savingSettings}
+                        onClick={() => savePlatformSettings(settings, "Demo menu link successfully updated on homepage!")}
+                        className="text-xs font-bold bg-primary text-primary-foreground gap-1.5"
+                      >
+                        <Save className="size-3.5" /> Save Demo URL
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Live QR Preview */}
+                  <div className="flex flex-col items-center justify-center p-3 rounded-2xl border bg-white shadow-soft">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1a5c38&bgcolor=ffffff&data=${encodeURIComponent(settings.demoMenuUrl || "https://menuly-app-blush.vercel.app/menu/menuly-official")}&margin=2`}
+                      alt="Live Demo QR"
+                      width={120}
+                      height={120}
+                      className="rounded-lg"
+                    />
+                    <span className="text-[10px] font-bold text-gray-700 mt-1">Live Home QR</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Default Onboarding Starter Pack for New Signups */}
+              <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <h3 className="text-sm font-bold text-foreground">
+                    Default Onboarding Menu Pack for New Users
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    When a new restaurant owner registers, their menu will automatically be seeded with this complete curated starter pack so they have ready-to-use dishes from day one.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { id: "dhaba", name: "North Indian Dhaba", icon: "🍛" },
+                    { id: "cafe", name: "Cafe & Fast Food", icon: "☕" },
+                    { id: "south_indian", name: "South Indian Tiffin", icon: "🥞" },
+                    { id: "street_food", name: "Chaat & Street Food", icon: "🫖" },
+                  ].map((p) => {
+                    const isSelected = (settings.defaultStarterPreset || "dhaba") === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...settings, defaultStarterPreset: p.id };
+                          setSettings(updated);
+                          savePlatformSettings(updated, `Default onboarding pack set to ${p.name}`);
+                        }}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3.5 rounded-xl border text-center transition-all cursor-pointer",
+                          isSelected
+                            ? "bg-primary/10 border-primary text-primary font-bold shadow-xs ring-1 ring-primary"
+                            : "bg-secondary/40 border-border/70 hover:bg-card text-muted-foreground"
+                        )}
+                      >
+                        <span className="text-2xl mb-1">{p.icon}</span>
+                        <span className="text-xs">{p.name}</span>
+                        {isSelected && (
+                          <span className="mt-1 text-[9px] font-black uppercase text-primary">✓ Active</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -3108,6 +3645,189 @@ function AdminPage() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Preset Dish Dialog */}
+        <Dialog open={Boolean(editingDish)} onOpenChange={(open) => !open && setEditingDish(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit3 className="size-5 text-primary" /> Edit Starter Pack Dish
+              </DialogTitle>
+            </DialogHeader>
+            {editingDish && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const updatedPresets = adminPresets.map((p) => {
+                    if (p.id !== selectedPresetId) return p;
+                    const items = [...p.items];
+                    const existingItem = items[editingDish.dishIndex];
+                    if (!existingItem) return p;
+                    items[editingDish.dishIndex] = {
+                      categoryIndex: editingDish.catIndex ?? existingItem.categoryIndex,
+                      name: editingDish.name.trim(),
+                      price: Number(editingDish.price) || 0,
+                      description: editingDish.description.trim(),
+                      image_url: editingDish.image_url.trim(),
+                    };
+                    return { ...p, items };
+                  });
+                  setAdminPresets(updatedPresets);
+                  setEditingDish(null);
+                  toast.success("Dish updated in starter pack. Remember to click 'Save Packs'!");
+                }}
+                className="space-y-4 pt-2"
+              >
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Dish Name *</Label>
+                  <Input
+                    required
+                    value={editingDish.name}
+                    onChange={(e) => setEditingDish({ ...editingDish, name: e.target.value })}
+                    className="h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Price (₹) *</Label>
+                  <Input
+                    type="number"
+                    required
+                    value={editingDish.price}
+                    onChange={(e) => setEditingDish({ ...editingDish, price: Number(e.target.value) })}
+                    className="h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Photo URL</Label>
+                  <Input
+                    value={editingDish.image_url}
+                    onChange={(e) => setEditingDish({ ...editingDish, image_url: e.target.value })}
+                    placeholder="https://images.unsplash.com/..."
+                    className="h-10 text-xs"
+                  />
+                  {editingDish.image_url && (
+                    <img
+                      src={editingDish.image_url}
+                      alt="Preview"
+                      className="size-16 rounded-xl object-cover border mt-1"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Description</Label>
+                  <Textarea
+                    rows={2}
+                    value={editingDish.description}
+                    onChange={(e) => setEditingDish({ ...editingDish, description: e.target.value })}
+                    className="text-xs resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setEditingDish(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" className="font-bold">
+                    Save Dish Changes
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Preset Dish Dialog */}
+        <Dialog open={addingDishCatIndex !== null} onOpenChange={(open) => !open && setAddingDishCatIndex(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Plus className="size-5 text-primary" /> Add New Dish to Starter Pack
+              </DialogTitle>
+            </DialogHeader>
+            {addingDishCatIndex !== null && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newDishForm.name.trim()) return;
+                  const updatedPresets = adminPresets.map((p) => {
+                    if (p.id !== selectedPresetId) return p;
+                    const items = [
+                      ...p.items,
+                      {
+                        name: newDishForm.name.trim(),
+                        categoryIndex: addingDishCatIndex,
+                        price: Number(newDishForm.price) || 100,
+                        description: newDishForm.description.trim(),
+                        image_url: newDishForm.image_url.trim() || "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80",
+                      },
+                    ];
+                    return { ...p, items };
+                  });
+                  setAdminPresets(updatedPresets);
+                  setAddingDishCatIndex(null);
+                  toast.success(`Added "${newDishForm.name}" to starter pack. Remember to click 'Save Packs'!`);
+                }}
+                className="space-y-4 pt-2"
+              >
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Dish Name *</Label>
+                  <Input
+                    required
+                    placeholder="e.g. Special Paneer Handi"
+                    value={newDishForm.name}
+                    onChange={(e) => setNewDishForm({ ...newDishForm, name: e.target.value })}
+                    className="h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Price (₹) *</Label>
+                  <Input
+                    type="number"
+                    required
+                    placeholder="220"
+                    value={newDishForm.price}
+                    onChange={(e) => setNewDishForm({ ...newDishForm, price: e.target.value })}
+                    className="h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Photo URL</Label>
+                  <Input
+                    placeholder="https://images.unsplash.com/..."
+                    value={newDishForm.image_url}
+                    onChange={(e) => setNewDishForm({ ...newDishForm, image_url: e.target.value })}
+                    className="h-10 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Description</Label>
+                  <Textarea
+                    rows={2}
+                    placeholder="Short appetizing description..."
+                    value={newDishForm.description}
+                    onChange={(e) => setNewDishForm({ ...newDishForm, description: e.target.value })}
+                    className="text-xs resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAddingDishCatIndex(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" className="font-bold">
+                    Add Dish
+                  </Button>
+                </div>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
 

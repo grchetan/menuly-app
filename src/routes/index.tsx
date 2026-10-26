@@ -1,14 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { QrCode, Smartphone, RefreshCw, ArrowRight, Sparkles, MessageCircle, Palette, Check, Star, ScanLine, Utensils, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SitePage } from "@/components/SiteLayout";
+import { SitePage, usePlatformSettings } from "@/components/SiteLayout";
 import { HowSteps } from "@/components/HowSteps";
 import { AnimatedQR } from "@/components/AnimatedQR";
 import hero from "@/assets/hero.png";
 
-// Demo menu — visitors scan this QR to see a real live digital menu
-const DEMO_MENU_URL = "https://menuly-app-blush.vercel.app/menu/chetan-prajapat-k8os";
-const DEMO_QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=1a5c38&bgcolor=ffffff&data=${encodeURIComponent(DEMO_MENU_URL)}&margin=2`;
+const DEFAULT_DEMO_URL = "https://menuly-app-blush.vercel.app/menu/menuly-official";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -116,6 +114,10 @@ function PhoneMockup() {
 }
 
 function Index() {
+  const { data: platformData } = usePlatformSettings();
+  const demoMenuUrl = platformData?.settings?.demoMenuUrl?.trim() || DEFAULT_DEMO_URL;
+  const demoQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=1a5c38&bgcolor=ffffff&data=${encodeURIComponent(demoMenuUrl)}&margin=2`;
+
   return (
     <SitePage>
       {/* ── HERO ─────────────────────────────────────────────────────── */}
@@ -137,7 +139,7 @@ function Index() {
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <a href={DEMO_MENU_URL} target="_blank" rel="noreferrer">
+              <a href={demoMenuUrl} target="_blank" rel="noreferrer">
                 <Utensils className="size-4" /> See live demo
               </a>
             </Button>
@@ -211,7 +213,7 @@ function Index() {
                 <div className="relative shrink-0">
                   <div className="rounded-2xl border-2 border-primary/25 bg-white p-3.5 shadow-lift">
                     <img
-                      src={DEMO_QR_URL}
+                      src={demoQrUrl}
                       alt="Scan this QR to open a live demo menu"
                       width={180}
                       height={180}
@@ -251,7 +253,7 @@ function Index() {
                       </Link>
                     </Button>
                     <Button variant="outline" asChild>
-                      <a href={DEMO_MENU_URL} target="_blank" rel="noreferrer">
+                      <a href={demoMenuUrl} target="_blank" rel="noreferrer">
                         Open demo
                       </a>
                     </Button>
@@ -339,7 +341,7 @@ function Index() {
               className="bg-transparent border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
               asChild
             >
-              <a href={DEMO_MENU_URL} target="_blank" rel="noreferrer">
+              <a href={demoMenuUrl} target="_blank" rel="noreferrer">
                 <ScanLine className="size-4" /> Try live demo
               </a>
             </Button>

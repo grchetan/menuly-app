@@ -39,6 +39,8 @@ interface PlatformSettingsResponse {
     announcementTicker?: string;
     announcementTickerEnabled?: boolean;
     allowNewSignups?: boolean;
+    demoMenuUrl?: string;
+    defaultStarterPreset?: string;
   };
 }
 

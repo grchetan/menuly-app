@@ -228,6 +228,14 @@ export interface AnalyticsSummary {
     visits: number;
     metaVisits: number;
   }[];
+  recentVisitors: {
+    id: string;
+    source: string;
+    device: string;
+    path: string;
+    createdAt: string;
+    timeAgo: string;
+  }[];
   systemHealth: {
     databaseConnected: boolean;
     databaseLatencyMs: number;
@@ -485,6 +493,27 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
     });
   }
 
+  // 5. Recent real-time visitor event stream
+  const recentVisitors = events.slice(0, 15).map((e) => {
+    const diffSec = Math.max(1, Math.round((now.getTime() - e.createdAt.getTime()) / 1000));
+    let timeAgo = "Just now";
+    if (diffSec >= 3600) {
+      timeAgo = `${Math.floor(diffSec / 3600)}h ago`;
+    } else if (diffSec >= 60) {
+      timeAgo = `${Math.floor(diffSec / 60)}m ago`;
+    } else if (diffSec > 5) {
+      timeAgo = `${diffSec}s ago`;
+    }
+    return {
+      id: e.id,
+      source: e.source,
+      device: e.device,
+      path: e.path || "/",
+      createdAt: e.createdAt.toISOString(),
+      timeAgo,
+    };
+  });
+
   return {
     liveActiveVisitors: getLiveActiveVisitorsCount(),
     period,
@@ -499,6 +528,7 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
     conversionFunnel,
     topPages,
     trendDays,
+    recentVisitors,
     systemHealth: {
       databaseConnected: dbMetrics.connected,
       databaseLatencyMs: dbMetrics.latencyMs,
