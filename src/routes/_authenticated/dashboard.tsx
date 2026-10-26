@@ -564,6 +564,22 @@ function Dashboard() {
 
           {/* Right Column: Clean Live Menu Address & Direct Navigation */}
           <div className="min-w-0 space-y-4">
+            {/* === PRIMARY ACTION: Create / Manage Menu === */}
+            <Link
+              to="/my-menu"
+              className="group flex items-center justify-between rounded-2xl border-2 border-primary bg-primary text-primary-foreground p-4 sm:p-5 shadow-lift hover:bg-primary/90 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-primary-foreground/15">
+                  <UtensilsCrossed className="size-5" />
+                </span>
+                <div>
+                  <p className="font-bold text-sm">Manage Your Menu</p>
+                  <p className="text-[11px] opacity-75">Add dishes, set prices, upload photos</p>
+                </div>
+              </div>
+              <ArrowRight className="size-5 opacity-70 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
             {/* Live Menu URL Card (Simple & Focused) */}
             <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-5 shadow-xs">
               <div className="flex items-center justify-between">
