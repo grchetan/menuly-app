@@ -586,7 +586,7 @@ function MyMenu() {
       category_id: i.category_id,
       name: i.name,
       description: i.description ?? "",
-      price: String(i.price),
+      price: i.price ? String(i.price) : "",
       image_url: i.image_url,
       is_veg: i.is_veg,
       available: i.available,

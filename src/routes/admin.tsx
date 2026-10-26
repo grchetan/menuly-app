@@ -348,7 +348,7 @@ function AdminPage() {
     catIndex: number;
     dishIndex: number;
     name: string;
-    price: number;
+    price: number | string;
     description: string;
     image_url: string;
     compressionSummary?: string | null;
@@ -3187,7 +3187,7 @@ function AdminPage() {
                                           catIndex: catIdx,
                                           dishIndex: globalIndex,
                                           name: dish.name,
-                                          price: dish.price,
+                                          price: dish.price ? String(dish.price) : "",
                                           description: dish.description,
                                           image_url: dish.image_url || "",
                                         });
@@ -3954,8 +3954,9 @@ function AdminPage() {
                   <Input
                     type="number"
                     required
+                    placeholder="Enter price (e.g. 150)"
                     value={editingDish.price}
-                    onChange={(e) => setEditingDish({ ...editingDish, price: Number(e.target.value) })}
+                    onChange={(e) => setEditingDish({ ...editingDish, price: e.target.value })}
                     className="h-10 text-sm"
                   />
                 </div>
