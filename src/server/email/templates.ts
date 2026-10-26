@@ -227,9 +227,12 @@ export function renderOtpEmail({
       <!-- Top Luxury Header with Official Logo -->
       <div class="email-header">
         <img
-          src="cid:menuly-logo@menuly.com"
+          src="https://menuly-app-blush.vercel.app/assets/menuly-badge.png"
           alt="Menuly Official Logo"
           class="logo-img"
+          width="82"
+          height="82"
+          style="width: 82px; height: 82px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.35); display: block; margin: 0 auto 12px auto; object-fit: cover;"
         />
         <h1 class="brand-title">Menuly</h1>
         <div class="badge-pill">DIGITAL QR MENUS</div>
@@ -238,9 +241,11 @@ export function renderOtpEmail({
       <!-- Mascot Avatar Showcase Banner -->
       <div class="mascot-banner">
         <img
-          src="cid:menuly-mascot@menuly.com"
+          src="https://menuly-app-blush.vercel.app/assets/menuly-banner.png"
           alt="Menuly - Your Menu. One Scan Away."
           class="mascot-img"
+          width="540"
+          style="width: 100%; max-width: 540px; height: auto; border-radius: 14px; display: block; border: 1px solid #e2e8f0; margin: 0 auto;"
         />
       </div>
 
