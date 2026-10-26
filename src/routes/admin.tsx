@@ -3008,19 +3008,6 @@ function AdminPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (confirm("Reset all 4 starter packs back to Menuly factory defaults?")) {
-                      setAdminPresets(STARTER_PRESETS);
-                      handleSaveStarterPresets(STARTER_PRESETS);
-                    }
-                  }}
-                  className="text-xs font-semibold"
-                >
-                  <RotateCw className="size-3.5 mr-1" /> Reset Defaults
-                </Button>
-                <Button
-                  size="sm"
                   disabled={savingPresets}
                   onClick={() => handleSaveStarterPresets(adminPresets)}
                   className="bg-primary text-primary-foreground font-bold text-xs shadow-soft"
@@ -3200,7 +3187,7 @@ function AdminPage() {
                                       size="sm"
                                       variant="ghost"
                                       className="size-7 p-0 text-muted-foreground hover:text-destructive"
-                                      onClick={() => {
+                                      onClick={async () => {
                                         const updatedPresets = adminPresets.map((p) => {
                                           if (p.id !== pack.id) return p;
                                           return {
@@ -3210,6 +3197,7 @@ function AdminPage() {
                                         });
                                         setAdminPresets(updatedPresets);
                                         toast.success(`Removed "${dish.name}" from ${pack.title}`);
+                                        await handleSaveStarterPresets(updatedPresets);
                                       }}
                                       title="Remove Dish"
                                     >
@@ -3917,7 +3905,7 @@ function AdminPage() {
             </DialogHeader>
             {editingDish && (
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   const updatedPresets = adminPresets.map((p) => {
                     if (p.id !== selectedPresetId) return p;
@@ -3935,7 +3923,8 @@ function AdminPage() {
                   });
                   setAdminPresets(updatedPresets);
                   setEditingDish(null);
-                  toast.success("Dish updated in starter pack. Remember to click 'Save Packs'!");
+                  toast.success(`Updated "${editingDish.name}". Saving to database & syncing menus...`);
+                  await handleSaveStarterPresets(updatedPresets);
                 }}
                 className="space-y-4 pt-2"
               >
@@ -4071,8 +4060,9 @@ function AdminPage() {
                   <Button type="button" variant="outline" size="sm" onClick={() => setEditingDish(null)}>
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" className="font-bold">
-                    Save Dish Changes
+                  <Button type="submit" size="sm" disabled={savingPresets} className="font-bold gap-1.5">
+                    {savingPresets ? <RotateCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                    {savingPresets ? "Saving..." : "Save Dish Changes"}
                   </Button>
                 </div>
               </form>
@@ -4090,7 +4080,7 @@ function AdminPage() {
             </DialogHeader>
             {addingDishCatIndex !== null && (
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   if (!newDishForm.name.trim()) return;
                   const updatedPresets = adminPresets.map((p) => {
@@ -4109,7 +4099,8 @@ function AdminPage() {
                   });
                   setAdminPresets(updatedPresets);
                   setAddingDishCatIndex(null);
-                  toast.success(`Added "${newDishForm.name}" to starter pack. Remember to click 'Save Packs'!`);
+                  toast.success(`Added "${newDishForm.name}". Saving to database & syncing menus...`);
+                  await handleSaveStarterPresets(updatedPresets);
                 }}
                 className="space-y-4 pt-2"
               >
@@ -4266,7 +4257,7 @@ function AdminPage() {
             </DialogHeader>
             {renamingCategory && (
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   const trimmed = renameCatValue.trim();
                   if (!trimmed) {
@@ -4286,7 +4277,8 @@ function AdminPage() {
                   });
                   setAdminPresets(updatedPresets);
                   setRenamingCategory(null);
-                  toast.success(`Category renamed to "${trimmed}". Click "Save Packs to Database" to apply!`);
+                  toast.success(`Category renamed to "${trimmed}". Saving to database & syncing menus...`);
+                  await handleSaveStarterPresets(updatedPresets);
                 }}
                 className="space-y-4 pt-2"
               >

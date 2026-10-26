@@ -332,6 +332,87 @@ export async function saveStarterPresets(presets: PresetTemplate[], defaultPrese
       },
     });
   }
+
+  // ADVANCED SYNC: Propagate dish and category changes to live restaurants using starter menus
+  try {
+    for (const preset of presets) {
+      for (const item of preset.items) {
+        if (!item.name) continue;
+        await prisma.menuItem.updateMany({
+          where: {
+            name: { equals: item.name, mode: "insensitive" },
+          },
+          data: {
+            imageUrl: item.image_url || null,
+            price: item.price,
+            description: item.description,
+          },
+        });
+      }
+    }
+
+    // Specifically re-sync the official demo restaurant "menuly-official" with the active default starter pack
+    const effectiveDefaultKey = defaultPresetId || "dhaba";
+    const activePack = presets.find((p) => p.id === effectiveDefaultKey) || presets[0];
+
+    const demoRest = await prisma.restaurant.findFirst({
+      where: {
+        OR: [
+          { slug: "menuly-official" },
+          { name: { contains: "Official Demo", mode: "insensitive" } },
+        ],
+      },
+      include: {
+        categories: { orderBy: { position: "asc" } },
+        menuItems: { orderBy: { position: "asc" } },
+      },
+    });
+
+    if (demoRest && activePack) {
+      await prisma.menuItem.deleteMany({ where: { restaurantId: demoRest.id } });
+      await prisma.category.deleteMany({ where: { restaurantId: demoRest.id } });
+
+      const createdCats = await Promise.all(
+        activePack.categories.map((c, idx) =>
+          prisma.category.create({
+            data: {
+              restaurantId: demoRest.id,
+              name: c.name,
+              position: idx,
+            },
+          })
+        )
+      );
+
+      const itemsToCreate = activePack.items
+        .map((it, idx) => {
+          const cat = createdCats[it.categoryIndex] || createdCats[0];
+          if (!cat) return null;
+          return {
+            restaurantId: demoRest.id,
+            categoryId: cat.id,
+            name: it.name,
+            price: it.price,
+            description: it.description,
+            imageUrl: it.image_url || null,
+            isVeg: true,
+            available: true,
+            position: idx,
+          };
+        })
+        .filter((it): it is NonNullable<typeof it> => it !== null);
+
+      if (itemsToCreate.length > 0) {
+        await prisma.menuItem.createMany({ data: itemsToCreate });
+      }
+    }
+
+    // Purge in-memory public menu cache so visitors immediately see new dishes & photos
+    invalidatePublicMenuCache();
+  } catch (syncErr) {
+    console.error("[saveStarterPresets Sync Error]", syncErr);
+  }
+
   return true;
 }
 
