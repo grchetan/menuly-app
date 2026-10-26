@@ -5,6 +5,12 @@ export interface PlatformSettingsData {
   strictVegOnly: boolean;
   supportWhatsApp: string;
   supportEmail: string;
+  supportHours: string;
+  supportSlaText: string;
+  instagramUrl: string;
+  instagramHandle: string;
+  facebookUrl: string;
+  facebookName: string;
   currency: string;
   announcementTicker: string;
   announcementTickerEnabled: boolean;
@@ -16,8 +22,15 @@ export interface PlatformSettingsData {
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   maintenanceMode: false,
   strictVegOnly: true,
-  supportWhatsApp: "919876543210",
+  supportWhatsApp: "919999999999",
   supportEmail: "menulyofficial@gmail.com",
+  supportHours: "Mon–Sat, 10:00 AM – 7:00 PM IST",
+  supportSlaText:
+    "All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours.",
+  instagramUrl: "https://www.instagram.com/menulyofficial",
+  instagramHandle: "@menulyofficial",
+  facebookUrl: "https://www.facebook.com/profile.php?id=61595926229139",
+  facebookName: "Menuly Official",
   currency: "₹ (INR)",
   announcementTicker:
     "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
@@ -65,6 +78,36 @@ export async function getPlatformSettings(): Promise<PlatformSettingsData> {
         : map.has("supportEmail")
         ? String(map.get("supportEmail"))
         : DEFAULT_PLATFORM_SETTINGS.supportEmail,
+      supportHours: map.has("support_hours")
+        ? String(map.get("support_hours"))
+        : map.has("supportHours")
+        ? String(map.get("supportHours"))
+        : DEFAULT_PLATFORM_SETTINGS.supportHours,
+      supportSlaText: map.has("support_sla_text")
+        ? String(map.get("support_sla_text"))
+        : map.has("supportSlaText")
+        ? String(map.get("supportSlaText"))
+        : DEFAULT_PLATFORM_SETTINGS.supportSlaText,
+      instagramUrl: map.has("instagram_url")
+        ? String(map.get("instagram_url"))
+        : map.has("instagramUrl")
+        ? String(map.get("instagramUrl"))
+        : DEFAULT_PLATFORM_SETTINGS.instagramUrl,
+      instagramHandle: map.has("instagram_handle")
+        ? String(map.get("instagram_handle"))
+        : map.has("instagramHandle")
+        ? String(map.get("instagramHandle"))
+        : DEFAULT_PLATFORM_SETTINGS.instagramHandle,
+      facebookUrl: map.has("facebook_url")
+        ? String(map.get("facebook_url"))
+        : map.has("facebookUrl")
+        ? String(map.get("facebookUrl"))
+        : DEFAULT_PLATFORM_SETTINGS.facebookUrl,
+      facebookName: map.has("facebook_name")
+        ? String(map.get("facebook_name"))
+        : map.has("facebookName")
+        ? String(map.get("facebookName"))
+        : DEFAULT_PLATFORM_SETTINGS.facebookName,
       currency: map.has("currency")
         ? String(map.get("currency"))
         : DEFAULT_PLATFORM_SETTINGS.currency,
@@ -118,6 +161,12 @@ export async function updatePlatformSettings(
     ["strictVegOnly", "pure_veg_strict_mode"],
     ["supportWhatsApp", "support_whatsapp"],
     ["supportEmail", "support_email"],
+    ["supportHours", "support_hours"],
+    ["supportSlaText", "support_sla_text"],
+    ["instagramUrl", "instagram_url"],
+    ["instagramHandle", "instagram_handle"],
+    ["facebookUrl", "facebook_url"],
+    ["facebookName", "facebook_name"],
     ["currency", "currency"],
     ["announcementTicker", "announcement_ticker"],
     ["announcementTickerEnabled", "announcement_ticker_enabled"],

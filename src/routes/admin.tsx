@@ -32,6 +32,7 @@ import {
   Activity,
   Phone,
   Mail,
+  Instagram,
   Zap,
   CreditCard,
   Settings,
@@ -124,6 +125,12 @@ export type PlatformSettings = {
   strictVegOnly: boolean;
   supportWhatsApp: string;
   supportEmail: string;
+  supportHours: string;
+  supportSlaText: string;
+  instagramUrl: string;
+  instagramHandle: string;
+  facebookUrl: string;
+  facebookName: string;
   currency: string;
   announcementTicker: string;
   announcementTickerEnabled: boolean;
@@ -230,10 +237,18 @@ const safeStorage = {
 const DEFAULT_SETTINGS: PlatformSettings = {
   maintenanceMode: false,
   strictVegOnly: true,
-  supportWhatsApp: "919876543210",
+  supportWhatsApp: "919999999999",
   supportEmail: "menulyofficial@gmail.com",
+  supportHours: "Mon–Sat, 10:00 AM – 7:00 PM IST",
+  supportSlaText:
+    "All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours.",
+  instagramUrl: "https://www.instagram.com/menulyofficial",
+  instagramHandle: "@menulyofficial",
+  facebookUrl: "https://www.facebook.com/profile.php?id=61595926229139",
+  facebookName: "Menuly Official",
   currency: "₹ (INR)",
-  announcementTicker: "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
+  announcementTicker:
+    "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   announcementTickerEnabled: true,
   allowNewSignups: true,
   demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
@@ -3261,35 +3276,247 @@ function AdminPage() {
                 </div>
               </div>
 
-              {/* Support & Helplines Card */}
-              <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-4">
-                <h3 className="text-sm font-bold text-foreground border-b border-border/60 pb-2">
-                  Official Contact & Support Helplines
-                </h3>
+              {/* Official Contact & Social Media Channels Manager */}
+              <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <Phone className="size-4 text-primary" /> Official Contact Channels &amp; Social Desk
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Configure WhatsApp, Email helpdesk, Operating hours, SLA guarantee, Instagram and Facebook links shown on the public Contact page and Website Footer.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={savingSettings}
+                    onClick={() => savePlatformSettings(settings, "Support channels & social links saved successfully!")}
+                    className="text-xs font-bold bg-primary text-primary-foreground gap-1.5 self-start sm:self-auto shrink-0"
+                  >
+                    {savingSettings ? <RotateCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                    Save Contact Info
+                  </Button>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Admin WhatsApp Helpline
-                    </Label>
-                    <Input
-                      value={settings.supportWhatsApp}
-                      onChange={(e) => setSettings({ ...settings, supportWhatsApp: e.target.value })}
-                      className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
-                      placeholder="e.g. 919876543210"
-                    />
+                <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6 items-start">
+                  {/* Left Column: Editable Controls */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          WhatsApp Support Number
+                        </Label>
+                        <Input
+                          value={settings.supportWhatsApp || ""}
+                          onChange={(e) => setSettings({ ...settings, supportWhatsApp: e.target.value.replace(/[^0-9]/g, "") })}
+                          className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
+                          placeholder="e.g. 919999999999"
+                        />
+                        <p className="text-[11px] text-muted-foreground">Digits only with country code (e.g. 919999999999)</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Email Helpdesk
+                        </Label>
+                        <Input
+                          value={settings.supportEmail || ""}
+                          onChange={(e) => setSettings({ ...settings, supportEmail: e.target.value })}
+                          className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
+                          placeholder="menulyofficial@gmail.com"
+                        />
+                        <p className="text-[11px] text-muted-foreground">Direct customer support email</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Operating Hours
+                      </Label>
+                      <Input
+                        value={settings.supportHours || ""}
+                        onChange={(e) => setSettings({ ...settings, supportHours: e.target.value })}
+                        className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
+                        placeholder="e.g. Mon–Sat, 10:00 AM – 7:00 PM IST"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Display timing shown on Contact page</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Rapid Response SLA Guarantee Promise
+                      </Label>
+                      <Textarea
+                        value={settings.supportSlaText || ""}
+                        onChange={(e) => setSettings({ ...settings, supportSlaText: e.target.value })}
+                        rows={3}
+                        className="p-3 text-xs font-medium rounded-xl border-border bg-background leading-relaxed"
+                        placeholder="All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours."
+                      />
+                      <p className="text-[11px] text-muted-foreground">Promise displayed in green SLA highlight box</p>
+                    </div>
+
+                    {/* Instagram Config */}
+                    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3.5 space-y-3">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <Instagram className="size-3.5 text-rose-500" /> Instagram Profile Settings
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground">Profile URL</Label>
+                          <Input
+                            value={settings.instagramUrl || ""}
+                            onChange={(e) => setSettings({ ...settings, instagramUrl: e.target.value })}
+                            className="h-9 px-3 text-xs rounded-lg border-border bg-background"
+                            placeholder="https://www.instagram.com/menulyofficial"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground">Display Handle</Label>
+                          <Input
+                            value={settings.instagramHandle || ""}
+                            onChange={(e) => setSettings({ ...settings, instagramHandle: e.target.value })}
+                            className="h-9 px-3 text-xs rounded-lg border-border bg-background"
+                            placeholder="@menulyofficial"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Facebook Config */}
+                    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3.5 space-y-3">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" className="size-3.5 text-blue-600" fill="currentColor">
+                          <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                        </svg>
+                        Facebook Page Settings
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground">Page URL</Label>
+                          <Input
+                            value={settings.facebookUrl || ""}
+                            onChange={(e) => setSettings({ ...settings, facebookUrl: e.target.value })}
+                            className="h-9 px-3 text-xs rounded-lg border-border bg-background"
+                            placeholder="https://www.facebook.com/profile.php?id=61595926229139"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground">Display Name</Label>
+                          <Input
+                            value={settings.facebookName || ""}
+                            onChange={(e) => setSettings({ ...settings, facebookName: e.target.value })}
+                            className="h-9 px-3 text-xs rounded-lg border-border bg-background"
+                            placeholder="Menuly Official"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <Button
+                        size="sm"
+                        disabled={savingSettings}
+                        onClick={() => savePlatformSettings(settings, "Support channels & social links saved successfully!")}
+                        className="text-xs font-bold bg-primary text-primary-foreground gap-1.5"
+                      >
+                        {savingSettings ? <RotateCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                        Save Changes
+                      </Button>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Support Email
-                    </Label>
-                    <Input
-                      value={settings.supportEmail}
-                      onChange={(e) => setSettings({ ...settings, supportEmail: e.target.value })}
-                      className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
-                      placeholder="support@menuly.com"
-                    />
+                  {/* Right Column: Live Visual Preview Matching Contact Page */}
+                  <div className="rounded-2xl border border-border/80 bg-secondary/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Eye className="size-3.5 text-primary" /> Live Contact Sidebar Preview
+                      </span>
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-background px-2 py-0.5 rounded-md border border-border/60">
+                        Real-time
+                      </span>
+                    </div>
+
+                    {/* Preview Cards Stack */}
+                    <div className="space-y-3 select-none">
+                      {/* WhatsApp Card */}
+                      <div className="flex items-center gap-3.5 rounded-2xl border border-border/80 bg-card p-4 shadow-xs">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-whatsapp text-whatsapp-foreground shadow-xs">
+                          <MessageCircle className="size-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs text-foreground">WhatsApp Support</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            Fastest resolution (+{settings.supportWhatsApp || "919999999999"})
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Email Card */}
+                      <div className="flex items-center gap-3.5 rounded-2xl border border-border/80 bg-card p-4 shadow-xs">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs">
+                          <Mail className="size-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs text-foreground">Email Helpdesk</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {settings.supportEmail || "menulyofficial@gmail.com"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Operating Hours Card */}
+                      <div className="flex items-center gap-3.5 rounded-2xl border border-border/80 bg-card p-4 shadow-xs">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+                          <Clock className="size-5 text-primary" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs text-foreground">Operating Hours</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {settings.supportHours || "Mon–Sat, 10:00 AM – 7:00 PM IST"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* SLA Guarantee Box */}
+                      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-1.5">
+                        <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <CheckCircle2 className="size-3.5 text-primary" /> Rapid Response SLA
+                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          {settings.supportSlaText || "All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours."}
+                        </p>
+                      </div>
+
+                      {/* Social Media Card */}
+                      <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-xs space-y-2.5">
+                        <p className="text-xs font-bold text-foreground">Follow &amp; Stay Updated</p>
+                        <div className="flex items-center gap-3 rounded-xl p-1.5 -mx-1.5 hover:bg-secondary/60 transition-colors">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 via-fuchsia-500 to-amber-400 text-white shadow-xs">
+                            <Instagram className="size-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs text-foreground">Instagram</p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {settings.instagramHandle || "@menulyofficial"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 rounded-xl p-1.5 -mx-1.5 hover:bg-secondary/60 transition-colors">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                            <svg viewBox="0 0 24 24" className="size-4" fill="currentColor">
+                              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                            </svg>
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs text-foreground">Facebook</p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {settings.facebookName || "Menuly Official"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -17,7 +17,7 @@ import {
   Instagram,
 } from "lucide-react";
 import { toast } from "sonner";
-import { SitePage } from "@/components/SiteLayout";
+import { SitePage, usePlatformSettings } from "@/components/SiteLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,6 +70,17 @@ const RATING_DESCRIPTIONS: Record<number, string> = {
 };
 
 function ContactPage() {
+  const { data: platformSettingsRes } = usePlatformSettings();
+  const settings = platformSettingsRes?.settings;
+  const whatsappNum = settings?.supportWhatsApp || SUPPORT_WHATSAPP;
+  const supportEmail = settings?.supportEmail || SUPPORT_EMAIL;
+  const supportHours = settings?.supportHours || "Mon–Sat, 10:00 AM – 7:00 PM IST";
+  const supportSlaText = settings?.supportSlaText || "All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours.";
+  const instagramUrl = settings?.instagramUrl || INSTAGRAM_URL;
+  const instagramHandle = settings?.instagramHandle || "@menulyofficial";
+  const facebookUrl = settings?.facebookUrl || FACEBOOK_URL;
+  const facebookName = settings?.facebookName || "Menuly Official";
+
   const [activeTab, setActiveTab] = useState<"support" | "feedback">("support");
 
   // Support Form State
@@ -270,7 +281,7 @@ function ContactPage() {
         {/* LEFT COLUMN: Channels & Quick Contacts */}
         <aside className="space-y-4">
           <a
-            href={whatsappLink(SUPPORT_WHATSAPP, "Hi Menuly team, I need support with my restaurant menu.")}
+            href={whatsappLink(whatsappNum, "Hi Menuly team, I need support with my restaurant menu.")}
             target="_blank"
             rel="noreferrer"
             className="group flex items-center gap-4 rounded-2xl border border-border/80 bg-card p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-soft"
@@ -280,12 +291,12 @@ function ContactPage() {
             </span>
             <div className="min-w-0">
               <p className="font-bold text-sm text-foreground">WhatsApp Support</p>
-              <p className="text-xs text-muted-foreground truncate">Fastest resolution (+{SUPPORT_WHATSAPP})</p>
+              <p className="text-xs text-muted-foreground truncate">Fastest resolution (+{whatsappNum})</p>
             </div>
           </a>
 
           <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=Support%20Enquiry`}
+            href={`mailto:${supportEmail}?subject=Support%20Enquiry`}
             className="group flex items-center gap-4 rounded-2xl border border-border/80 bg-card p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-soft"
           >
             <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs group-hover:scale-105 transition-transform">
@@ -293,7 +304,7 @@ function ContactPage() {
             </span>
             <div className="min-w-0">
               <p className="font-bold text-sm text-foreground">Email Helpdesk</p>
-              <p className="text-xs text-muted-foreground truncate">{SUPPORT_EMAIL}</p>
+              <p className="text-xs text-muted-foreground truncate">{supportEmail}</p>
             </div>
           </a>
 
@@ -303,7 +314,7 @@ function ContactPage() {
             </span>
             <div className="min-w-0">
               <p className="font-bold text-sm text-foreground">Operating Hours</p>
-              <p className="text-xs text-muted-foreground">Mon–Sat, 10:00 AM – 7:00 PM IST</p>
+              <p className="text-xs text-muted-foreground">{supportHours}</p>
             </div>
           </div>
 
@@ -313,7 +324,7 @@ function ContactPage() {
               <CheckCircle2 className="size-3.5 text-primary" /> Rapid Response SLA
             </p>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              All bug reports and tickets submitted via this form are dispatched directly to our priority queue and reviewed by engineers within 2 to 4 business hours.
+              {supportSlaText}
             </p>
           </div>
 
@@ -321,7 +332,7 @@ function ContactPage() {
           <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-3">
             <p className="text-xs font-bold text-foreground">Follow &amp; Stay Updated</p>
             <a
-              href={INSTAGRAM_URL}
+              href={instagramUrl}
               target="_blank"
               rel="noreferrer"
               className="group flex items-center gap-3 rounded-xl p-2 -mx-2 transition-all hover:bg-secondary/60"
@@ -331,11 +342,11 @@ function ContactPage() {
               </span>
               <div className="min-w-0">
                 <p className="font-bold text-sm text-foreground">Instagram</p>
-                <p className="text-xs text-muted-foreground truncate">@menulyofficial</p>
+                <p className="text-xs text-muted-foreground truncate">{instagramHandle}</p>
               </div>
             </a>
             <a
-              href={FACEBOOK_URL}
+              href={facebookUrl}
               target="_blank"
               rel="noreferrer"
               className="group flex items-center gap-3 rounded-xl p-2 -mx-2 transition-all hover:bg-secondary/60"
@@ -347,7 +358,7 @@ function ContactPage() {
               </span>
               <div className="min-w-0">
                 <p className="font-bold text-sm text-foreground">Facebook</p>
-                <p className="text-xs text-muted-foreground truncate">Menuly Official</p>
+                <p className="text-xs text-muted-foreground truncate">{facebookName}</p>
               </div>
             </a>
           </div>
@@ -408,7 +419,7 @@ function ContactPage() {
                     >
                       <a
                         href={whatsappLink(
-                          SUPPORT_WHATSAPP,
+                          whatsappNum,
                           `Hi Menuly team, I just created ticket #${supportSuccessTicket}. Please check it.`
                         )}
                         target="_blank"

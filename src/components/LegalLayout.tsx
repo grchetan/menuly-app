@@ -15,7 +15,7 @@ import {
   Building2,
   FileCheck,
 } from "lucide-react";
-import { SitePage } from "@/components/SiteLayout";
+import { SitePage, usePlatformSettings } from "@/components/SiteLayout";
 import { Button } from "@/components/ui/button";
 import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,11 @@ export function LegalLayout({
 }: LegalLayoutProps) {
   const location = useLocation();
   const pathname = location.pathname;
+
+  const { data: platformSettingsRes } = usePlatformSettings();
+  const settings = platformSettingsRes?.settings;
+  const whatsappNum = settings?.supportWhatsApp || SUPPORT_WHATSAPP;
+  const supportEmail = settings?.supportEmail || SUPPORT_EMAIL;
 
   const [scrollProgress, setScrollProgress] = useState(0);
 
@@ -242,12 +247,12 @@ export function LegalLayout({
               </p>
               <div className="pt-1 flex flex-col gap-2">
                 <Button asChild size="sm" variant="outline" className="w-full text-xs font-bold gap-1.5">
-                  <a href={`mailto:${SUPPORT_EMAIL}`}>
+                  <a href={`mailto:${supportEmail}`}>
                     <Mail className="size-3.5 text-primary" /> Email Support
                   </a>
                 </Button>
                 <Button asChild size="sm" variant="whatsapp" className="w-full text-xs font-bold gap-1.5">
-                  <a href={whatsappLink(SUPPORT_WHATSAPP, "Hi Menuly team, I have a legal/policy question.")} target="_blank" rel="noreferrer">
+                  <a href={whatsappLink(whatsappNum, "Hi Menuly team, I have a legal/policy question.")} target="_blank" rel="noreferrer">
                     <MessageCircle className="size-3.5" /> WhatsApp Support
                   </a>
                 </Button>

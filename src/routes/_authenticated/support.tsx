@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink } from "@/lib/config";
+import { usePlatformSettings } from "@/components/SiteLayout";
 import { myMenuQuery } from "@/lib/restaurant";
 import { useQuery } from "@tanstack/react-query";
 import type { SupportTicket } from "@/routes/admin";
@@ -25,6 +26,11 @@ export const Route = createFileRoute("/_authenticated/support")({
 });
 
 function Support() {
+  const { data: platformSettingsRes } = usePlatformSettings();
+  const settings = platformSettingsRes?.settings;
+  const whatsappNum = settings?.supportWhatsApp || SUPPORT_WHATSAPP;
+  const supportEmail = settings?.supportEmail || SUPPORT_EMAIL;
+
   const { data } = useQuery(myMenuQuery);
   const restaurantName = data?.restaurant?.name || "Restaurant Partner";
   const restaurantSlug = data?.restaurant?.slug || "";
@@ -190,13 +196,13 @@ function Support() {
 
             <div className="mt-5 flex flex-col gap-3">
               <Button variant="whatsapp" size="lg" asChild className="gap-2 shadow-soft">
-                <a href={whatsappLink(SUPPORT_WHATSAPP, "Hi, I need immediate help with my Menuly menu")} target="_blank" rel="noreferrer">
+                <a href={whatsappLink(whatsappNum, "Hi, I need immediate help with my Menuly menu")} target="_blank" rel="noreferrer">
                   <MessageCircle className="size-4" /> Chat on WhatsApp
                 </a>
               </Button>
               <Button variant="outline" size="lg" asChild className="gap-2">
-                <a href={`mailto:${SUPPORT_EMAIL}`}>
-                  <Mail className="size-4" /> Email {SUPPORT_EMAIL}
+                <a href={`mailto:${supportEmail}`}>
+                  <Mail className="size-4" /> Email {supportEmail}
                 </a>
               </Button>
             </div>

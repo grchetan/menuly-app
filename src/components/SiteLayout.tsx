@@ -35,6 +35,12 @@ interface PlatformSettingsResponse {
     strictVegOnly?: boolean;
     supportWhatsApp?: string;
     supportEmail?: string;
+    supportHours?: string;
+    supportSlaText?: string;
+    instagramUrl?: string;
+    instagramHandle?: string;
+    facebookUrl?: string;
+    facebookName?: string;
     currency?: string;
     announcementTicker?: string;
     announcementTickerEnabled?: boolean;
@@ -348,6 +354,15 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
+  const { data: platformSettingsRes } = usePlatformSettings();
+  const settings = platformSettingsRes?.settings;
+  const whatsappNum = settings?.supportWhatsApp || SUPPORT_WHATSAPP;
+  const supportEmail = settings?.supportEmail || SUPPORT_EMAIL;
+  const instagramUrl = settings?.instagramUrl || INSTAGRAM_URL;
+  const instagramHandle = settings?.instagramHandle || "@menulyofficial";
+  const facebookUrl = settings?.facebookUrl || FACEBOOK_URL;
+  const facebookName = settings?.facebookName || "Menuly Official";
+
   return (
     <footer className="relative mt-20 overflow-hidden bg-primary text-primary-foreground">
       <div className="pointer-events-none absolute -right-10 -top-10 size-64 rotate-12 opacity-15 animate-float">
@@ -391,8 +406,8 @@ export function SiteFooter() {
         <div>
           <p className="text-xs font-bold uppercase tracking-wider opacity-60">Support</p>
           <ul className="mt-3 space-y-2 text-sm">
-            <li><a href={whatsappLink(SUPPORT_WHATSAPP)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 opacity-85 hover:underline"><MessageCircle className="size-4" /> WhatsApp</a></li>
-            <li><a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-2 opacity-85 hover:underline"><Mail className="size-4" /> {SUPPORT_EMAIL}</a></li>
+            <li><a href={whatsappLink(whatsappNum)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 opacity-85 hover:underline"><MessageCircle className="size-4" /> WhatsApp</a></li>
+            <li><a href={`mailto:${supportEmail}`} className="inline-flex items-center gap-2 opacity-85 hover:underline"><Mail className="size-4" /> {supportEmail}</a></li>
             <li><Link to="/contact" className="opacity-85 hover:opacity-100 hover:underline">Contact Desk</Link></li>
           </ul>
         </div>
@@ -401,7 +416,7 @@ export function SiteFooter() {
           <p className="text-xs font-bold uppercase tracking-wider opacity-60">Follow Us</p>
           <div className="mt-3 flex flex-col gap-3">
             <a
-              href={INSTAGRAM_URL}
+              href={instagramUrl}
               target="_blank"
               rel="noreferrer"
               aria-label="Menuly on Instagram"
@@ -410,10 +425,10 @@ export function SiteFooter() {
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 via-fuchsia-500 to-amber-400 text-white shadow-xs group-hover:scale-110 transition-transform">
                 <Instagram className="size-4" />
               </span>
-              <span className="hover:underline">@menulyofficial</span>
+              <span className="hover:underline">{instagramHandle}</span>
             </a>
             <a
-              href={FACEBOOK_URL}
+              href={facebookUrl}
               target="_blank"
               rel="noreferrer"
               aria-label="Menuly on Facebook"
@@ -425,7 +440,7 @@ export function SiteFooter() {
                   <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
                 </svg>
               </span>
-              <span className="hover:underline">Menuly</span>
+              <span className="hover:underline">{facebookName}</span>
             </a>
           </div>
         </div>
