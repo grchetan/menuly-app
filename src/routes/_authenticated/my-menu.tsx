@@ -188,6 +188,7 @@ function MyMenu() {
   const [confirmingPreset, setConfirmingPreset] = useState<string | null>(null);
   const [applyingPresetId, setApplyingPresetId] = useState<string | null>(null);
   const [dishPhotoSummary, setDishPhotoSummary] = useState<string | null>(null);
+  const [previewDark, setPreviewDark] = useState(false);
 
   useEffect(() => {
     if (data?.items && data.items.length === 0) {
@@ -1286,9 +1287,19 @@ function MyMenu() {
               </div>
 
               {/* Realistic Smartphone Device Chassis */}
-              <div className="relative mx-auto h-[min(600px,calc(100vh-140px))] w-full max-w-[300px] xl:max-w-[320px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden">
+              <div
+                className={cn(
+                  "relative mx-auto h-[min(600px,calc(100vh-140px))] w-full max-w-[300px] xl:max-w-[320px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden transition-colors duration-200",
+                  previewDark && "dark menuly-menu-dark bg-[#0d0f12]"
+                )}
+              >
                 {/* Top Status Bar & Dynamic Island */}
-                <div className="flex-none bg-background px-4 pt-3 pb-1.5 flex items-center justify-between text-[10px] font-bold text-foreground/80 z-20 border-b border-border/40 select-none">
+                <div
+                  className={cn(
+                    "flex-none px-4 pt-3 pb-1.5 flex items-center justify-between text-[10px] font-bold z-20 border-b select-none transition-colors",
+                    previewDark ? "bg-[#0d0f12] text-white/80 border-[#232834]" : "bg-background text-foreground/80 border-border/40"
+                  )}
+                >
                   <span>9:41</span>
                   <div className="h-3.5 w-16 xl:w-20 rounded-full bg-foreground flex items-center justify-center">
                     <span className="size-1 rounded-full bg-primary/70 inline-block mr-1"></span>
@@ -1305,11 +1316,16 @@ function MyMenu() {
                   aria-label="Scrollable live customer menu preview"
                   className="flex-1 overflow-y-auto overscroll-contain scroll-smooth [scrollbar-width:thin] focus:outline-none"
                 >
-                  <MenuView menu={data} compact />
+                  <MenuView menu={data} compact onThemeChange={setPreviewDark} />
                 </div>
 
                 {/* Bottom Home Indicator Bar */}
-                <div className="flex-none bg-background/95 py-2 flex justify-center z-20 border-t border-border/40 select-none">
+                <div
+                  className={cn(
+                    "flex-none py-2 flex justify-center z-20 border-t select-none transition-colors",
+                    previewDark ? "bg-[#0d0f12] border-[#232834]" : "bg-background/95 border-border/40"
+                  )}
+                >
                   <div className="h-1 w-24 rounded-full bg-foreground/30" />
                 </div>
               </div>
@@ -1330,14 +1346,24 @@ function MyMenu() {
 
       {/* Mobile Live View Dialog */}
       <Dialog open={preview} onOpenChange={setPreview}>
-        <DialogContent className="max-h-[92vh] max-w-sm sm:max-w-md overflow-hidden p-0 rounded-3xl border-4 border-foreground/90">
-          <div className="p-3.5 border-b flex items-center justify-between bg-card pr-12">
+        <DialogContent
+          className={cn(
+            "max-h-[92vh] max-w-sm sm:max-w-md overflow-hidden p-0 rounded-3xl border-4 border-foreground/90 transition-colors",
+            previewDark && "dark menuly-menu-dark bg-[#0d0f12]"
+          )}
+        >
+          <div
+            className={cn(
+              "p-3.5 border-b flex items-center justify-between pr-12 transition-colors",
+              previewDark ? "bg-[#15181e] border-[#232834]" : "bg-card"
+            )}
+          >
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Smartphone className="size-3.5 text-primary" /> Customer Mobile Preview
             </span>
           </div>
           <div className="max-h-[calc(90vh-60px)] overflow-y-auto overscroll-contain scroll-smooth [scrollbar-width:thin] pb-6">
-            <MenuView menu={data} compact />
+            <MenuView menu={data} compact onThemeChange={setPreviewDark} />
           </div>
         </DialogContent>
       </Dialog>

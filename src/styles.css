@@ -91,6 +91,42 @@
     radial-gradient(900px 500px at -10% 110%, oklch(0.6 0.1 155 / 0.25), transparent 60%);
 }
 
+.dark,
+.menuly-menu-dark {
+  --radius: 0.9rem;
+  --background: #0d0f12;
+  --foreground: #f3f4f6;
+  --card: #15181e;
+  --card-foreground: #f3f4f6;
+  --popover: #15181e;
+  --popover-foreground: #f3f4f6;
+  --primary: #2e7d52;
+  --primary-foreground: #ffffff;
+  --secondary: #1a1e26;
+  --secondary-foreground: #e5e7eb;
+  --muted: #161922;
+  --muted-foreground: #9ca3af;
+  --accent: #f59e0b;
+  --accent-foreground: #1e1b18;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #232834;
+  --input: #1d212b;
+  --ring: #2e7d52;
+  --veg: #22c55e;
+  --nonveg: #ef4444;
+  --whatsapp: #22c55e;
+  --whatsapp-foreground: #ffffff;
+  --sidebar: #111318;
+  --sidebar-foreground: #f3f4f6;
+  --sidebar-primary: #2e7d52;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a1e26;
+  --sidebar-accent-foreground: #f3f4f6;
+  --sidebar-border: #232834;
+  --sidebar-ring: #2e7d52;
+}
+
 @layer base {
   * { border-color: var(--color-border); }
   html, body {
