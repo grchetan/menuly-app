@@ -29,11 +29,11 @@ const features = [
   { icon: Palette, title: "Beautiful by default", text: "Photos, categories and a sticky menu bar that looks premium." },
 ];
 
-// Sample dishes shown inside the phone mockup illustration
+// Sample dishes shown inside the phone mockup illustration (100% Pure Veg)
 const demoItems = [
   { name: "Paneer Butter Masala", price: "₹220", veg: true },
   { name: "Dal Makhani", price: "₹180", veg: true },
-  { name: "Chicken Biryani", price: "₹280", veg: false },
+  { name: "Hyderabadi Veg Biryani", price: "₹240", veg: true },
   { name: "Masala Chai", price: "₹30", veg: true },
 ];
 
