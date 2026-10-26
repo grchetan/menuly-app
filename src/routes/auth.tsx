@@ -5,6 +5,8 @@ import {
   Sparkles,
   Shield,
   ArrowLeft,
+  ArrowRight,
+  AlertCircle,
   Mail,
   Lock,
   User,
@@ -61,6 +63,10 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
+  // Real-time Email Availability Check States for Signup
+  const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "exists" | "available">("idle");
+  const [emailCheckMsg, setEmailCheckMsg] = useState("");
+
   // 1. Session Auto-Detection on Mount (With Smooth Skeleton Loading)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -100,6 +106,77 @@ function AuthPage() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
+  // Real-time debounced email availability check in Signup mode
+  useEffect(() => {
+    if (mode !== "signup") {
+      setEmailCheckStatus("idle");
+      setEmailCheckMsg("");
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const isValidFormat = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+
+    if (!isValidFormat) {
+      setEmailCheckStatus("idle");
+      setEmailCheckMsg("");
+      return;
+    }
+
+    setEmailCheckStatus("checking");
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: cleanEmail }),
+        });
+        const data = await res.json();
+        if (data.success && data.data?.exists && data.data?.isVerified) {
+          setEmailCheckStatus("exists");
+          setEmailCheckMsg("This email is already registered with Menuly.");
+        } else if (data.success && (!data.data?.exists || !data.data?.isVerified)) {
+          setEmailCheckStatus("available");
+          setEmailCheckMsg("Email is available for registration.");
+        } else {
+          setEmailCheckStatus("idle");
+        }
+      } catch {
+        setEmailCheckStatus("idle");
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [email, mode]);
+
+  // Instant check on email input blur
+  const handleEmailBlur = async () => {
+    if (mode !== "signup") return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return;
+    if (emailCheckStatus === "checking" || emailCheckStatus === "idle") {
+      try {
+        setEmailCheckStatus("checking");
+        const res = await fetch("/api/auth/check-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: cleanEmail }),
+        });
+        const data = await res.json();
+        if (data.success && data.data?.exists && data.data?.isVerified) {
+          setEmailCheckStatus("exists");
+          setEmailCheckMsg("This email is already registered with Menuly.");
+        } else if (data.success && (!data.data?.exists || !data.data?.isVerified)) {
+          setEmailCheckStatus("available");
+          setEmailCheckMsg("Email is available for registration.");
+        }
+      } catch {
+        setEmailCheckStatus("idle");
+      }
+    }
+  };
+
   const saveAuthSession = (token: string, user: unknown) => {
     if (typeof window !== "undefined") {
       localStorage.setItem("menuly_token", token);
@@ -111,19 +188,57 @@ function AuthPage() {
   // 1. Submit Signup
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password || password.length < 6) {
-      toast.error("Please enter a valid email and a password of at least 6 characters.");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      toast.error("Please enter a valid email address.");
       return;
     }
+    if (!password || password.length < 6) {
+      toast.error("Please enter a password of at least 6 characters.");
+      return;
+    }
+
+    // Fast-fail client-side if already verified as existing
+    if (emailCheckStatus === "exists") {
+      toast.error("This email is already registered! Please log in instead.", {
+        action: {
+          label: "Log In",
+          onClick: () => {
+            setMode("login");
+            setEmailCheckStatus("idle");
+          },
+        },
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, fullName }),
+        body: JSON.stringify({ email: cleanEmail, password, fullName }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
+        if (
+          res.status === 409 ||
+          data.error?.toLowerCase().includes("already exists") ||
+          data.data?.code === "EMAIL_ALREADY_EXISTS"
+        ) {
+          setEmailCheckStatus("exists");
+          setEmailCheckMsg("This email is already registered.");
+          toast.error("An account with this email already exists!", {
+            action: {
+              label: "Log In Instead",
+              onClick: () => {
+                setMode("login");
+                setEmailCheckStatus("idle");
+              },
+            },
+          });
+          return;
+        }
         throw new Error(data.error || "Signup failed");
       }
       if (data.data?.devOtp) {
@@ -415,7 +530,10 @@ function AuthPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setMode("login")}
+                    onClick={() => {
+                      setMode("login");
+                      setEmailCheckStatus("idle");
+                    }}
                     className={cn(
                       "relative z-10 flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-colors duration-200 cursor-pointer text-center",
                       mode === "login"
@@ -427,7 +545,10 @@ function AuthPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMode("signup")}
+                    onClick={() => {
+                      setMode("signup");
+                      setEmailCheckStatus("idle");
+                    }}
                     className={cn(
                       "relative z-10 flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-colors duration-200 cursor-pointer text-center",
                       mode === "signup"
@@ -474,11 +595,18 @@ function AuthPage() {
                       </div>
                     )}
 
-                    {/* Email Input */}
-                    <div className="space-y-1">
-                      <Label htmlFor="email" className="text-xs font-bold text-foreground">
-                        Email Address
-                      </Label>
+                    {/* Email Input with Real-time Availability & Instant Duplicate Detection */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="email" className="text-xs font-bold text-foreground">
+                          Email Address
+                        </Label>
+                        {mode === "signup" && emailCheckStatus === "available" && (
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-in fade-in">
+                            <CheckCircle2 className="size-3 text-emerald-500" /> Email available
+                          </span>
+                        )}
+                      </div>
                       <div className="relative">
                         <Input
                           id="email"
@@ -487,10 +615,64 @@ function AuthPage() {
                           placeholder="chef@restaurant.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="pl-10 h-10 sm:h-11 rounded-xl text-sm"
+                          onBlur={handleEmailBlur}
+                          className={cn(
+                            "pl-10 pr-10 h-10 sm:h-11 rounded-xl text-sm transition-all",
+                            mode === "signup" &&
+                              emailCheckStatus === "exists" &&
+                              "border-amber-500/80 focus-visible:ring-amber-500/30 bg-amber-500/5",
+                            mode === "signup" &&
+                              emailCheckStatus === "available" &&
+                              "border-emerald-500/70 focus-visible:ring-emerald-500/20"
+                          )}
                         />
                         <Mail className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
+                        
+                        {/* Real-time Indicator Icon */}
+                        {mode === "signup" && (
+                          <div className="absolute right-3.5 top-2.5 sm:top-3 flex items-center pointer-events-none">
+                            {emailCheckStatus === "checking" && (
+                              <RefreshCw className="size-4 animate-spin text-muted-foreground" />
+                            )}
+                            {emailCheckStatus === "exists" && (
+                              <AlertCircle className="size-4 text-amber-500 animate-in zoom-in-75" />
+                            )}
+                            {emailCheckStatus === "available" && (
+                              <CheckCircle2 className="size-4 text-emerald-500 animate-in zoom-in-75" />
+                            )}
+                          </div>
+                        )}
                       </div>
+
+                      {/* Smart Dynamic Banner: When Email is already registered */}
+                      {mode === "signup" && emailCheckStatus === "exists" && (
+                        <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs">
+                              !
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-bold text-amber-900 dark:text-amber-200 leading-tight">
+                                Already Registered
+                              </p>
+                              <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80 truncate">
+                                An account exists for this email.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode("login");
+                              setEmailCheckStatus("idle");
+                              toast.info("Switched to Log In. Enter your password to continue.");
+                            }}
+                            className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white transition-all font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                          >
+                            Log In <ArrowRight className="size-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Password Input with Show/Hide Toggle */}
@@ -539,7 +721,18 @@ function AuthPage() {
                       type="submit"
                       size="lg"
                       disabled={busy}
-                      className="w-full h-10 sm:h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm hover:brightness-105 active:scale-[0.99]"
+                      onClick={(e) => {
+                        if (mode === "signup" && emailCheckStatus === "exists") {
+                          e.preventDefault();
+                          setMode("login");
+                          setEmailCheckStatus("idle");
+                          toast.info("Switched to Log In. Enter your password to continue.");
+                        }
+                      }}
+                      className={cn(
+                        "w-full h-10 sm:h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm hover:brightness-105 active:scale-[0.99]",
+                        mode === "signup" && emailCheckStatus === "exists" && "bg-amber-600 hover:bg-amber-700 text-white"
+                      )}
                     >
                       {busy ? (
                         <span className="flex items-center justify-center gap-2">
@@ -548,6 +741,8 @@ function AuthPage() {
                         </span>
                       ) : mode === "login" ? (
                         "Sign In to Dashboard"
+                      ) : emailCheckStatus === "exists" ? (
+                        "Email Registered — Switch to Log In"
                       ) : (
                         "Create Account & Verify OTP"
                       )}
@@ -560,7 +755,10 @@ function AuthPage() {
                         New to Menuly?{" "}
                         <button
                           type="button"
-                          onClick={() => setMode("signup")}
+                          onClick={() => {
+                            setMode("signup");
+                            setEmailCheckStatus("idle");
+                          }}
                           className="font-bold text-primary hover:underline cursor-pointer"
                         >
                           Create an account for free
@@ -571,7 +769,10 @@ function AuthPage() {
                         Already have an account?{" "}
                         <button
                           type="button"
-                          onClick={() => setMode("login")}
+                          onClick={() => {
+                            setMode("login");
+                            setEmailCheckStatus("idle");
+                          }}
                           className="font-bold text-primary hover:underline cursor-pointer"
                         >
                           Sign in here

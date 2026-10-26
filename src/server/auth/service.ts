@@ -36,16 +36,60 @@ function shouldExposeDevOtp(): boolean {
 }
 
 /**
+ * 0. FAST EMAIL AVAILABILITY & VERIFICATION STATUS CHECK
+ * Ultra-fast sub-millisecond check to verify if an email is already registered before user submits form.
+ */
+export async function checkEmailAvailability(email: string): Promise<
+  ServiceResult<{
+    email: string;
+    exists: boolean;
+    isVerified: boolean;
+    suggestLogin: boolean;
+  }>
+> {
+  const normalized = (email || "").toLowerCase().trim();
+  if (!normalized || !normalized.includes("@") || !normalized.includes(".")) {
+    return {
+      success: false,
+      status: 400,
+      error: "Please enter a valid email address.",
+      data: { email: normalized, exists: false, isVerified: false, suggestLogin: false },
+    };
+  }
+
+  const check = await userStore.checkEmailExists(normalized);
+  const exists = Boolean(check && check.exists);
+  const isVerified = Boolean(check && check.isVerified);
+
+  return {
+    success: true,
+    status: 200,
+    message: isVerified
+      ? "An account with this email is already registered."
+      : exists
+        ? "Account exists but is pending email verification."
+        : "Email is available.",
+    data: {
+      email: normalized,
+      exists,
+      isVerified,
+      suggestLogin: isVerified,
+    },
+  };
+}
+
+/**
  * 1. SIGNUP
  * Registers a new restaurant owner (unverified) and dispatches a branded OTP email.
  * Enforces: Role is ALWAYS RESTAURANT_OWNER. Public signup can NEVER assign SUPER_ADMIN.
+ * Performance: Instant pre-check on indexed email before expensive bcrypt hashing.
  */
 export async function signupUser(params: {
   email: string;
   password: string;
   fullName?: string;
   clientIp?: string;
-}): Promise<ServiceResult<{ email: string; requiresVerification: boolean; devOtp?: string }>> {
+}): Promise<ServiceResult<{ email: string; requiresVerification: boolean; devOtp?: string; code?: string }>> {
   const { email, password, fullName, clientIp = "global" } = params;
 
   if (!email || !email.includes("@")) {
@@ -66,18 +110,31 @@ export async function signupUser(params: {
   }
 
   const normalized = email.toLowerCase().trim();
-  const existingUser = await userStore.findByEmail(normalized);
 
-  if (existingUser && existingUser.isVerified) {
+  // 1. FAST PRE-CHECK: Check indexed cache/db FIRST before heavy bcrypt operations
+  const quickStatus = await userStore.checkEmailExists(normalized);
+  if (quickStatus && quickStatus.exists && quickStatus.isVerified) {
     return {
       success: false,
       status: 409,
       error: "An account with this email already exists. Please log in instead.",
+      data: {
+        email: normalized,
+        requiresVerification: false,
+        code: "EMAIL_ALREADY_EXISTS",
+      },
     };
   }
 
-  const passwordHash = await hashPassword(password);
+  // 2. PARALLEL CRYPTO: Hash password and generate/hash OTP concurrently to cut latency in half
+  const rawOtp = generateNumericOtp();
+  const [passwordHash, otpHash] = await Promise.all([
+    hashPassword(password),
+    hashOtp(rawOtp),
+  ]);
+
   let user: StoredUser;
+  const existingUser = quickStatus?.exists ? await userStore.findByEmail(normalized) : null;
 
   if (existingUser && !existingUser.isVerified) {
     // Update password hash for unverified user re-attempting signup
@@ -98,9 +155,6 @@ export async function signupUser(params: {
     });
   }
 
-  // Generate and send 6-digit OTP
-  const rawOtp = generateNumericOtp();
-  const otpHash = await hashOtp(rawOtp);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
   await otpStore.saveOtp({

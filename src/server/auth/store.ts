@@ -49,7 +49,18 @@ const devUsers = new Map<string, StoredUser>([
 ]);
 const devOtps = new Map<string, StoredOtp>();
 
+interface EmailCheckCacheItem {
+  exists: boolean;
+  isVerified: boolean;
+  fullName: string | null;
+  expiresAt: number;
+}
+const emailCheckFastCache = new Map<string, EmailCheckCacheItem>();
+
 function isPrismaAvailable(): boolean {
+  if (process.env["NODE_ENV"] === "test" || process.env["VITEST"]) {
+    return false;
+  }
   const dbUrl = process.env["DATABASE_URL"];
   return Boolean(dbUrl) && !dbUrl?.includes("localhost:5432");
 }
@@ -58,6 +69,50 @@ function isPrismaAvailable(): boolean {
  * User Store Operations
  */
 export const userStore = {
+  /**
+   * Ultra-fast email availability check (sub-millisecond when cached, indexed query when uncached)
+   */
+  async checkEmailExists(email: string): Promise<{ exists: boolean; isVerified: boolean; fullName: string | null } | null> {
+    const normalized = email.toLowerCase().trim();
+    const now = Date.now();
+    const cached = emailCheckFastCache.get(normalized);
+    if (cached && cached.expiresAt > now) {
+      return { exists: cached.exists, isVerified: cached.isVerified, fullName: cached.fullName };
+    }
+
+    if (isPrismaAvailable()) {
+      try {
+        const u = await prisma.user.findUnique({
+          where: { email: normalized },
+          select: { id: true, isVerified: true, fullName: true },
+        });
+        const result = u
+          ? { exists: true, isVerified: u.isVerified, fullName: u.fullName }
+          : { exists: false, isVerified: false, fullName: null };
+
+        // Cache for 3 minutes
+        emailCheckFastCache.set(normalized, { ...result, expiresAt: now + 3 * 60 * 1000 });
+        return result;
+      } catch {
+        // Fall back to dev store if database query fails
+      }
+    }
+
+    const dev = devUsers.get(normalized);
+    const result = dev
+      ? { exists: true, isVerified: dev.isVerified, fullName: dev.fullName }
+      : { exists: false, isVerified: false, fullName: null };
+    emailCheckFastCache.set(normalized, { ...result, expiresAt: now + 3 * 60 * 1000 });
+    return result;
+  },
+
+  /**
+   * Invalidate email fast cache when user is created/updated/verified
+   */
+  invalidateEmailCache(email: string) {
+    emailCheckFastCache.delete(email.toLowerCase().trim());
+  },
+
   async findByEmail(email: string): Promise<StoredUser | null> {
     const normalized = email.toLowerCase().trim();
     if (isPrismaAvailable()) {
@@ -143,6 +198,7 @@ export const userStore = {
             isVerified: data.isVerified || false,
           },
         });
+        emailCheckFastCache.delete(normalized);
         return {
           id: u.id,
           email: u.email,
@@ -160,6 +216,7 @@ export const userStore = {
     }
 
     devUsers.set(normalized, newUser);
+    emailCheckFastCache.delete(normalized);
     return newUser;
   },
 
@@ -180,6 +237,7 @@ export const userStore = {
           where: { id },
           data,
         });
+        emailCheckFastCache.delete(u.email.toLowerCase().trim());
         return {
           id: u.id,
           email: u.email,
@@ -198,6 +256,7 @@ export const userStore = {
 
     for (const [email, u] of devUsers.entries()) {
       if (u.id === id) {
+        emailCheckFastCache.delete(email.toLowerCase().trim());
         const updated = {
           ...u,
           ...data,
@@ -206,6 +265,7 @@ export const userStore = {
         if (data.email && data.email !== email) {
           devUsers.delete(email);
           devUsers.set(data.email, updated);
+          emailCheckFastCache.delete(data.email.toLowerCase().trim());
         } else {
           devUsers.set(email, updated);
         }

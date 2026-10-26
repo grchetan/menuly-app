@@ -24,7 +24,7 @@ export function renderOtpEmail({
   let subtitle = "Smart Digital QR Menus for Restaurants & Cafes";
   let description =
     "Thank you for choosing Menuly. Enter the single-use verification code below to verify your email and activate your live digital menu dashboard:";
-  let subject = "Menuly Verification Code: " + otp;
+  let subject = "Verify your email address for Menuly";
 
   if (type === "PASSWORD_RESET") {
     title = "Reset Your Password";
@@ -32,14 +32,14 @@ export function renderOtpEmail({
     subtitle = "Account Security & Recovery";
     description =
       "We received a request to reset your Menuly password. Enter the single-use verification code below to set a new password:";
-    subject = "Menuly Password Reset Code: " + otp;
+    subject = "Reset your password for Menuly";
   } else if (type === "LOGIN") {
     title = "Sign-In Code";
     heading = "Two-Factor Verification";
     subtitle = "Account Sign-In Security";
     description =
       "Use this single-use verification code to securely sign in to your Menuly restaurant account:";
-    subject = "Menuly Sign-In Code: " + otp;
+    subject = "Sign in to your Menuly account";
   }
 
   const siteUrl = "https://menuly-app-blush.vercel.app";
@@ -251,7 +251,7 @@ export function renderOtpEmail({
 
         <!-- High-Contrast Secure OTP Box -->
         <div class="otp-card">
-          <div class="otp-label">Single-Use Verification Code</div>
+          <div class="otp-label">VERIFICATION CODE</div>
           <div class="otp-code">${otp}</div>
           <div class="expiry-note">Expires in ${expiresInMinutes} minutes</div>
         </div>

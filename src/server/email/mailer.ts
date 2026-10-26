@@ -4,6 +4,8 @@ import path from "node:path";
 import { renderOtpEmail, type EmailTemplateType } from "./templates";
 
 let transporter: Transporter | null = null;
+let cachedLogoBuffer: Buffer | null = null;
+let cachedMascotBuffer: Buffer | null = null;
 
 function getTransporter(): Transporter | null {
   const host = process.env["SMTP_HOST"] || "smtp.gmail.com";
@@ -21,6 +23,9 @@ function getTransporter(): Transporter | null {
       host,
       port,
       secure,
+      pool: true, // Reuse TCP/TLS connections to avoid handshake latency on each email
+      maxConnections: 3,
+      maxMessages: 100,
       auth: { user, pass: pass.replace(/\s+/g, "") },
       tls: {
         rejectUnauthorized: process.env["NODE_ENV"] === "production",
@@ -80,22 +85,29 @@ export async function sendOtpEmail(
   }
 
   try {
-    // Build inline CID image attachments so email clients render them without blocking
-    const attachments: Array<{ filename: string; path: string; cid: string }> = [];
+    // Build inline CID image attachments from in-memory cache so email clients render them without blocking
+    const attachments: Array<{ filename: string; content: Buffer; cid: string }> = [];
     const logoPath = path.resolve(process.cwd(), "public", "assets", "menuly-logo.jpg");
     const mascotPath = path.resolve(process.cwd(), "public", "assets", "menuly-mascot-banner.png");
 
-    if (fs.existsSync(logoPath)) {
+    if (!cachedLogoBuffer && fs.existsSync(logoPath)) {
+      try { cachedLogoBuffer = fs.readFileSync(logoPath); } catch {}
+    }
+    if (!cachedMascotBuffer && fs.existsSync(mascotPath)) {
+      try { cachedMascotBuffer = fs.readFileSync(mascotPath); } catch {}
+    }
+
+    if (cachedLogoBuffer) {
       attachments.push({
         filename: "menuly-logo.jpg",
-        path: logoPath,
+        content: cachedLogoBuffer,
         cid: "menuly-logo",
       });
     }
-    if (fs.existsSync(mascotPath)) {
+    if (cachedMascotBuffer) {
       attachments.push({
         filename: "menuly-mascot-banner.png",
-        path: mascotPath,
+        content: cachedMascotBuffer,
         cid: "menuly-mascot",
       });
     }

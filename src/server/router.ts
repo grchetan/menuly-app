@@ -1,4 +1,5 @@
 import {
+  checkEmailAvailability,
   signupUser,
   verifyUserOtp,
   resendUserOtp,
@@ -172,6 +173,15 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         presets,
         defaultPresetId: settings.defaultStarterPreset || "dhaba",
       });
+    }
+
+    // --------------------------------------------------------------------------
+    // 0. CHECK EMAIL: POST /api/auth/check-email (Ultra-fast real-time check)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/check-email" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      const res = await checkEmailAvailability(body.email || "");
+      return json(res, res.status);
     }
 
     // --------------------------------------------------------------------------

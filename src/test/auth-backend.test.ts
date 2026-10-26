@@ -13,6 +13,7 @@ import { checkRateLimit } from "../server/auth/rate-limiter";
 import { hasRole, sanitizePublicRole } from "../server/auth/rbac";
 import { renderOtpEmail } from "../server/email/templates";
 import {
+  checkEmailAvailability,
   signupUser,
   verifyUserOtp,
   loginUser,
@@ -89,6 +90,46 @@ describe("Custom Authentication & Security Suite", () => {
     expect(email.html).toContain("VERIFICATION CODE");
     expect(email.html).toContain("582910");
     expect(email.html).toContain("menulyofficial@gmail.com");
+  });
+
+  it("checks email availability in real-time and fast-fails on duplicates", async () => {
+    const uniqueEmail = `avail-${Date.now()}@kitchencheck.in`;
+
+    // 1. Unregistered email should be available
+    const freshCheck = await checkEmailAvailability(uniqueEmail);
+    expect(freshCheck.success).toBe(true);
+    expect(freshCheck.data?.exists).toBe(false);
+    expect(freshCheck.data?.suggestLogin).toBe(false);
+
+    // 2. Signup and verify account
+    const signupRes = await signupUser({
+      email: uniqueEmail,
+      password: "GoodPassword123!",
+      fullName: "Chef Availability",
+    });
+    expect(signupRes.success).toBe(true);
+    const otp = signupRes.data?.devOtp;
+    expect(otp).toBeTruthy();
+    if (otp) {
+      await verifyUserOtp({ email: uniqueEmail, otp, type: "SIGNUP" });
+    }
+
+    // 3. Fast availability check now flags email as existing and suggests login
+    const existingCheck = await checkEmailAvailability(uniqueEmail);
+    expect(existingCheck.success).toBe(true);
+    expect(existingCheck.data?.exists).toBe(true);
+    expect(existingCheck.data?.isVerified).toBe(true);
+    expect(existingCheck.data?.suggestLogin).toBe(true);
+
+    // 4. Duplicate signup attempt is instantly rejected with 409
+    const dupSignup = await signupUser({
+      email: uniqueEmail,
+      password: "AnotherPassword123!",
+      fullName: "Chef Duplicate",
+    });
+    expect(dupSignup.success).toBe(false);
+    expect(dupSignup.status).toBe(409);
+    expect(dupSignup.error).toContain("already exists");
   });
 
   it(
