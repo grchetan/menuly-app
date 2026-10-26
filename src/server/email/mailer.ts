@@ -1,4 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import fs from "node:fs";
+import path from "node:path";
 import { renderOtpEmail, type EmailTemplateType } from "./templates";
 
 let transporter: Transporter | null = null;
@@ -78,12 +80,33 @@ export async function sendOtpEmail(
   }
 
   try {
+    // Build inline CID image attachments so email clients render them without blocking
+    const attachments: Array<{ filename: string; path: string; cid: string }> = [];
+    const logoPath = path.resolve(process.cwd(), "public", "assets", "menuly-logo.jpg");
+    const mascotPath = path.resolve(process.cwd(), "public", "assets", "menuly-mascot-banner.png");
+
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        filename: "menuly-logo.jpg",
+        path: logoPath,
+        cid: "menuly-logo",
+      });
+    }
+    if (fs.existsSync(mascotPath)) {
+      attachments.push({
+        filename: "menuly-mascot-banner.png",
+        path: mascotPath,
+        cid: "menuly-mascot",
+      });
+    }
+
     const info = await mailTransporter.sendMail({
       from: fromHeader,
       to: toEmail,
       subject,
       html,
       text,
+      attachments,
     });
 
     return {

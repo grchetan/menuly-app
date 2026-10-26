@@ -1,6 +1,7 @@
 /**
  * Menuly Branded HTML Email Templates for OTP Authentication
- * Ultra-clean, modern, professional executive SaaS styling (zero emojis, clean typography).
+ * High-end luxury culinary executive SaaS styling with Menuly Logo, Mascot Banner,
+ * high-contrast OTP digits, security advisory, and legal links (Terms & Conditions, Privacy Policy).
  */
 
 export type EmailTemplateType = "SIGNUP" | "PASSWORD_RESET" | "LOGIN";
@@ -20,32 +21,38 @@ export function renderOtpEmail({
 }: EmailTemplateOptions): { subject: string; html: string; text: string } {
   let title = "Verify Your Email";
   let heading = "Confirm your email address";
-  let subtitle = "Digital QR Menus for Restaurants & Cafes";
+  let subtitle = "Smart Digital QR Menus for Restaurants & Cafes";
   let description =
-    "Thank you for getting started with Menuly. Enter the single-use verification code below to verify your email and access your dashboard:";
-  let subject = "Verify your email address for Menuly";
+    "Thank you for choosing Menuly. Enter the single-use verification code below to verify your email and activate your live digital menu dashboard:";
+  let subject = "Menuly Verification Code: " + otp;
 
   if (type === "PASSWORD_RESET") {
     title = "Reset Your Password";
     heading = "Password Reset Request";
-    subtitle = "Account Security";
+    subtitle = "Account Security & Recovery";
     description =
-      "We received a request to reset your Menuly password. Enter the verification code below to set a new password:";
-    subject = "Reset your Menuly password";
+      "We received a request to reset your Menuly password. Enter the single-use verification code below to set a new password:";
+    subject = "Menuly Password Reset Code: " + otp;
   } else if (type === "LOGIN") {
     title = "Sign-In Code";
     heading = "Two-Factor Verification";
-    subtitle = "Account Sign-In";
+    subtitle = "Account Sign-In Security";
     description =
-      "Use this one-time verification code to securely sign in to your Menuly restaurant account:";
-    subject = "Your Menuly sign-in verification code";
+      "Use this single-use verification code to securely sign in to your Menuly restaurant account:";
+    subject = "Menuly Sign-In Code: " + otp;
   }
+
+  const siteUrl = "https://menuly-app-blush.vercel.app";
+  const termsUrl = `${siteUrl}/terms`;
+  const privacyUrl = `${siteUrl}/privacy`;
+  const contactUrl = `${siteUrl}/contact`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>${title}</title>
   <style>
     body, table, td, p, a, li, blockquote {
@@ -55,43 +62,38 @@ export function renderOtpEmail({
     body {
       margin: 0;
       padding: 0;
-      background-color: #f4f5f7;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       color: #1e293b;
     }
-    .wrapper {
+    .email-wrapper {
       width: 100%;
-      table-layout: fixed;
-      background-color: #f4f5f7;
-      padding: 48px 16px;
+      background-color: #f1f5f9;
+      padding: 36px 12px;
     }
-    .container {
-      max-width: 520px;
+    .email-container {
+      max-width: 580px;
       margin: 0 auto;
       background-color: #ffffff;
-      border-radius: 16px;
-      border: 1px solid #e2e8f0;
+      border-radius: 20px;
       overflow: hidden;
-      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08);
     }
-    .header {
-      background: #0f172a;
-      padding: 36px 32px 32px 32px;
+    .email-header {
+      background: linear-gradient(135deg, #0d3824 0%, #154c32 100%);
+      padding: 32px 24px 26px 24px;
       text-align: center;
       color: #ffffff;
     }
-    .logo-badge {
-      display: inline-block;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 5px 14px;
-      border-radius: 999px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #94a3b8;
-      margin-bottom: 14px;
+    .logo-img {
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.35);
+      display: block;
+      margin: 0 auto 12px auto;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
     }
     .brand-title {
       font-size: 26px;
@@ -99,137 +101,182 @@ export function renderOtpEmail({
       margin: 0;
       letter-spacing: -0.02em;
       color: #ffffff;
+      line-height: 1.2;
     }
-    .brand-subtitle {
-      font-size: 13px;
-      color: #94a3b8;
-      margin-top: 4px;
-      margin-bottom: 0;
-      font-weight: 500;
+    .badge-pill {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 3px 12px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #a7f3d0;
+      margin-top: 8px;
     }
-    .content {
-      padding: 40px 36px 36px 36px;
+    .mascot-banner {
+      padding: 16px 20px 0 20px;
+      background-color: #ffffff;
+    }
+    .mascot-img {
+      width: 100%;
+      max-width: 540px;
+      height: auto;
+      border-radius: 14px;
+      display: block;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    .email-content {
+      padding: 28px 30px 28px 30px;
       text-align: center;
     }
     .heading {
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 21px;
+      font-weight: 800;
       color: #0f172a;
-      margin-top: 0;
-      margin-bottom: 12px;
+      margin: 0 0 10px 0;
       letter-spacing: -0.01em;
     }
     .desc {
       font-size: 14px;
       line-height: 1.6;
       color: #475569;
-      margin-top: 0;
-      margin-bottom: 28px;
+      margin: 0 0 24px 0;
     }
     .otp-card {
-      background-color: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 12px;
-      padding: 24px 28px;
-      margin: 20px 0 28px 0;
-      display: inline-block;
-      min-width: 280px;
+      background: #f0fdf4;
+      border: 2px dashed #22c55e;
+      border-radius: 16px;
+      padding: 22px 20px;
+      margin: 20px auto 24px auto;
+      max-width: 420px;
+      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.08);
     }
     .otp-label {
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: #64748b;
-      margin: 0 0 10px 0;
+      letter-spacing: 0.12em;
+      color: #166534;
+      margin: 0 0 8px 0;
     }
     .otp-code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
       font-size: 40px;
-      font-weight: 800;
-      letter-spacing: 0.28em;
-      color: #0f172a;
-      margin: 0;
+      font-weight: 900;
+      letter-spacing: 0.24em;
+      color: #0d3824;
+      margin: 4px 0;
       text-align: center;
-      padding-left: 0.28em;
-      line-height: 1;
+      padding-left: 0.24em;
+      line-height: 1.1;
     }
     .expiry-note {
       font-size: 12px;
-      font-weight: 500;
-      color: #64748b;
-      margin-top: 12px;
-      margin-bottom: 0;
+      font-weight: 600;
+      color: #15803d;
+      margin: 8px 0 0 0;
     }
     .security-notice {
       background-color: #f8fafc;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 16px 20px;
       text-align: left;
       font-size: 12px;
       color: #64748b;
       line-height: 1.55;
       border: 1px solid #e2e8f0;
-      margin-top: 8px;
+      border-left: 4px solid #f59e0b;
+      margin-top: 16px;
     }
     .security-title {
       font-weight: 700;
-      color: #334155;
-      margin-bottom: 6px;
+      color: #1e293b;
+      margin-bottom: 4px;
     }
-    .footer {
-      padding: 24px 32px 32px 32px;
+    .email-footer {
+      padding: 26px 28px 30px 28px;
       border-top: 1px solid #f1f5f9;
-      background-color: #fafafa;
+      background-color: #fafbfc;
       text-align: center;
       font-size: 11px;
       color: #94a3b8;
       line-height: 1.6;
     }
-    .footer a {
-      color: #2563eb;
-      text-decoration: none;
-      font-weight: 500;
+    .footer-links {
+      margin: 14px 0 16px 0;
+      font-size: 12px;
+    }
+    .footer-links a {
+      color: #047857;
+      text-decoration: underline;
+      font-weight: 700;
+      margin: 0 6px;
+    }
+    .footer-links a:hover {
+      color: #065f46;
     }
   </style>
 </head>
 <body>
-  <div class="wrapper">
-    <div class="container">
-      <!-- Minimalist Executive Header -->
-      <div class="header">
-        <div class="logo-badge">VERIFICATION CODE</div>
+  <div class="email-wrapper">
+    <div class="email-container">
+      <!-- Top Luxury Header with Official Logo -->
+      <div class="email-header">
+        <img
+          src="cid:menuly-logo"
+          alt="Menuly Official Logo"
+          class="logo-img"
+        />
         <h1 class="brand-title">Menuly</h1>
-        <p class="brand-subtitle">${subtitle}</p>
+        <div class="badge-pill">DIGITAL QR MENUS</div>
       </div>
 
-      <!-- Main Body -->
-      <div class="content">
+      <!-- Mascot Avatar Showcase Banner -->
+      <div class="mascot-banner">
+        <img
+          src="cid:menuly-mascot"
+          alt="Menuly - Your Menu. One Scan Away."
+          class="mascot-img"
+        />
+      </div>
+
+      <!-- Main Email Content -->
+      <div class="email-content">
         <h2 class="heading">${heading}</h2>
         <p class="desc">${description}</p>
 
-        <!-- Clean High-Contrast OTP Card -->
+        <!-- High-Contrast Secure OTP Box -->
         <div class="otp-card">
-          <p class="otp-label">One-Time Verification Code</p>
+          <div class="otp-label">Single-Use Verification Code</div>
           <div class="otp-code">${otp}</div>
-          <p class="expiry-note">Expires in ${expiresInMinutes} minutes</p>
+          <div class="expiry-note">Expires in ${expiresInMinutes} minutes</div>
         </div>
 
-        <!-- Security Advisory -->
+        <!-- Security Advisory Notice -->
         <div class="security-notice">
-          <div class="security-title">Security Notice:</div>
-          This verification code was requested for <b>${email}</b>. Menuly staff will never contact you asking for your verification code or password. If you did not initiate this request, you can safely disregard this message.
+          <div class="security-title">Security Reminder</div>
+          This verification code was requested for <b>${email}</b>. Menuly team members will never ask for your verification code or password. If you did not initiate this request, you can safely disregard this email.
         </div>
       </div>
 
-      <!-- Footer -->
-      <div class="footer">
+      <!-- Footer with Legal Links & Support -->
+      <div class="email-footer">
+        <div class="footer-links">
+          <a href="${termsUrl}" target="_blank" rel="noreferrer">Terms &amp; Conditions</a> •
+          <a href="${privacyUrl}" target="_blank" rel="noreferrer">Privacy Policy</a> •
+          <a href="${contactUrl}" target="_blank" rel="noreferrer">Support Desk</a> •
+          <a href="${siteUrl}" target="_blank" rel="noreferrer">Visit Menuly</a>
+        </div>
         <p style="margin: 0 0 6px 0;">
-          Sent by <b>Menuly</b> · Digital Dining & QR Menu Solutions<br>
-          Need help? Contact <a href="mailto:menulyofficial@gmail.com">menulyofficial@gmail.com</a>
+          Sent by <b>Menuly</b> · Digital Dining &amp; QR Solutions<br>
+          Need assistance? Contact us at <a href="mailto:menulyofficial@gmail.com" style="color: #047857; font-weight: 600; text-decoration: none;">menulyofficial@gmail.com</a>
         </p>
         <p style="margin: 0; opacity: 0.85;">
-          © ${new Date().getFullYear()} Menuly Technologies. All rights reserved.
+          &copy; ${new Date().getFullYear()} Menuly Technologies. All rights reserved.
         </p>
       </div>
     </div>
@@ -246,15 +293,20 @@ ${heading}
 ${description}
 
 YOUR VERIFICATION CODE:
-${otp}
+>>> ${otp} <<<
 
 (Expires in ${expiresInMinutes} minutes)
 
 This code was requested for: ${email}
 If you did not request this code, please ignore this email.
 
-Need help? Contact support at menulyofficial@gmail.com
-© ${new Date().getFullYear()} Menuly.
+Legal & Support Links:
+• Terms & Conditions: ${termsUrl}
+• Privacy Policy: ${privacyUrl}
+• Support: ${contactUrl}
+
+Contact Support: menulyofficial@gmail.com
+© ${new Date().getFullYear()} Menuly Technologies. All rights reserved.
 `.trim();
 
   return { subject, html, text };
