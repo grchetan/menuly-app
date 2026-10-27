@@ -205,154 +205,83 @@ app.get("/ping", (req, res) => {
   res.status(200).send("pong");
 });
 
-// 1. Web Dashboard (Visual Status & QR Code Display)
-app.get("/", (req, res) => {
-  const uptimeMinutes = Math.floor((Date.now() - startTime) / 60000);
+// Rate limiting in-memory map for anti-abuse protection
+const ipRequestCounts = new Map();
+setInterval(() => ipRequestCounts.clear(), 60000); // Reset counts every minute
 
-  res.send(`<!DOCTYPE html>
+// 1. Production Secure Status Endpoint (No Secrets or Testing Tools Exposed to Public)
+app.get("/", (req, res) => {
+  // If admin query key matches API_SECRET and not connected, display QR code for linking
+  const adminKey = req.query["admin_key"] || req.headers["x-api-key"];
+  const isAdmin = API_SECRET && adminKey === API_SECRET;
+
+  if (isAdmin && !isConnected && currentQrDataUrl) {
+    return res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Menuly WhatsApp OTP Gateway</title>
+  <title>Menuly WhatsApp Gateway — QR Link</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 24px; padding: 36px 32px; max-width: 520px; width: 100%; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-    .logo-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; margin-bottom: 20px; }
-    .badge-off { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #f87171; }
-    h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; color: #ffffff; }
-    p.sub { font-size: 14px; color: #94a3b8; margin-bottom: 28px; line-height: 1.5; }
-    .qr-box { background: #ffffff; padding: 18px; border-radius: 18px; display: inline-block; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
-    .qr-box img { display: block; border-radius: 8px; max-width: 280px; width: 100%; height: auto; }
-    .steps { text-align: left; background: #0f172a; border-radius: 16px; padding: 18px 20px; margin-bottom: 24px; font-size: 13px; color: #cbd5e1; line-height: 1.7; border: 1px solid #334155; }
-    .steps ol { padding-left: 20px; }
-    .status-box { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 16px; padding: 20px; margin-bottom: 24px; }
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-    .stat-card { background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid #334155; }
-    .stat-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
-    .stat-val { font-size: 16px; font-weight: 800; color: #f8fafc; margin-top: 4px; }
-    .test-box { margin-top: 24px; text-align: left; }
-    .test-box input { width: 100%; padding: 12px 14px; border-radius: 12px; background: #0f172a; border: 1px solid #334155; color: #ffffff; font-size: 14px; margin-bottom: 10px; }
-    .test-box button { width: 100%; padding: 12px; border-radius: 12px; background: #16a34a; border: none; color: #ffffff; font-size: 14px; font-weight: 700; cursor: pointer; transition: 0.2s; }
-    .test-box button:hover { background: #15803d; }
+    body { background: #0f172a; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .card { background: #1e293b; padding: 32px; border-radius: 20px; text-align: center; max-width: 400px; }
+    img { border-radius: 12px; margin: 20px 0; max-width: 260px; }
   </style>
 </head>
 <body>
   <div class="card">
-    ${
-      isConnected
-        ? `
-      <div class="logo-badge">🟢 LIVE & CONNECTED</div>
-      <h1>Menuly WhatsApp Bot Online</h1>
-      <p class="sub">Your WhatsApp account is successfully linked and actively sending verification OTPs for Menuly.</p>
-
-      <div class="status-box">
-        <div style="font-size: 14px; font-weight: 700; color: #4ade80;">Active Phone: +${botPhoneNumber}</div>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-label">OTPs Sent</div>
-            <div class="stat-val">${totalMessagesSent}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Uptime</div>
-            <div class="stat-val">${uptimeMinutes} mins</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="test-box">
-        <label style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 6px;">Send Test OTP via WhatsApp</label>
-        <input type="text" id="phoneInput" placeholder="Enter 10-digit mobile (e.g. 9876543210)" />
-        <button onclick="sendTestOtp()">Send Test Verification Code</button>
-        <div id="testRes" style="margin-top: 10px; font-size: 12px; text-align: center;"></div>
-      </div>
-
-      <script>
-        async function sendTestOtp() {
-          const phone = document.getElementById('phoneInput').value.trim();
-          const resEl = document.getElementById('testRes');
-          if (!phone) { alert('Please enter phone number'); return; }
-          resEl.innerHTML = '<span style="color: #94a3b8;">Sending WhatsApp message...</span>';
-          try {
-            const res = await fetch('/send-otp', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-api-key': '${API_SECRET}' },
-              body: JSON.stringify({ phone, otp: Math.floor(100000 + Math.random() * 900000).toString() })
-            });
-            const data = await res.json();
-            if (data.success) {
-              resEl.innerHTML = '<span style="color: #4ade80;">✅ WhatsApp OTP Sent Successfully! Check your phone.</span>';
-            } else {
-              resEl.innerHTML = '<span style="color: #f87171;">❌ Failed: ' + (data.error || 'Unknown error') + '</span>';
-            }
-          } catch (e) {
-            resEl.innerHTML = '<span style="color: #f87171;">❌ Network error</span>';
-          }
-        }
-      </script>
-    `
-        : `
-      <div class="logo-badge badge-off">🔴 AWAITING SCAN</div>
-      <h1>Scan WhatsApp QR Code</h1>
-      <p class="sub">Link your WhatsApp to start sending automated verification codes to diners and restaurant owners.</p>
-
-      ${
-        currentQrDataUrl
-          ? `
-        <div class="qr-box">
-          <img src="${currentQrDataUrl}" alt="WhatsApp QR Code" />
-        </div>
-      `
-          : `
-        <div style="padding: 40px 0; color: #94a3b8; font-size: 14px;">Generating fresh QR code...</div>
-      `
-      }
-
-      <div class="steps">
-        <div style="font-weight: 700; color: #ffffff; margin-bottom: 6px;">How to link:</div>
-        <ol>
-          <li>Open WhatsApp on your phone</li>
-          <li>Tap <b>Menu (⋮)</b> or <b>Settings</b></li>
-          <li>Select <b>Linked Devices</b></li>
-          <li>Tap <b>Link a Device</b> and point camera here</li>
-        </ol>
-      </div>
-
-      <script>
-        // Auto-refresh page every 15s if awaiting QR
-        setTimeout(() => window.location.reload(), 15000);
-      </script>
-    `
-    }
+    <h2>Scan WhatsApp QR</h2>
+    <img src="${currentQrDataUrl}" alt="QR" />
+    <p style="font-size: 13px; color: #94a3b8;">Open WhatsApp &gt; Linked Devices &gt; Link a Device</p>
   </div>
 </body>
 </html>`);
-});
+  }
 
-// 2. Health & Status Check Endpoint
-app.get("/status", (req, res) => {
-  res.json({
+  // To any public visitor or automated scanner, return clean minimal secure JSON
+  return res.status(200).json({
+    status: "online",
+    service: "Menuly Secure Gateway",
     connected: isConnected,
-    phone: botPhoneNumber,
-    uptimeSeconds: Math.floor((Date.now() - startTime) / 1000),
-    totalMessagesSent,
-    hasQr: Boolean(currentQr),
+    timestamp: new Date().toISOString(),
   });
 });
 
-// 3. Send OTP Endpoint
-app.post("/send-otp", async (req, res) => {
-  const authHeader = req.headers["x-api-key"] || req.query["api_key"];
-
+// 2. Health & Status Check Endpoint (Strictly Protected by API Secret)
+app.get("/status", (req, res) => {
+  const authHeader = req.headers["x-api-key"] || req.query["key"];
   if (API_SECRET && authHeader !== API_SECRET) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+
+  res.json({
+    connected: isConnected,
+    phone: botPhoneNumber ? `+${botPhoneNumber.slice(0, 4)}****` : null,
+    uptimeSeconds: Math.floor((Date.now() - startTime) / 1000),
+    totalMessagesSent,
+  });
+});
+
+// 3. Send OTP Endpoint (Strict Authentication & Rate Limiting)
+app.post("/send-otp", async (req, res) => {
+  const clientIp = req.ip || req.socket.remoteAddress || "global";
+  const authHeader = req.headers["x-api-key"];
+
+  // Strictly enforce Server-to-Server Secret Header
+  if (!API_SECRET || authHeader !== API_SECRET) {
     return res.status(401).json({ success: false, error: "Unauthorized: Invalid API Key" });
+  }
+
+  // Rate Limiting: Max 20 OTP dispatches per minute per IP
+  const currentCount = (ipRequestCounts.get(clientIp) || 0) + 1;
+  ipRequestCounts.set(clientIp, currentCount);
+  if (currentCount > 20) {
+    return res.status(429).json({ success: false, error: "Too many requests. Please wait." });
   }
 
   if (!isConnected || !sock) {
     return res.status(503).json({
       success: false,
-      error: "WhatsApp bot is not connected yet. Please scan the QR code first.",
+      error: "WhatsApp bot is not connected yet.",
     });
   }
 
