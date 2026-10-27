@@ -12,6 +12,7 @@ import {
   type TokenPayload,
 } from "./security";
 import { sendOtpEmail } from "../email/mailer";
+import { sendWhatsAppOtp } from "../whatsapp/sender";
 import { checkRateLimit, AuthRateLimits } from "./rate-limiter";
 import { sanitizePublicRole, type UserRole } from "./rbac";
 
@@ -88,9 +89,10 @@ export async function signupUser(params: {
   email: string;
   password: string;
   fullName?: string;
+  phone?: string;
   clientIp?: string;
 }): Promise<ServiceResult<{ email: string; requiresVerification: boolean; devOtp?: string; code?: string }>> {
-  const { email, password, fullName, clientIp = "global" } = params;
+  const { email, password, fullName, phone, clientIp = "global" } = params;
 
   if (!email || !email.includes("@")) {
     return { success: false, status: 400, error: "Please enter a valid email address." };
@@ -141,6 +143,7 @@ export async function signupUser(params: {
     const updated = await userStore.update(existingUser.id, {
       passwordHash,
       fullName: fullName || existingUser.fullName,
+      ...(phone ? { phone: phone.trim() } : {}),
     });
     user = updated || existingUser;
   } else {
@@ -150,6 +153,7 @@ export async function signupUser(params: {
       email: normalized,
       passwordHash,
       ...(fullName ? { fullName } : {}),
+      ...(phone ? { phone: phone.trim() } : {}),
       role: safeRole,
       isVerified: false,
     });
@@ -165,12 +169,23 @@ export async function signupUser(params: {
     maxAttempts: OTP_MAX_ATTEMPTS,
   });
 
+  // Simultaneously dispatch via Email and WhatsApp (if phone provided)
   await sendOtpEmail(normalized, rawOtp, "SIGNUP", OTP_EXPIRY_MINUTES);
+
+  if (phone) {
+    await sendWhatsAppOtp(phone, rawOtp, "SIGNUP").catch((e) => {
+      console.warn("[WhatsApp Dispatch Warning]:", e);
+    });
+  }
+
+  const deliveryMsg = phone
+    ? `Verification code sent to ${normalized} and your WhatsApp number.`
+    : `Verification code sent to ${normalized}. Please check your email.`;
 
   return {
     success: true,
     status: 200,
-    message: `Verification code sent to ${normalized}. Please check your email.`,
+    message: deliveryMsg,
     data: {
       email: normalized,
       requiresVerification: true,
@@ -336,10 +351,21 @@ export async function resendUserOtp(params: {
 
   await sendOtpEmail(normalized, rawOtp, type, OTP_EXPIRY_MINUTES);
 
+  const existingUser = await userStore.findByEmail(normalized);
+  if (existingUser?.phone) {
+    await sendWhatsAppOtp(existingUser.phone, rawOtp, type).catch((e) => {
+      console.warn("[WhatsApp Dispatch Warning]:", e);
+    });
+  }
+
+  const resendMsg = existingUser?.phone
+    ? `A new verification code has been sent to ${normalized} and your WhatsApp number.`
+    : `A new verification code has been sent to ${normalized}.`;
+
   return {
     success: true,
     status: 200,
-    message: `A new verification code has been sent to ${normalized}.`,
+    message: resendMsg,
     data: {
       email: normalized,
       ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
@@ -492,6 +518,12 @@ export async function forgotPassword(params: {
     });
 
     await sendOtpEmail(normalized, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
+
+    if (user.phone) {
+      await sendWhatsAppOtp(user.phone, rawOtp, "PASSWORD_RESET").catch((e) => {
+        console.warn("[WhatsApp Dispatch Warning]:", e);
+      });
+    }
 
     if (shouldExposeDevOtp()) {
       devOtp = rawOtp;

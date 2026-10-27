@@ -18,6 +18,7 @@ import {
   Store,
   Check,
   RefreshCw,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ function AuthPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [mode, setMode] = useState<AuthMode>(search.mode === "signup" ? "signup" : "login");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -217,7 +219,12 @@ function AuthPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanEmail, password, fullName }),
+        body: JSON.stringify({
+          email: cleanEmail,
+          password,
+          fullName,
+          ...(phone.trim() ? { phone: phone.trim() } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -675,6 +682,30 @@ function AuthPage() {
                       )}
                     </div>
 
+                    {/* WhatsApp Mobile Number for Instant WhatsApp OTP */}
+                    {mode === "signup" && (
+                      <div className="space-y-1 animate-auth-swap">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="phone" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            WhatsApp Number
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">(Instant OTP on WhatsApp)</span>
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">Recommended</span>
+                        </div>
+                        <div className="relative">
+                          <Input
+                            id="phone"
+                            type="tel"
+                            placeholder="e.g. 98765 43210"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className="pl-10 h-10 sm:h-11 rounded-xl text-sm"
+                          />
+                          <Phone className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-emerald-600" />
+                        </div>
+                      </div>
+                    )}
+
                     {/* Password Input with Show/Hide Toggle */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
@@ -794,7 +825,7 @@ function AuthPage() {
                     <Shield className="size-3.5" /> Single-Use Verification Code
                   </span>
                   <h1 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-                    Check your email
+                    {phone.trim() ? "Check your WhatsApp & Email" : "Check your email"}
                   </h1>
                   <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
                     We sent a 6-digit verification code to:
@@ -802,6 +833,11 @@ function AuthPage() {
                     <span className="font-semibold text-foreground font-mono bg-muted/60 px-2 py-0.5 rounded-md inline-block mt-1">
                       {email}
                     </span>
+                    {phone.trim() && (
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md inline-block mt-1 ml-2">
+                        WhatsApp: +{phone.replace(/\D/g, "")}
+                      </span>
+                    )}
                   </p>
                 </div>
 

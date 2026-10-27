@@ -1,0 +1,25 @@
+{
+  "name": "menuly-whatsapp-bot",
+  "version": "1.0.0",
+  "description": "Menuly Official WhatsApp OTP Verification Gateway (Baileys WebSocket Microservice)",
+  "main": "index.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs",
+    "dev": "node --watch index.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.19",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "menuly": "file:../..",
+    "pg": "^8.23.1",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

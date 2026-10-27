@@ -253,6 +253,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         email: body.email,
         password: body.password,
         fullName: body.fullName,
+        phone: body.phone,
         clientIp,
       });
       return json(res, res.status);

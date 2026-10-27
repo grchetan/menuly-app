@@ -171,16 +171,18 @@ export const userStore = {
     email: string;
     passwordHash: string;
     fullName?: string;
+    phone?: string;
     role?: UserRole;
     isVerified?: boolean;
   }): Promise<StoredUser> {
     const normalized = data.email.toLowerCase().trim();
+    const cleanPhone = data.phone?.trim() || null;
     const newUser: StoredUser = {
       id: `usr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       email: normalized,
       passwordHash: data.passwordHash,
       fullName: data.fullName || null,
-      phone: null,
+      phone: cleanPhone,
       role: data.role || "RESTAURANT_OWNER",
       isVerified: data.isVerified || false,
       createdAt: new Date(),
@@ -194,6 +196,7 @@ export const userStore = {
             email: normalized,
             passwordHash: data.passwordHash,
             fullName: data.fullName || null,
+            phone: cleanPhone,
             role: data.role || "RESTAURANT_OWNER",
             isVerified: data.isVerified || false,
           },
