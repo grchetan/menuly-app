@@ -1,4 +1,4 @@
-import { userStore, otpStore, type StoredUser } from "./store";
+import { userStore, otpStore, pendingRegistrationStore, type StoredUser } from "./store";
 import { prisma } from "../db";
 import {
   hashPassword,
@@ -135,29 +135,14 @@ export async function signupUser(params: {
     hashOtp(rawOtp),
   ]);
 
-  let user: StoredUser;
-  const existingUser = quickStatus?.exists ? await userStore.findByEmail(normalized) : null;
-
-  if (existingUser && !existingUser.isVerified) {
-    // Update password hash for unverified user re-attempting signup
-    const updated = await userStore.update(existingUser.id, {
-      passwordHash,
-      fullName: fullName || existingUser.fullName,
-      ...(phone ? { phone: phone.trim() } : {}),
-    });
-    user = updated || existingUser;
-  } else {
-    // Strictly sanitize role to RESTAURANT_OWNER
-    const safeRole = sanitizePublicRole();
-    user = await userStore.create({
-      email: normalized,
-      passwordHash,
-      ...(fullName ? { fullName } : {}),
-      ...(phone ? { phone: phone.trim() } : {}),
-      role: safeRole,
-      isVerified: false,
-    });
-  }
+  // Store unverified registrant in dedicated pendingRegistrationStore (NOT in users table!)
+  // This ensures abandoned/unverified signups never pollute the official platform users table.
+  await pendingRegistrationStore.save({
+    email: normalized,
+    passwordHash,
+    fullName: fullName || null,
+    phone: phone ? phone.trim() : null,
+  });
 
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
@@ -264,17 +249,36 @@ export async function verifyUserOtp(params: {
   await otpStore.markVerified(activeOtp.id);
 
   if (type === "SIGNUP") {
-    const user = await userStore.findByEmail(normalized);
+    let user = await userStore.findByEmail(normalized);
+
     if (!user) {
-      return { success: false, status: 404, error: "User account not found." };
+      // Find from pending registrations
+      const pending = await pendingRegistrationStore.findByEmail(normalized);
+      if (!pending) {
+        return { success: false, status: 404, error: "Registration session expired. Please sign up again." };
+      }
+
+      // Promote to verified User in the official users table!
+      user = await userStore.create({
+        email: normalized,
+        passwordHash: pending.passwordHash,
+        ...(pending.fullName ? { fullName: pending.fullName } : {}),
+        ...(pending.phone ? { phone: pending.phone } : {}),
+        role: "RESTAURANT_OWNER",
+        isVerified: true,
+      });
+
+      // Remove from pending registrations
+      await pendingRegistrationStore.delete(normalized);
+    } else if (!user.isVerified) {
+      user = (await userStore.update(user.id, { isVerified: true })) || user;
+      await pendingRegistrationStore.delete(normalized);
     }
 
-    // Activate user
-    const updatedUser = await userStore.update(user.id, { isVerified: true });
     const payload: TokenPayload = {
       userId: user.id,
       email: user.email,
-      role: updatedUser?.role || user.role,
+      role: user.role,
       fullName: user.fullName,
     };
 
@@ -289,7 +293,7 @@ export async function verifyUserOtp(params: {
         user: {
           id: user.id,
           email: user.email,
-          role: updatedUser?.role || user.role,
+          role: user.role,
           fullName: user.fullName,
         },
         token,
@@ -385,8 +389,8 @@ export async function verifyPhoneVerificationOtp(params: {
 }): Promise<
   ServiceResult<{
     user?: { id: string; email: string; role: UserRole; fullName: string | null; phone?: string | null };
-    token?: string;
-    refreshToken?: string;
+    token?: string | undefined;
+    refreshToken?: string | undefined;
   }>
 > {
   const { email, phone, otp } = params;
@@ -406,7 +410,7 @@ export async function verifyPhoneVerificationOtp(params: {
 
   const user = await userStore.findByEmail(normalized);
   if (user) {
-    const updatedUser = await userStore.update(user.id, { phone: formattedPhone });
+    const updatedUser = (await userStore.update(user.id, { phone: formattedPhone })) || user;
     return {
       success: true,
       status: 200,
@@ -419,8 +423,8 @@ export async function verifyPhoneVerificationOtp(params: {
           fullName: updatedUser.fullName,
           phone: updatedUser.phone,
         },
-        token: res.data?.token,
-        refreshToken: res.data?.refreshToken,
+        ...(res.data?.token ? { token: res.data.token } : {}),
+        ...(res.data?.refreshToken ? { refreshToken: res.data.refreshToken } : {}),
       },
     };
   }
@@ -532,6 +536,49 @@ export async function loginUser(params: {
 
   const user = await userStore.findByIdentifier(lookupInput);
   if (!user) {
+    // Check if user is in pending registrations (started signup but didn't verify OTP yet)
+    const pending = lookupInput.includes("@")
+      ? await pendingRegistrationStore.findByEmail(lookupInput)
+      : null;
+
+    if (pending) {
+      const passwordMatch = await comparePassword(password, pending.passwordHash);
+      if (!passwordMatch) {
+        return { success: false, status: 401, error: "Invalid email/phone or password." };
+      }
+
+      const rawOtp = generateNumericOtp();
+      const otpHash = await hashOtp(rawOtp);
+      const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+      await otpStore.saveOtp({
+        email: pending.email,
+        otpHash,
+        type: "SIGNUP",
+        expiresAt,
+        maxAttempts: OTP_MAX_ATTEMPTS,
+      });
+
+      await sendOtpEmail(pending.email, rawOtp, "SIGNUP", OTP_EXPIRY_MINUTES);
+
+      if (pending.phone) {
+        await sendWhatsAppOtp(pending.phone, rawOtp, "SIGNUP").catch((e) => {
+          console.warn("[WhatsApp Dispatch Warning]:", e);
+        });
+      }
+
+      return {
+        success: false,
+        status: 403,
+        message: "Your account is not verified yet. We just sent a verification code to your email.",
+        data: {
+          requiresVerification: true,
+          email: pending.email,
+          ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
+        },
+      };
+    }
+
     return { success: false, status: 401, error: "Invalid email/phone or password." };
   }
 

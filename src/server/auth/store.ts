@@ -565,3 +565,117 @@ export const otpStore = {
     }
   },
 };
+
+export interface StoredPendingRegistration {
+  id: string;
+  email: string;
+  fullName: string | null;
+  phone: string | null;
+  passwordHash: string;
+  attempts: number;
+  lastOtpSent: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const devPendingRegistrations = new Map<string, StoredPendingRegistration>();
+
+export const pendingRegistrationStore = {
+  async findByEmail(email: string): Promise<StoredPendingRegistration | null> {
+    const normalized = email.toLowerCase().trim();
+    if (isPrismaAvailable()) {
+      try {
+        const p = await prisma.pendingRegistration.findUnique({
+          where: { email: normalized },
+        });
+        if (p) return p;
+        return null;
+      } catch {
+        // Fall back
+      }
+    }
+    return devPendingRegistrations.get(normalized) || null;
+  },
+
+  async save(data: {
+    email: string;
+    fullName?: string | null;
+    phone?: string | null;
+    passwordHash: string;
+  }): Promise<StoredPendingRegistration> {
+    const normalized = data.email.toLowerCase().trim();
+    const cleanPhone = data.phone?.trim() || null;
+    const now = new Date();
+
+    if (isPrismaAvailable()) {
+      try {
+        const updateData: Record<string, unknown> = {
+          passwordHash: data.passwordHash,
+          lastOtpSent: now,
+          attempts: { increment: 1 },
+        };
+        if (data.fullName) updateData["fullName"] = data.fullName;
+        if (cleanPhone) updateData["phone"] = cleanPhone;
+
+        const p = await prisma.pendingRegistration.upsert({
+          where: { email: normalized },
+          create: {
+            email: normalized,
+            fullName: data.fullName || null,
+            phone: cleanPhone,
+            passwordHash: data.passwordHash,
+            lastOtpSent: now,
+          },
+          update: updateData,
+        });
+        return p;
+      } catch {
+        // Fall back
+      }
+    }
+
+    const existing = devPendingRegistrations.get(normalized);
+    const rec: StoredPendingRegistration = {
+      id: existing ? existing.id : `pnd-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      email: normalized,
+      fullName: data.fullName !== undefined ? data.fullName : existing?.fullName || null,
+      phone: cleanPhone !== null ? cleanPhone : existing?.phone || null,
+      passwordHash: data.passwordHash,
+      attempts: existing ? existing.attempts + 1 : 1,
+      lastOtpSent: now,
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now,
+    };
+    devPendingRegistrations.set(normalized, rec);
+    return rec;
+  },
+
+  async delete(email: string): Promise<void> {
+    const normalized = email.toLowerCase().trim();
+    if (isPrismaAvailable()) {
+      try {
+        await prisma.pendingRegistration.deleteMany({
+          where: { email: normalized },
+        });
+      } catch {
+        // Fall back
+      }
+    }
+    devPendingRegistrations.delete(normalized);
+  },
+
+  async listAll(): Promise<StoredPendingRegistration[]> {
+    if (isPrismaAvailable()) {
+      try {
+        return await prisma.pendingRegistration.findMany({
+          orderBy: { createdAt: "desc" },
+        });
+      } catch {
+        // Fall back
+      }
+    }
+    return Array.from(devPendingRegistrations.values()).sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+  },
+};

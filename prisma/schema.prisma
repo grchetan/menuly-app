@@ -54,6 +54,22 @@ model OtpVerification {
   @@map("otp_verifications")
 }
 
+model PendingRegistration {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  fullName     String?  @map("full_name")
+  phone        String?
+  passwordHash String   @map("password_hash")
+  attempts     Int      @default(1)
+  lastOtpSent  DateTime @default(now()) @map("last_otp_sent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([createdAt(sort: Desc)])
+  @@map("pending_registrations")
+}
+
 model Session {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")

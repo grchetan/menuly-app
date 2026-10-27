@@ -15,7 +15,7 @@ import {
 } from "./auth/service";
 import { verifyAccessToken } from "./auth/security";
 import { checkRateLimit, AuthRateLimits } from "./auth/rate-limiter";
-import { userStore } from "./auth/store";
+import { userStore, pendingRegistrationStore } from "./auth/store";
 import { checkDatabaseConnection, prisma } from "./db";
 import { getPlatformSettings, updatePlatformSettings } from "./platform/service";
 import { trackVisitor, getExecutiveAnalytics } from "./analytics/service";
@@ -828,9 +828,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         );
       }
 
-      // GET /api/admin/users
+      // GET /api/admin/users (Strictly verified platform users only)
       if (pathname === "/api/admin/users" && request.method === "GET") {
         const users = await prisma.user.findMany({
+          where: { isVerified: true },
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -859,6 +860,32 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
             restaurant: u.restaurants[0] || null,
           })),
         });
+      }
+
+      // GET /api/admin/pending-signups (Separate table for unverified / abandoned leads)
+      if (pathname === "/api/admin/pending-signups" && request.method === "GET") {
+        const pending = await pendingRegistrationStore.listAll();
+        return json({
+          success: true,
+          pending: pending.map((p) => ({
+            id: p.id,
+            email: p.email,
+            fullName: p.fullName || "Unverified Visitor",
+            phone: p.phone,
+            attempts: p.attempts,
+            lastOtpSent: p.lastOtpSent,
+            createdAt: p.createdAt,
+          })),
+        });
+      }
+
+      // POST /api/admin/pending-signups/delete
+      if (pathname === "/api/admin/pending-signups/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (body.email) {
+          await pendingRegistrationStore.delete(body.email);
+        }
+        return json({ success: true, message: "Pending registration removed." });
       }
 
       // POST /api/admin/users/update-role

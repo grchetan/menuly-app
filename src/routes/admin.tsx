@@ -157,6 +157,16 @@ export type AdminUser = {
   joinedDate: string;
 };
 
+export type PendingSignup = {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  attempts: number;
+  lastOtpSent: string;
+  createdAt: string;
+};
+
 export type PlatformSettings = {
   maintenanceMode: boolean;
   strictVegOnly: boolean;
@@ -415,7 +425,8 @@ function AdminPage() {
   const [ticketFilter, setTicketFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
   const [feedbackRatingFilter, setFeedbackRatingFilter] = useState<"all" | "5" | "4" | "3" | "1-2">("all");
   const [feedbackTopicFilter, setFeedbackTopicFilter] = useState<string>("all");
-  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "owner" | "super_admin">("all");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "owner" | "super_admin" | "pending">("all");
+  const [pendingSignups, setPendingSignups] = useState<PendingSignup[]>([]);
 
   // Executive & Meta Ads Analytics State
   const [analyticsPeriod, setAnalyticsPeriod] = useState<"today" | "7d" | "30d" | "all">("7d");
@@ -612,8 +623,16 @@ function AdminPage() {
       fetch("/api/starter-presets")
         .then((res) => res.json())
         .catch(() => ({ success: false })),
+      fetch("/api/admin/pending-signups", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
     ])
-      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData]) => {
+      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData]) => {
+        if (pendingData?.success && Array.isArray(pendingData.pending)) {
+          setPendingSignups(pendingData.pending);
+        }
         if (presetsData?.success && Array.isArray(presetsData.presets) && presetsData.presets.length > 0) {
           setAdminPresets(presetsData.presets);
         }
@@ -980,6 +999,29 @@ function AdminPage() {
       toast.error(err.message || "Failed to delete user");
     } finally {
       setDeletingUserLoading(false);
+    }
+  };
+
+  const handleDeletePendingSignup = async (email: string) => {
+    if (!confirm(`Discard abandoned registration for ${email}?`)) return;
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/pending-signups/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to remove pending registration");
+      }
+      setPendingSignups((prev) => prev.filter((p) => p.email !== email));
+      toast.success("Abandoned registration lead removed.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove record");
     }
   };
 
@@ -2847,18 +2889,29 @@ function AdminPage() {
 
               {/* Role Filter */}
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                {(["all", "owner", "super_admin"] as const).map((r) => (
+                {(["all", "owner", "super_admin", "pending"] as const).map((r) => (
                   <button
                     key={r}
                     onClick={() => setUserRoleFilter(r)}
                     className={cn(
-                      "shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
+                      "shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5",
                       userRoleFilter === r
                         ? "bg-primary text-primary-foreground shadow-xs"
                         : "bg-secondary text-foreground hover:bg-secondary/80"
                     )}
                   >
-                    {r === "all" ? "All Users" : r === "owner" ? "Owners" : "Super Admins"}
+                    {r === "all" ? (
+                      `All Users (${users.length})`
+                    ) : r === "owner" ? (
+                      `Owners (${users.filter((u) => u.role === "owner").length})`
+                    ) : r === "super_admin" ? (
+                      `Super Admins (${users.filter((u) => u.role === "super_admin").length})`
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Pending OTP ({pendingSignups.length})
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2866,6 +2919,107 @@ function AdminPage() {
 
             {/* Users Table */}
             <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
+              {userRoleFilter === "pending" ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left text-sm">
+                    <thead className="bg-secondary/50 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b">
+                      <tr>
+                        <th className="px-5 py-3">Visitor / Lead</th>
+                        <th className="px-5 py-3">Contact</th>
+                        <th className="px-5 py-3">Status</th>
+                        <th className="px-5 py-3">OTP Attempts</th>
+                        <th className="px-5 py-3">Initiated At</th>
+                        <th className="px-5 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {pendingSignups.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-5 py-14 text-center text-muted-foreground">
+                            <CheckCircle2 className="size-8 mx-auto mb-2 text-emerald-500/60" />
+                            <p className="font-bold text-foreground text-sm">No abandoned signups</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              All visitors who initiated registration completed OTP verification.
+                            </p>
+                          </td>
+                        </tr>
+                      ) : (
+                        pendingSignups.map((p) => (
+                          <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="size-9 rounded-xl bg-amber-500/10 text-amber-600 font-bold text-sm flex items-center justify-center">
+                                  {(p.fullName || p.email).slice(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-foreground">{p.fullName || "Unverified Visitor"}</div>
+                                  <div className="text-xs text-muted-foreground">{p.email}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              {p.phone ? (
+                                <span className="text-xs font-mono font-medium text-foreground flex items-center gap-1.5">
+                                  <Phone className="size-3.5 text-emerald-600" /> {p.phone}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Email only</span>
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" /> Awaiting OTP
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4 text-xs font-semibold text-muted-foreground">
+                              {p.attempts} {p.attempts === 1 ? "attempt" : "attempts"}
+                            </td>
+
+                            <td className="px-5 py-4 text-xs text-muted-foreground">
+                              {new Date(p.createdAt).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </td>
+
+                            <td className="px-5 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {p.phone && (
+                                  <a
+                                    href={`https://wa.me/${p.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                                      `Hi ${p.fullName || "there"}! We noticed you started setting up Menuly digital menu. Need any help completing your restaurant launch?`
+                                    )}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex size-7 items-center justify-center rounded-lg bg-veg/10 text-veg hover:bg-veg hover:text-white transition-colors"
+                                    title="Follow up on WhatsApp"
+                                  >
+                                    <MessageCircle className="size-3.5" />
+                                  </a>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                                  onClick={() => handleDeletePendingSignup(p.email)}
+                                  title="Discard abandoned record"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[620px] text-left text-sm">
                   <thead className="bg-secondary/50 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b">
@@ -3013,7 +3167,7 @@ function AdminPage() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                                   onClick={() => setUserToDelete(u)}
                                   title="Delete User Account"
                                 >
@@ -3027,6 +3181,7 @@ function AdminPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           </div>
         )}
