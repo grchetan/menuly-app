@@ -1031,21 +1031,25 @@ function AuthPage() {
                     <Label htmlFor="phoneSetupInput" className="text-xs font-bold text-foreground">
                       WhatsApp Mobile Number
                     </Label>
-                    <div className="relative">
+                    <div className="relative flex rounded-xl border border-border/80 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 overflow-hidden bg-background">
+                      <div className="flex items-center gap-1.5 bg-muted/60 px-3 border-r border-border/60 text-xs font-bold text-foreground select-none shrink-0">
+                        <span className="text-sm">🇮🇳</span>
+                        <span>+91</span>
+                      </div>
                       <Input
                         id="phoneSetupInput"
                         type="tel"
                         required
-                        placeholder="e.g. 98765 43210"
+                        maxLength={10}
+                        placeholder="98765 43210"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="pl-10 h-11 rounded-xl text-sm"
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        className="border-0 rounded-none shadow-none focus-visible:ring-0 h-11 text-sm font-semibold tracking-wide"
                         autoFocus
                       />
-                      <Phone className="absolute left-3.5 top-3.5 size-4 text-emerald-600" />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      We will send a 6-digit WhatsApp OTP verification code.
+                      We will send a 6-digit WhatsApp OTP verification code to this number.
                     </p>
                   </div>
 
@@ -1053,7 +1057,7 @@ function AuthPage() {
                     <Button
                       type="submit"
                       size="lg"
-                      disabled={busy || !phone.trim()}
+                      disabled={busy || !phone.trim() || phone.replace(/\D/g, "").length < 10}
                       className="w-full h-11 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft transition-all duration-200 cursor-pointer"
                     >
                       {busy ? (
@@ -1098,8 +1102,13 @@ function AuthPage() {
                   <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
                     We sent a 6-digit verification code via WhatsApp to:
                     <br />
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md inline-block mt-1">
-                      +{phone.replace(/\D/g, "")}
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md inline-block mt-1 text-sm tracking-wide">
+                      {(() => {
+                        const digits = phone.replace(/\D/g, "");
+                        return digits.length === 10
+                          ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`
+                          : `+${digits}`;
+                      })()}
                     </span>
                   </p>
                 </div>

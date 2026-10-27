@@ -15,8 +15,13 @@ export async function sendWhatsAppOtp(
   otp: string,
   type: "SIGNUP" | "PASSWORD_RESET" | "LOGIN" = "SIGNUP"
 ): Promise<SendWhatsAppOtpResult> {
-  const botUrl = (process.env["WHATSAPP_BOT_URL"] || "http://localhost:3000").replace(/\/$/, "");
+  const botUrl = (
+    process.env["WHATSAPP_BOT_URL"] || "https://menuly-whatsapp-bot.onrender.com"
+  ).replace(/\/$/, "");
   const apiKey = process.env["WHATSAPP_BOT_SECRET"] || "menuly-whatsapp-secret-2026";
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch(`${botUrl}/send-otp`, {
@@ -26,7 +31,10 @@ export async function sendWhatsAppOtp(
         "x-api-key": apiKey,
       },
       body: JSON.stringify({ phone, otp, type }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
@@ -43,6 +51,7 @@ export async function sendWhatsAppOtp(
       ...(typeof data["phone"] === "string" ? { phone: data["phone"] } : {}),
     };
   } catch (err: unknown) {
+    clearTimeout(timeoutId);
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.warn(`[WhatsApp Dispatch Warning] Failed to reach bot at ${botUrl}:`, errorMsg);
     return {

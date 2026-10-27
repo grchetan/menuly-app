@@ -357,15 +357,21 @@ export async function sendPhoneVerificationOtp(params: {
     maxAttempts: OTP_MAX_ATTEMPTS,
   });
 
-  const formattedPhone = cleanDigits.length === 10 ? `+91${cleanDigits}` : `+${cleanDigits}`;
+  const tenDigits = cleanDigits.slice(-10);
+  const formattedPhone = `+91${tenDigits}`;
 
   // Save phone number to user
   await userStore.update(user.id, { phone: formattedPhone });
 
   // Dispatch via WhatsApp bot
-  await sendWhatsAppOtp(cleanDigits, rawOtp, "SIGNUP").catch((e) => {
-    console.warn("[WhatsApp Dispatch Error]:", e);
-  });
+  const dispatchRes = await sendWhatsAppOtp(formattedPhone, rawOtp, "SIGNUP");
+  if (!dispatchRes.success && process.env["NODE_ENV"] !== "test" && !process.env["VITEST"]) {
+    return {
+      success: false,
+      status: 502,
+      error: `Could not deliver WhatsApp message: ${dispatchRes.error || "Gateway unreachable"}. Please make sure your WhatsApp number is active.`,
+    };
+  }
 
   return {
     success: true,
