@@ -480,17 +480,17 @@ function AuthPage() {
       </div>
 
       {/* Main Responsive Executive Auth Container (Fixed Consistent Height on Desktop) */}
-      <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lift backdrop-blur-xl lg:h-[640px]">
+      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lift backdrop-blur-xl lg:h-[640px]">
         <div className="grid lg:grid-cols-12 h-full">
           
           {/* ================================================================= */}
           {/* LEFT COLUMN: Visual Brand Image Panel (Strictly Fixed on Desktop)   */}
           {/* ================================================================= */}
-          <div className="hidden lg:relative lg:block lg:col-span-5 h-full overflow-hidden bg-muted border-r border-border/50 select-none">
+          <div className="hidden lg:relative lg:block lg:col-span-6 h-full overflow-hidden bg-muted border-r border-border/50 select-none">
             <img
               src={authImage}
               alt="Menuly Digital Dining"
-              className="absolute inset-0 size-full object-cover object-center select-none pointer-events-none"
+              className="absolute inset-0 size-full object-cover object-right select-none pointer-events-none"
               loading="eager"
             />
           </div>
@@ -498,7 +498,7 @@ function AuthPage() {
           {/* ================================================================= */}
           {/* RIGHT COLUMN: The Auth Form Card (Consistent Height & Layout)     */}
           {/* ================================================================= */}
-          <div className="col-span-12 lg:col-span-7 p-6 sm:p-10 flex flex-col justify-between h-full overflow-y-auto no-scrollbar">
+          <div className="col-span-12 lg:col-span-6 p-6 sm:p-10 flex flex-col justify-between h-full overflow-y-auto no-scrollbar">
             
             {/* Mobile Header Brand */}
             <div className="lg:hidden mb-6 flex justify-between items-center">
