@@ -207,7 +207,7 @@ function MyMenu() {
     }
   }, [data?.categories, quickCatId]);
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return <MyMenuSkeleton />;
   }
 

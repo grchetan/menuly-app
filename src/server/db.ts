@@ -9,11 +9,25 @@ function createPrismaClient(): PrismaClient {
   // Prefer DATABASE_URL (Supabase Transaction Pooler on port 6543) for high-concurrency production traffic
   let url = process.env["DATABASE_URL"] || process.env["DIRECT_URL"] || "";
   if (url) {
-    if (url.includes("connection_limit=1")) {
-      url = url.replace("connection_limit=1", "connection_limit=20&pool_timeout=20");
-    } else if (!url.includes("connection_limit")) {
+    // For Supabase Transaction Pooler on port 6543, ensure pgbouncer=true is set
+    if (url.includes(":6543") && !url.includes("pgbouncer=true")) {
       const sep = url.includes("?") ? "&" : "?";
-      url = `${url}${sep}connection_limit=20&pool_timeout=20`;
+      url = `${url}${sep}pgbouncer=true`;
+    }
+
+    // Set serverless-optimized connection limit (avoid exhausting Supabase's 60 connection pool limit)
+    if (url.includes("connection_limit=")) {
+      url = url.replace(/connection_limit=\d+/, "connection_limit=3");
+    } else {
+      const sep = url.includes("?") ? "&" : "?";
+      url = `${url}${sep}connection_limit=3`;
+    }
+
+    if (url.includes("pool_timeout=")) {
+      url = url.replace(/pool_timeout=\d+/, "pool_timeout=10");
+    } else {
+      const sep = url.includes("?") ? "&" : "?";
+      url = `${url}${sep}pool_timeout=10`;
     }
   }
 

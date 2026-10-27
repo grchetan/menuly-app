@@ -394,7 +394,7 @@ function QrPage() {
     };
   }, [offlineOptions, viewTab, r]);
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return <QrSkeleton />;
   }
 

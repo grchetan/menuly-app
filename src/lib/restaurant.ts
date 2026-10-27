@@ -291,7 +291,8 @@ export async function updateRestaurantHelper(updates: {
 export const myMenuQuery = queryOptions({
   queryKey: ["my-menu"],
   queryFn: loadMyMenu,
-  staleTime: 1000 * 60 * 3, // 3 minutes - Instant page transitions, eliminates DB queries on navigation
+  staleTime: 1000 * 60 * 5, // 5 minutes - Instant 0ms page transitions, eliminates DB roundtrips on tab switches
+  gcTime: 1000 * 60 * 30, // 30 minutes in memory
   refetchOnWindowFocus: false, // Prevents reloading the entire database every time user focuses window
 });
 

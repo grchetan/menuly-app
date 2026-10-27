@@ -122,7 +122,6 @@ export function MenuView({
         },
       };
     });
-    toast.success(`Added ${quantity}x ${dish.name} to order!`);
   };
 
   const updateCartQty = (dishId: string, delta: number) => {
@@ -395,21 +394,6 @@ export function MenuView({
           {/* Subtle bottom-to-top luxury vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
 
-          {/* Top Badges */}
-          <div className={cn("absolute flex items-center gap-2", compact ? "top-2.5 left-2.5" : "top-3.5 left-3.5")}>
-            {Boolean((r as any).is_pure_veg) && (
-              <div
-                className={cn(
-                  "bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 text-emerald-300 font-black rounded-full shadow-xs flex items-center gap-1.5",
-                  compact ? "text-[9px] px-2 py-0.5" : "text-[10px] sm:text-xs px-2.5 py-1"
-                )}
-              >
-                <span className="size-1.5 sm:size-2 rounded-full bg-emerald-400 animate-pulse" />
-                PURE VEGETARIAN
-              </div>
-            )}
-          </div>
-
           {table && (
             <div
               className={cn(
@@ -427,9 +411,11 @@ export function MenuView({
               compact ? "bottom-2.5 left-2.5 right-2.5 space-y-0.5" : "bottom-4 left-4 right-4 space-y-1"
             )}
           >
-            <p className={cn("font-semibold text-white/95 drop-shadow-sm line-clamp-1", compact ? "text-xs" : "text-xs sm:text-sm")}>
-              Pure Indian vegetarian kitchen &amp; dine-in
-            </p>
+            {r.hours && (
+              <p className={cn("font-semibold text-white/95 drop-shadow-sm line-clamp-1", compact ? "text-xs" : "text-xs sm:text-sm")}>
+                {r.hours}
+              </p>
+            )}
             <div className={cn("flex items-center gap-1.5 text-white/85 font-medium drop-shadow-sm", compact ? "text-[10px]" : "text-[11px] sm:text-xs")}>
               <MapPin className={cn("text-orange-400 shrink-0", compact ? "size-3" : "size-3.5")} />
               <span className="truncate">{r.address || "Dine-in, Takeaway & Table Service"}</span>

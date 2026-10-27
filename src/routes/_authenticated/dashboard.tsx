@@ -133,7 +133,7 @@ function Dashboard() {
     }
   }, [r]);
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return <DashboardSkeleton />;
   }
 
