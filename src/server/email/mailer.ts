@@ -95,16 +95,12 @@ export async function sendOtpEmail(
       from: fromHeader,
       to: toEmail,
       replyTo: `Menuly Support <${OFFICIAL_MENULY_USER}>`,
-      sender: OFFICIAL_MENULY_USER,
       subject,
       html,
       text,
       headers: {
-        "X-Entity-Ref-ID": `menuly-otp-${Date.now()}`,
         "Auto-Submitted": "auto-generated",
         "X-Auto-Response-Suppress": "All",
-        "Feedback-ID": "otp:auth:menuly",
-        "X-Mailer": "Menuly Official Mailer v1.2",
       },
     });
 

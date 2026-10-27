@@ -46,6 +46,8 @@ export function renderOtpEmail({
   const termsUrl = `${siteUrl}/terms`;
   const privacyUrl = `${siteUrl}/privacy`;
   const contactUrl = `${siteUrl}/contact`;
+  const logoUrl = `${siteUrl}/assets/menuly-badge.png`;
+  const bannerUrl = `${siteUrl}/assets/menuly-banner.png`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -222,12 +224,17 @@ export function renderOtpEmail({
   </style>
 </head>
 <body>
+  <!-- Hidden Preheader for clean Gmail snippet preview and spam filter trust -->
+  <div style="display: none; font-size: 1px; color: #fefefe; line-height: 1px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+    Your Menuly verification code is ${otp}. Valid for ${expiresInMinutes} minutes.
+  </div>
+
   <div class="email-wrapper">
     <div class="email-container">
       <!-- Top Luxury Header with Official Logo -->
       <div class="email-header">
         <img
-          src="https://cdn.jsdelivr.net/gh/grchetan/menuly-app@main/public/assets/menuly-badge.png?v=2"
+          src="${logoUrl}"
           alt="Menuly Official Logo"
           class="logo-img"
           width="82"
@@ -241,7 +248,7 @@ export function renderOtpEmail({
       <!-- Mascot Avatar Showcase Banner -->
       <div class="mascot-banner">
         <img
-          src="https://cdn.jsdelivr.net/gh/grchetan/menuly-app@main/public/assets/menuly-banner.png?v=2"
+          src="${bannerUrl}"
           alt="Menuly - Your Menu. One Scan Away."
           class="mascot-img"
           width="540"
