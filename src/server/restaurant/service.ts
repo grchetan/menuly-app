@@ -44,6 +44,21 @@ export async function getOrCreateUserRestaurant(
   userFullName?: string | null,
   role?: string
 ) {
+  // Check if owner user exists and is in good standing
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.deletedAt) {
+    const err = new Error("Menuly Official: Your account has been deleted by administration.");
+    (err as any).code = "ACCOUNT_DELETED";
+    (err as any).status = 403;
+    throw err;
+  }
+  if (user.isBanned) {
+    const err = new Error(user.banReason || "Your account has been suspended by Menuly Administration.");
+    (err as any).code = "ACCOUNT_BANNED";
+    (err as any).status = 403;
+    throw err;
+  }
+
   const now = Date.now();
   const cached = userRestaurantCache.get(userId);
   if (cached && now < cached.expiresAt) {
@@ -51,7 +66,7 @@ export async function getOrCreateUserRestaurant(
   }
 
   let restaurant = await prisma.restaurant.findFirst({
-    where: { ownerId: userId },
+    where: { ownerId: userId, deletedAt: null },
     include: {
       categories: {
         orderBy: { position: "asc" },
@@ -1096,7 +1111,7 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
     },
   });
 
-  if (!restaurant || !restaurant.isActive) {
+  if (!restaurant || !restaurant.isActive || restaurant.deletedAt) {
     return null;
   }
 
@@ -1161,6 +1176,7 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
 
 export async function getAllRestaurantsForAdmin() {
   const restaurants = await prisma.restaurant.findMany({
+    where: { deletedAt: null },
     include: {
       owner: {
         select: {

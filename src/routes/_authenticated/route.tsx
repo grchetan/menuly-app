@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AnimatedQR } from "@/components/AnimatedQR";
+import { AlertOctagon, ShieldAlert, Mail, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function AuthenticatedSkeleton() {
   return (
@@ -71,50 +73,173 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
-  const [checking, setChecking] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return !localStorage.getItem("menuly_token");
+  const [accountStatus, setAccountStatus] = useState<"CHECKING" | "ACTIVE" | "DELETED" | "BANNED" | "UNAUTHENTICATED">(() => {
+    if (typeof window === "undefined") return "CHECKING";
+    return localStorage.getItem("menuly_token") ? "CHECKING" : "UNAUTHENTICATED";
   });
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(localStorage.getItem("menuly_token"));
-  });
+  const [banReason, setBanReason] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 1. Check localStorage token
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
-    if (token) {
-      setIsAuthenticated(true);
-      setChecking(false);
+    if (!token) {
+      // Check cookie fallback
+      if (typeof document !== "undefined") {
+        const match = document.cookie.match(/(?:^|;\s*)menuly_token=([^;]*)/);
+        if (match && match[1]) {
+          const decoded = decodeURIComponent(match[1]);
+          if (decoded && decoded !== "undefined" && decoded !== "null") {
+            localStorage.setItem("menuly_token", decoded);
+            verifyToken(decoded);
+            return;
+          }
+        }
+      }
+      setAccountStatus("UNAUTHENTICATED");
+      navigate({ to: "/auth", replace: true });
       return;
     }
 
-    // 2. Fallback check for cookie
-    if (typeof document !== "undefined") {
-      const match = document.cookie.match(/(?:^|;\s*)menuly_token=([^;]*)/);
-      if (match && match[1]) {
-        const decoded = decodeURIComponent(match[1]);
-        if (decoded && decoded !== "undefined" && decoded !== "null") {
-          localStorage.setItem("menuly_token", decoded);
-          setIsAuthenticated(true);
-          setChecking(false);
-          return;
-        }
-      }
-    }
+    verifyToken(token);
 
-    // 3. Not authenticated -> redirect to /auth
-    setIsAuthenticated(false);
-    setChecking(false);
-    navigate({ to: "/auth", replace: true });
+    function verifyToken(tok: string) {
+      fetch("/api/user/status", {
+        headers: { Authorization: `Bearer ${tok}` },
+      })
+        .then(async (res) => {
+          if (res.status === 403) {
+            const data = await res.json().catch(() => ({}));
+            if (data.code === "ACCOUNT_DELETED" || data.isDeleted) {
+              localStorage.removeItem("menuly_token");
+              localStorage.removeItem("menuly_user");
+              setAccountStatus("DELETED");
+              return;
+            }
+            if (data.code === "ACCOUNT_BANNED" || data.isBanned) {
+              setBanReason(data.banReason || data.error || "Your account has been suspended by Menuly Administration.");
+              setAccountStatus("BANNED");
+              return;
+            }
+          }
+          if (res.status === 401) {
+            localStorage.removeItem("menuly_token");
+            localStorage.removeItem("menuly_user");
+            setAccountStatus("UNAUTHENTICATED");
+            navigate({ to: "/auth", replace: true });
+            return;
+          }
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data.user) {
+              localStorage.setItem("menuly_user", JSON.stringify(data.user));
+            }
+            setAccountStatus("ACTIVE");
+            return;
+          }
+          // Network resilience
+          setAccountStatus("ACTIVE");
+        })
+        .catch(() => {
+          setAccountStatus("ACTIVE");
+        });
+    }
   }, [navigate]);
 
-  if (checking) {
+  if (accountStatus === "CHECKING") {
     return <AuthenticatedSkeleton />;
   }
 
-  if (!isAuthenticated) return null;
+  if (accountStatus === "DELETED") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 text-center">
+        <div className="mx-auto max-w-md w-full space-y-6 rounded-3xl border border-destructive/25 bg-card p-7 sm:p-9 shadow-lift">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 shadow-soft">
+            <AlertOctagon className="size-8" />
+          </div>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-destructive/10 text-destructive">
+              Menuly Official Notice
+            </div>
+            <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">
+              Your Account Has Been Deleted
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Menuly Official: Your restaurant account has been deleted by administration. If you believe this is an error or wish to request restoration, please contact Menuly Support.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild variant="destructive" className="gap-2 rounded-xl">
+              <a href="mailto:menulyofficial@gmail.com">
+                <Mail className="size-4" />
+                Contact Menuly Support
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                localStorage.clear();
+                window.location.href = "/auth";
+              }}
+              className="gap-2 rounded-xl"
+            >
+              <LogOut className="size-4" />
+              Go to Login
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accountStatus === "BANNED") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 text-center">
+        <div className="mx-auto max-w-md w-full space-y-6 rounded-3xl border border-amber-500/25 bg-card p-7 sm:p-9 shadow-lift">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-soft">
+            <ShieldAlert className="size-8" />
+          </div>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              Account Suspended
+            </div>
+            <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">
+              Account Suspended
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Your Menuly account has been suspended by Administration. You are restricted from accessing dashboard operations.
+            </p>
+            {banReason && (
+              <div className="rounded-xl border border-amber-500/30 bg-muted/40 p-3 text-xs text-foreground/90 font-mono text-left">
+                <span className="font-semibold block text-amber-600 dark:text-amber-400 mb-0.5">Reason:</span>
+                {banReason}
+              </div>
+            )}
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild className="gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white">
+              <a href="mailto:menulyofficial@gmail.com">
+                <Mail className="size-4" />
+                Appeal Suspension
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                localStorage.clear();
+                window.location.href = "/auth";
+              }}
+              className="gap-2 rounded-xl"
+            >
+              <LogOut className="size-4" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accountStatus === "UNAUTHENTICATED") return null;
 
   return <Outlet />;
 }

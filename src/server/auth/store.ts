@@ -10,6 +10,9 @@ export interface StoredUser {
   phone: string | null;
   role: UserRole;
   isVerified: boolean;
+  isBanned?: boolean;
+  banReason?: string | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -127,6 +130,9 @@ export const userStore = {
             phone: u.phone,
             role: u.role as UserRole,
             isVerified: u.isVerified,
+            isBanned: u.isBanned ?? false,
+            banReason: u.banReason ?? null,
+            deletedAt: u.deletedAt ?? null,
             createdAt: u.createdAt,
             updatedAt: u.updatedAt,
           };
@@ -152,6 +158,9 @@ export const userStore = {
             phone: u.phone,
             role: u.role as UserRole,
             isVerified: u.isVerified,
+            isBanned: u.isBanned ?? false,
+            banReason: u.banReason ?? null,
+            deletedAt: u.deletedAt ?? null,
             createdAt: u.createdAt,
             updatedAt: u.updatedAt,
           };
@@ -194,6 +203,9 @@ export const userStore = {
             phone: u.phone,
             role: u.role as UserRole,
             isVerified: u.isVerified,
+            isBanned: u.isBanned ?? false,
+            banReason: u.banReason ?? null,
+            deletedAt: u.deletedAt ?? null,
             createdAt: u.createdAt,
             updatedAt: u.updatedAt,
           };
@@ -285,6 +297,9 @@ export const userStore = {
       phone: string | null;
       isVerified: boolean;
       role: UserRole;
+      isBanned: boolean;
+      banReason: string | null;
+      deletedAt: Date | null;
     }>
   ): Promise<StoredUser | null> {
     if (isPrismaAvailable()) {
@@ -302,6 +317,9 @@ export const userStore = {
           phone: u.phone,
           role: u.role as UserRole,
           isVerified: u.isVerified,
+          isBanned: u.isBanned ?? false,
+          banReason: u.banReason ?? null,
+          deletedAt: u.deletedAt ?? null,
           createdAt: u.createdAt,
           updatedAt: u.updatedAt,
         };
@@ -345,6 +363,9 @@ export const userStore = {
           phone: u.phone,
           role: u.role as UserRole,
           isVerified: u.isVerified,
+          isBanned: u.isBanned ?? false,
+          banReason: u.banReason ?? null,
+          deletedAt: u.deletedAt ?? null,
           createdAt: u.createdAt,
           updatedAt: u.updatedAt,
         }));
@@ -353,6 +374,125 @@ export const userStore = {
       }
     }
     return Array.from(devUsers.values());
+  },
+
+  async softDelete(userId: string): Promise<boolean> {
+    const now = new Date();
+    if (isPrismaAvailable()) {
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { deletedAt: now },
+        });
+        await prisma.restaurant.updateMany({
+          where: { ownerId: userId },
+          data: { deletedAt: now, isActive: false },
+        });
+        await prisma.session.deleteMany({ where: { userId } }).catch(() => {});
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    for (const [email, u] of devUsers.entries()) {
+      if (u.id === userId) {
+        u.deletedAt = now;
+        emailCheckFastCache.delete(email);
+        return true;
+      }
+    }
+    return false;
+  },
+
+  async restore(userId: string): Promise<boolean> {
+    if (isPrismaAvailable()) {
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { deletedAt: null },
+        });
+        await prisma.restaurant.updateMany({
+          where: { ownerId: userId },
+          data: { deletedAt: null, isActive: true },
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    for (const [email, u] of devUsers.entries()) {
+      if (u.id === userId) {
+        u.deletedAt = null;
+        emailCheckFastCache.delete(email);
+        return true;
+      }
+    }
+    return false;
+  },
+
+  async purge(userId: string): Promise<boolean> {
+    if (isPrismaAvailable()) {
+      try {
+        const userRests = await prisma.restaurant.findMany({ where: { ownerId: userId } });
+        for (const r of userRests) {
+          await prisma.restaurant.delete({ where: { id: r.id } }).catch(() => {});
+        }
+        await prisma.session.deleteMany({ where: { userId } }).catch(() => {});
+        await prisma.user.delete({ where: { id: userId } });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    for (const [email, u] of devUsers.entries()) {
+      if (u.id === userId) {
+        devUsers.delete(email);
+        emailCheckFastCache.delete(email);
+        return true;
+      }
+    }
+    return false;
+  },
+
+  async setBan(userId: string, isBanned: boolean, banReason?: string | null): Promise<StoredUser | null> {
+    if (isPrismaAvailable()) {
+      try {
+        const u = await prisma.user.update({
+          where: { id: userId },
+          data: {
+            isBanned,
+            banReason: isBanned ? (banReason || "Your account has been suspended by Menuly Administration.") : null,
+          },
+        });
+        if (isBanned) {
+          await prisma.session.deleteMany({ where: { userId } }).catch(() => {});
+        }
+        return {
+          id: u.id,
+          email: u.email,
+          passwordHash: u.passwordHash,
+          fullName: u.fullName,
+          phone: u.phone,
+          role: u.role as UserRole,
+          isVerified: u.isVerified,
+          isBanned: u.isBanned,
+          banReason: u.banReason,
+          deletedAt: u.deletedAt,
+          createdAt: u.createdAt,
+          updatedAt: u.updatedAt,
+        };
+      } catch {
+        return null;
+      }
+    }
+    for (const u of devUsers.values()) {
+      if (u.id === userId) {
+        u.isBanned = isBanned;
+        u.banReason = isBanned ? (banReason || "Your account has been suspended by Menuly Administration.") : null;
+        return u;
+      }
+    }
+    return null;
   },
 };
 

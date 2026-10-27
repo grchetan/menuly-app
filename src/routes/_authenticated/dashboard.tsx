@@ -19,6 +19,8 @@ import {
   Clock,
   ArrowRight,
   ShieldCheck,
+  ShieldAlert,
+  Mail,
   Users,
   Save,
 } from "lucide-react";
@@ -77,9 +79,19 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function Dashboard() {
-  const { data, isLoading } = useQuery(myMenuQuery);
+  const { data, isLoading, isError, error } = useQuery(myMenuQuery);
   const qc = useQueryClient();
   const r = data?.restaurant;
+
+  const anyErr = error as any;
+  const isDeleted =
+    anyErr?.code === "ACCOUNT_DELETED" ||
+    anyErr?.isDeleted ||
+    (typeof anyErr?.message === "string" && anyErr.message.toLowerCase().includes("deleted"));
+  const isBanned =
+    anyErr?.code === "ACCOUNT_BANNED" ||
+    anyErr?.isBanned ||
+    (typeof anyErr?.message === "string" && anyErr.message.toLowerCase().includes("suspended"));
 
   const analytics = data?.analytics ?? {
     totalScans: 0,
@@ -133,7 +145,100 @@ function Dashboard() {
     }
   }, [r]);
 
-  if (isLoading && !data) {
+  if (isError && isDeleted) {
+    return (
+      <AppShell title="Account Notice — Menuly Official">
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-destructive/25 bg-card p-8 sm:p-12 text-center space-y-4 shadow-lift">
+            <div className="size-16 rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 flex items-center justify-center mx-auto shadow-soft">
+              <ShieldAlert className="size-8" />
+            </div>
+            <div className="max-w-lg mx-auto space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-destructive/10 text-destructive">
+                Menuly Official Notice
+              </div>
+              <h2 className="text-2xl font-bold font-display text-foreground">
+                Your Account Has Been Deleted
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Menuly Official: Your account and restaurant profile have been removed by platform administration.
+                If you believe this was an error, please reach out to Menuly Official Support.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+              <Button asChild variant="destructive" className="gap-2 rounded-xl">
+                <a href="mailto:menulyofficial@gmail.com">
+                  <Mail className="size-4" />
+                  Contact Support
+                </a>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.href = "/auth";
+                }}
+                className="gap-2 rounded-xl"
+              >
+                Go to Login
+              </Button>
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (isError && isBanned) {
+    return (
+      <AppShell title="Account Notice — Menuly Official">
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-amber-500/25 bg-card p-8 sm:p-12 text-center space-y-4 shadow-lift">
+            <div className="size-16 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center mx-auto shadow-soft">
+              <ShieldAlert className="size-8" />
+            </div>
+            <div className="max-w-lg mx-auto space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                Account Suspended
+              </div>
+              <h2 className="text-2xl font-bold font-display text-foreground">
+                Account Suspended
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Your account has been suspended by Menuly Administration.
+              </p>
+              {anyErr?.banReason && (
+                <div className="rounded-xl border border-amber-500/30 bg-muted/40 p-3 text-xs text-foreground/90 font-mono text-left max-w-md mx-auto">
+                  <span className="font-semibold block text-amber-600 dark:text-amber-400 mb-0.5">Reason:</span>
+                  {anyErr.banReason}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+              <Button asChild className="gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white">
+                <a href="mailto:menulyofficial@gmail.com">
+                  <Mail className="size-4" />
+                  Appeal Suspension
+                </a>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.href = "/auth";
+                }}
+                className="gap-2 rounded-xl"
+              >
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (isLoading && !data && !isError) {
     return <DashboardSkeleton />;
   }
 

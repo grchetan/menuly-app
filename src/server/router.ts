@@ -443,6 +443,47 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // USER STATUS / VERIFICATION: GET /api/user/status & GET /api/auth/me
+    // --------------------------------------------------------------------------
+    if ((pathname === "/api/user/status" || pathname === "/api/auth/me") && request.method === "GET") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Authentication required", code: "UNAUTHORIZED" }, 401);
+      }
+      const auth = verifyAccessToken(token);
+      if (!auth) {
+        return json({ error: "Session expired. Please log in again.", code: "TOKEN_EXPIRED" }, 401);
+      }
+      const user = await userStore.findById(auth.userId);
+      if (!user || user.deletedAt) {
+        return json({
+          error: "Menuly Official: Your account has been deleted by administration.",
+          code: "ACCOUNT_DELETED",
+          isDeleted: true,
+        }, 403);
+      }
+      if (user.isBanned) {
+        return json({
+          error: user.banReason || "Your account has been suspended by Menuly Administration.",
+          code: "ACCOUNT_BANNED",
+          isBanned: true,
+          banReason: user.banReason,
+        }, 403);
+      }
+      return json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          phone: user.phone,
+          role: user.role,
+          isVerified: user.isVerified,
+        },
+      });
+    }
+
+    // --------------------------------------------------------------------------
     // RESTAURANT OWNER APIs (Protected with JWT)
     // --------------------------------------------------------------------------
     if (pathname.startsWith("/api/restaurant/")) {
@@ -453,6 +494,24 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const auth = verifyAccessToken(token);
       if (!auth) {
         return json({ error: "Session expired. Please log in again." }, 401);
+      }
+
+      // Live verification of account status against database
+      const user = await userStore.findById(auth.userId);
+      if (!user || user.deletedAt) {
+        return json({
+          error: "Menuly Official: Your account has been deleted by administration.",
+          code: "ACCOUNT_DELETED",
+          isDeleted: true,
+        }, 403);
+      }
+      if (user.isBanned) {
+        return json({
+          error: user.banReason || "Your account has been suspended by Menuly Administration.",
+          code: "ACCOUNT_BANNED",
+          isBanned: true,
+          banReason: user.banReason,
+        }, 403);
       }
 
       // 1. GET /api/restaurant/my-menu
@@ -828,10 +887,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         );
       }
 
-      // GET /api/admin/users (Strictly verified platform users only)
+      // GET /api/admin/users (Strictly verified platform users only, active / not in trash)
       if (pathname === "/api/admin/users" && request.method === "GET") {
         const users = await prisma.user.findMany({
-          where: { isVerified: true },
+          where: { isVerified: true, deletedAt: null },
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -840,8 +899,11 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
             fullName: true,
             phone: true,
             isVerified: true,
+            isBanned: true,
+            banReason: true,
             createdAt: true,
             restaurants: {
+              where: { deletedAt: null },
               select: { id: true, name: true, slug: true, isActive: true },
               take: 1,
             },
@@ -856,6 +918,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
             fullName: u.fullName,
             phone: u.phone,
             isVerified: u.isVerified,
+            isBanned: u.isBanned ?? false,
+            banReason: u.banReason ?? null,
             createdAt: u.createdAt,
             restaurant: u.restaurants[0] || null,
           })),
@@ -916,7 +980,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         return json({ success: true, user: updated });
       }
 
-      // POST /api/admin/users/delete
+      // POST /api/admin/users/delete (Soft delete -> Moves account & restaurant to Trash for 30 days)
       if (pathname === "/api/admin/users/delete" && request.method === "POST") {
         if (payload.email !== "menulyofficial@gmail.com") {
           return json({ error: "Access Denied: Only the Master Platform Administrator can delete user accounts." }, 403);
@@ -935,15 +999,171 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           return json({ error: "You cannot delete your own logged-in admin account." }, 403);
         }
 
-        // Delete restaurants owned by this user
-        const userRests = await prisma.restaurant.findMany({ where: { ownerId: body.userId } });
-        for (const r of userRests) {
-          await prisma.restaurant.delete({ where: { id: r.id } });
-        }
-        await prisma.session.deleteMany({ where: { userId: body.userId } });
-        await prisma.user.delete({ where: { id: body.userId } });
+        const now = new Date();
+        // Move user & restaurant to Trash (Soft Delete)
+        await prisma.user.update({
+          where: { id: body.userId },
+          data: { deletedAt: now },
+        });
+        await prisma.restaurant.updateMany({
+          where: { ownerId: body.userId },
+          data: { deletedAt: now, isActive: false },
+        });
+        await prisma.session.deleteMany({ where: { userId: body.userId } }).catch(() => {});
+        userStore.invalidateEmailCache(target.email);
 
-        return json({ success: true, message: "User entry deleted successfully" });
+        return json({
+          success: true,
+          message: "User account and restaurant moved to Trash. It will be kept for 30 days before permanent deletion.",
+        });
+      }
+
+      // POST /api/admin/users/ban (Suspend or Unsuspend User Account)
+      if (pathname === "/api/admin/users/ban" && request.method === "POST") {
+        if (payload.email !== "menulyofficial@gmail.com" && payload.role !== "SUPER_ADMIN") {
+          return json({ error: "Access Denied: Only Platform Administrators can suspend accounts." }, 403);
+        }
+
+        const body = await request.json().catch(() => ({}));
+        if (!body.userId) return json({ error: "User ID required" }, 400);
+
+        const target = await prisma.user.findUnique({ where: { id: body.userId } });
+        if (!target) return json({ error: "User not found" }, 404);
+
+        if (target.email === "menulyofficial@gmail.com") {
+          return json({ error: "Primary Platform Administrator cannot be suspended." }, 403);
+        }
+
+        const isBanned = body.isBanned !== undefined ? Boolean(body.isBanned) : true;
+        const banReason = body.banReason?.trim() || "Your account has been suspended by Menuly Administration.";
+
+        await prisma.user.update({
+          where: { id: body.userId },
+          data: {
+            isBanned,
+            banReason: isBanned ? banReason : null,
+          },
+        });
+
+        if (isBanned) {
+          await prisma.session.deleteMany({ where: { userId: body.userId } }).catch(() => {});
+        }
+        userStore.invalidateEmailCache(target.email);
+
+        return json({
+          success: true,
+          message: isBanned ? "User account has been suspended." : "User account has been unsuspended.",
+          isBanned,
+          banReason: isBanned ? banReason : null,
+        });
+      }
+
+      // GET /api/admin/trash (List soft-deleted accounts in 30-day recycle bin, auto-purges >30 days)
+      if (pathname === "/api/admin/trash" && request.method === "GET") {
+        // Auto-purge records older than 30 days
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        try {
+          const expiredUsers = await prisma.user.findMany({
+            where: { deletedAt: { lt: thirtyDaysAgo } },
+            select: { id: true, email: true },
+          });
+          for (const exp of expiredUsers) {
+            const rests = await prisma.restaurant.findMany({ where: { ownerId: exp.id } });
+            for (const r of rests) {
+              await prisma.restaurant.delete({ where: { id: r.id } }).catch(() => {});
+            }
+            await prisma.session.deleteMany({ where: { userId: exp.id } }).catch(() => {});
+            await prisma.user.delete({ where: { id: exp.id } }).catch(() => {});
+            userStore.invalidateEmailCache(exp.email);
+          }
+        } catch (e) {
+          console.warn("[Trash Auto-Purge Exception]:", e);
+        }
+
+        const trashedUsers = await prisma.user.findMany({
+          where: { deletedAt: { not: null } },
+          orderBy: { deletedAt: "desc" },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            phone: true,
+            role: true,
+            deletedAt: true,
+            restaurants: {
+              select: { id: true, name: true, slug: true },
+              take: 1,
+            },
+          },
+        });
+
+        const items = trashedUsers.map((u) => {
+          const deletedTime = u.deletedAt ? new Date(u.deletedAt).getTime() : Date.now();
+          const daysPassed = Math.floor((Date.now() - deletedTime) / (1000 * 60 * 60 * 24));
+          const daysRemaining = Math.max(0, 30 - daysPassed);
+
+          return {
+            id: u.id,
+            email: u.email,
+            fullName: u.fullName,
+            phone: u.phone,
+            role: u.role,
+            deletedAt: u.deletedAt,
+            restaurant: u.restaurants[0] || null,
+            daysRemaining,
+            daysPassed,
+          };
+        });
+
+        return json({ success: true, trash: items });
+      }
+
+      // POST /api/admin/trash/restore (Restore account & restaurant from Trash)
+      if (pathname === "/api/admin/trash/restore" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.userId) return json({ error: "User ID required" }, 400);
+
+        const target = await prisma.user.findUnique({ where: { id: body.userId } });
+        if (!target) return json({ error: "User not found in database" }, 404);
+
+        await prisma.user.update({
+          where: { id: body.userId },
+          data: { deletedAt: null },
+        });
+        await prisma.restaurant.updateMany({
+          where: { ownerId: body.userId },
+          data: { deletedAt: null, isActive: true },
+        });
+        userStore.invalidateEmailCache(target.email);
+
+        return json({ success: true, message: "User account and restaurant restored successfully." });
+      }
+
+      // POST /api/admin/trash/purge (Immediate permanent hard delete)
+      if (pathname === "/api/admin/trash/purge" && request.method === "POST") {
+        if (payload.email !== "menulyofficial@gmail.com") {
+          return json({ error: "Access Denied: Only Master Admin can permanently purge records." }, 403);
+        }
+
+        const body = await request.json().catch(() => ({}));
+        if (!body.userId) return json({ error: "User ID required" }, 400);
+
+        const target = await prisma.user.findUnique({ where: { id: body.userId } });
+        if (!target) return json({ error: "User not found" }, 404);
+
+        if (target.email === "menulyofficial@gmail.com") {
+          return json({ error: "Primary Platform Administrator cannot be purged." }, 403);
+        }
+
+        const rests = await prisma.restaurant.findMany({ where: { ownerId: body.userId } });
+        for (const r of rests) {
+          await prisma.restaurant.delete({ where: { id: r.id } }).catch(() => {});
+        }
+        await prisma.session.deleteMany({ where: { userId: body.userId } }).catch(() => {});
+        await prisma.user.delete({ where: { id: body.userId } });
+        userStore.invalidateEmailCache(target.email);
+
+        return json({ success: true, message: "User permanently purged from database." });
       }
 
       // POST /api/admin/restaurants/delete

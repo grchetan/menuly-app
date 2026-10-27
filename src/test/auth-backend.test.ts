@@ -24,6 +24,7 @@ import {
   sendPhoneVerificationOtp,
   verifyPhoneVerificationOtp,
 } from "../server/auth/service";
+import { userStore } from "../server/auth/store";
 
 describe("Custom Authentication & Security Suite", () => {
   it("securely hashes and verifies passwords", async () => {
@@ -311,6 +312,90 @@ describe("Custom Authentication & Security Suite", () => {
     expect(forgotRes.data?.email).toBe(testEmail);
     expect(forgotRes.data?.devOtp).toBeTruthy();
   }, 45000);
+
+  it("handles account suspension (ban): blocks login and forgot-password with suspension message, and unbans cleanly", async () => {
+    const banEmail = `ban-${Date.now()}@testrestaurant.in`;
+    const password = "BanTestPassword123!";
+    const signup = await signupUser({ email: banEmail, password, fullName: "Suspended Owner", clientIp: `ban-ip-${Date.now()}` });
+    expect(signup.success).toBe(true);
+    const otp = signup.data?.devOtp;
+    expect(otp).toBeTruthy();
+    await verifyUserOtp({ email: banEmail, otp: otp!, type: "SIGNUP" });
+
+    const user = await userStore.findByEmail(banEmail);
+    expect(user).toBeTruthy();
+
+    // 1. Ban the user with a custom reason
+    const customReason = "Account suspended due to policy violation.";
+    await userStore.setBan(user!.id, true, customReason);
+
+    // 2. Attempt login -> Must fail with 403 and the suspension message
+    const loginAttempt = await loginUser({ email: banEmail, password, clientIp: `ban-login-ip-${Date.now()}` });
+    expect(loginAttempt.success).toBe(false);
+    expect(loginAttempt.status).toBe(403);
+    expect(loginAttempt.error).toBe(customReason);
+
+    // 3. Attempt forgot password -> Must fail with 403
+    const forgotAttempt = await forgotPassword({ email: banEmail, clientIp: `ban-forgot-ip-${Date.now()}` });
+    expect(forgotAttempt.success).toBe(false);
+    expect(forgotAttempt.status).toBe(403);
+    expect(forgotAttempt.error).toBe(customReason);
+
+    // 4. Unban user -> Login must succeed again
+    await userStore.setBan(user!.id, false);
+    const unbannedLogin = await loginUser({ email: banEmail, password, clientIp: `unban-login-ip-${Date.now()}` });
+    expect(unbannedLogin.success).toBe(true);
+    expect(unbannedLogin.data?.token).toBeTruthy();
+  });
+
+  it("handles soft delete (Trash 30 Days): blocks login with official deleted notice, allows restoration and permanent purge", async () => {
+    const trashEmail = `trash-${Date.now()}@testrestaurant.in`;
+    const password = "TrashTestPassword123!";
+    const signup = await signupUser({ email: trashEmail, password, fullName: "Trash Owner", clientIp: `trash-ip-${Date.now()}` });
+    expect(signup.success).toBe(true);
+    const otp = signup.data?.devOtp;
+    expect(otp).toBeTruthy();
+    await verifyUserOtp({ email: trashEmail, otp: otp!, type: "SIGNUP" });
+
+    const user = await userStore.findByEmail(trashEmail);
+    expect(user).toBeTruthy();
+
+    // 1. Move to Trash (Soft Delete)
+    const softDeleted = await userStore.softDelete(user!.id);
+    expect(softDeleted).toBe(true);
+
+    const trashedUser = await userStore.findById(user!.id);
+    expect(trashedUser?.deletedAt).toBeTruthy();
+
+    // 2. Attempt login -> Must fail with 403 and official notice
+    const loginAttempt = await loginUser({ email: trashEmail, password, clientIp: `trash-login-ip-${Date.now()}` });
+    expect(loginAttempt.success).toBe(false);
+    expect(loginAttempt.status).toBe(403);
+    expect(loginAttempt.error).toContain("Menuly Official: Your account has been deleted by administration.");
+
+    // 3. Attempt forgot password -> Must fail with 403
+    const forgotAttempt = await forgotPassword({ email: trashEmail, clientIp: `trash-forgot-ip-${Date.now()}` });
+    expect(forgotAttempt.success).toBe(false);
+    expect(forgotAttempt.status).toBe(403);
+    expect(forgotAttempt.error).toContain("Menuly Official: Your account has been deleted by administration.");
+
+    // 4. Restore user from Trash
+    const restored = await userStore.restore(user!.id);
+    expect(restored).toBe(true);
+
+    const activeUser = await userStore.findById(user!.id);
+    expect(activeUser?.deletedAt).toBeNull();
+
+    // Login succeeds after restore
+    const restoredLogin = await loginUser({ email: trashEmail, password, clientIp: `trash-restore-ip-${Date.now()}` });
+    expect(restoredLogin.success).toBe(true);
+
+    // 5. Permanent Purge
+    const purged = await userStore.purge(user!.id);
+    expect(purged).toBe(true);
+    const purgedLookup = await userStore.findById(user!.id);
+    expect(purgedLookup).toBeNull();
+  });
 
   afterAll(async () => {
     try {

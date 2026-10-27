@@ -49,6 +49,7 @@ import {
   Layers,
   Wrench,
   RotateCw,
+  RotateCcw,
   Megaphone,
   Radio,
   Star,
@@ -154,7 +155,21 @@ export type AdminUser = {
   plan: "starter" | "pro" | "enterprise";
   role: "super_admin" | "owner";
   status: "active" | "suspended";
+  isBanned?: boolean;
+  banReason?: string | null;
   joinedDate: string;
+};
+
+export type TrashItem = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  phone: string | null;
+  role: string;
+  deletedAt: string;
+  restaurant: { id: string; name: string; slug: string } | null;
+  daysRemaining: number;
+  daysPassed: number;
 };
 
 export type PendingSignup = {
@@ -377,10 +392,14 @@ function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "starter-packs" | "settings">("restaurants");
+  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "starter-packs" | "settings" | "trash">("restaurants");
   const [restaurants, setRestaurants] = useState<AdminRestaurant[]>([]);
   const [plans, setPlans] = useState<AdminPlan[]>(DEFAULT_ADMIN_PLANS);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [restoringTrashId, setRestoringTrashId] = useState<string | null>(null);
+  const [purgingTrashId, setPurgingTrashId] = useState<string | null>(null);
+  const [banningUserId, setBanningUserId] = useState<string | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -628,8 +647,16 @@ function AdminPage() {
       })
         .then((res) => res.json())
         .catch(() => ({ success: false })),
+      fetch("/api/admin/trash", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
     ])
-      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData]) => {
+      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData, trashData]) => {
+        if (trashData?.success && Array.isArray(trashData.trash)) {
+          setTrashItems(trashData.trash);
+        }
         if (pendingData?.success && Array.isArray(pendingData.pending)) {
           setPendingSignups(pendingData.pending);
         }
@@ -652,7 +679,9 @@ function AdminPage() {
             restaurantSlug: u.role === "SUPER_ADMIN" ? "" : u.restaurant?.slug || "",
             plan: "starter",
             role: u.role === "SUPER_ADMIN" ? "super_admin" : "owner",
-            status: "active",
+            status: u.isBanned ? "suspended" : "active",
+            isBanned: Boolean(u.isBanned),
+            banReason: u.banReason || null,
             joinedDate: new Date(u.createdAt).toLocaleDateString("en-IN", {
               day: "numeric",
               month: "short",
@@ -993,12 +1022,173 @@ function AdminPage() {
       }
       setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
       setRestaurants((prev) => prev.filter((r) => r.ownerEmail !== userToDelete.email));
-      toast.success(`Account for ${userToDelete.name} deleted.`);
+      toast.success(`Account for ${userToDelete.name} moved to Trash (Recycle Bin). Kept for 30 days.`);
       setUserToDelete(null);
+
+      // Refresh trash items list
+      fetch("/api/admin/trash", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && Array.isArray(d.trash)) setTrashItems(d.trash);
+        })
+        .catch(() => {});
     } catch (err: any) {
       toast.error(err.message || "Failed to delete user");
     } finally {
       setDeletingUserLoading(false);
+    }
+  };
+
+  const handleToggleBan = async (user: AdminUser) => {
+    const isCurrentlyBanned = Boolean(user.isBanned);
+    let banReason: string | undefined = undefined;
+
+    if (!isCurrentlyBanned) {
+      const input = window.prompt(
+        `Enter suspension reason for ${user.name} (${user.email}):`,
+        "Violation of Menuly Terms of Service & acceptable use policies"
+      );
+      if (input === null) return;
+      banReason = input.trim() || undefined;
+    }
+
+    setBanningUserId(user.id);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/users/ban", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          isBanned: !isCurrentlyBanned,
+          banReason,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update account status");
+      }
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id
+            ? {
+                ...u,
+                isBanned: !isCurrentlyBanned,
+                status: !isCurrentlyBanned ? "suspended" : "active",
+                banReason: !isCurrentlyBanned ? banReason || null : null,
+              }
+            : u
+        )
+      );
+      toast.success(
+        !isCurrentlyBanned
+          ? `Account for ${user.name} has been suspended.`
+          : `Account for ${user.name} has been restored to active.`
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update account status");
+    } finally {
+      setBanningUserId(null);
+    }
+  };
+
+  const handleRestoreTrash = async (userId: string) => {
+    setRestoringTrashId(userId);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/trash/restore", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to restore account");
+      }
+      toast.success("Account and restaurant successfully restored from Trash!");
+      setTrashItems((prev) => prev.filter((t) => t.id !== userId));
+
+      // Refresh users and restaurants list
+      fetch("/api/admin/users", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && Array.isArray(d.users)) {
+            setUsers(
+              d.users.map((u: any) => ({
+                id: u.id,
+                name: u.fullName || u.email.split("@")[0],
+                email: u.email,
+                phone: u.phone || "+91 98765 00000",
+                restaurantName:
+                  u.role === "SUPER_ADMIN" ? "Platform Administration" : u.restaurant?.name || "No Restaurant Set",
+                restaurantSlug: u.role === "SUPER_ADMIN" ? "" : u.restaurant?.slug || "",
+                plan: "starter",
+                role: u.role === "SUPER_ADMIN" ? "super_admin" : "owner",
+                status: u.isBanned ? "suspended" : "active",
+                isBanned: Boolean(u.isBanned),
+                banReason: u.banReason || null,
+                joinedDate: new Date(u.createdAt).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }),
+              }))
+            );
+          }
+        })
+        .catch(() => {});
+
+      fetch("/api/admin/restaurants", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && Array.isArray(d.restaurants)) {
+            setRestaurants(d.restaurants);
+          }
+        })
+        .catch(() => {});
+    } catch (err: any) {
+      toast.error(err.message || "Failed to restore account");
+    } finally {
+      setRestoringTrashId(null);
+    }
+  };
+
+  const handlePurgeTrash = async (userId: string, email: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to PERMANENTLY PURGE ${email}? This hard-deletes the user and all restaurant data immediately and CANNOT be undone.`
+      )
+    ) {
+      return;
+    }
+    setPurgingTrashId(userId);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/trash/purge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to permanently purge record");
+      }
+      toast.success(`Account for ${email} has been permanently purged from database.`);
+      setTrashItems((prev) => prev.filter((t) => t.id !== userId));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to purge record");
+    } finally {
+      setPurgingTrashId(null);
     }
   };
 
@@ -1786,6 +1976,33 @@ function AdminPage() {
               <Settings className="size-4 shrink-0" />
               <span className="hidden sm:inline">Platform Settings</span>
               <span className="sm:hidden">Settings</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("trash", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "trash"
+                  ? "bg-destructive text-destructive-foreground shadow-sm ring-1 ring-destructive/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <Trash2 className="size-4 shrink-0" />
+              <span className="hidden sm:inline">Trash (30 Days)</span>
+              <span className="sm:hidden">Trash</span>
+              {trashItems.length > 0 && (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-none",
+                    activeTab === "trash"
+                      ? "bg-destructive-foreground/20 text-destructive-foreground"
+                      : "bg-destructive/15 text-destructive font-bold"
+                  )}
+                >
+                  {trashItems.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -3114,9 +3331,18 @@ function AdminPage() {
                           </td>
 
                           <td className="px-5 py-4">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-veg">
-                              <span className="size-1.5 rounded-full bg-veg" /> Active
-                            </span>
+                            {u.isBanned ? (
+                              <span
+                                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25"
+                                title={u.banReason || "Account Suspended by Administration"}
+                              >
+                                <ShieldAlert className="size-3" /> Suspended
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-veg">
+                                <span className="size-1.5 rounded-full bg-veg" /> Active
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-5 py-4 text-right">
@@ -3162,14 +3388,45 @@ function AdminPage() {
                                 </Button>
                               )}
 
-                              {/* Delete User Button (ONLY visible to Master Admin) */}
+                              {/* Suspend / Unsuspend Button (ONLY visible to Master Admin) */}
+                              {isMasterAdmin && u.email !== "menulyofficial@gmail.com" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className={cn(
+                                    "text-xs h-7 gap-1 px-2 font-bold cursor-pointer",
+                                    u.isBanned
+                                      ? "border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
+                                      : "border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                                  )}
+                                  disabled={banningUserId === u.id}
+                                  onClick={() => handleToggleBan(u)}
+                                  title={u.isBanned ? "Unsuspend account" : "Suspend account"}
+                                >
+                                  {banningUserId === u.id ? (
+                                    <RefreshCw className="size-3 animate-spin" />
+                                  ) : u.isBanned ? (
+                                    <>
+                                      <CheckCircle2 className="size-3 text-emerald-600" />
+                                      <span>Unsuspend</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ShieldAlert className="size-3 text-amber-600" />
+                                      <span>Suspend</span>
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+
+                              {/* Move to Trash Button (ONLY visible to Master Admin) */}
                               {isMasterAdmin && u.email !== "menulyofficial@gmail.com" && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                                   onClick={() => setUserToDelete(u)}
-                                  title="Delete User Account"
+                                  title="Move to Trash (30-Day Soft Delete)"
                                 >
                                   <Trash2 className="size-3.5" />
                                 </Button>
@@ -4044,22 +4301,174 @@ function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* TAB: TRASH / RECYCLE BIN (30-DAY AUTO PURGE) */}
+        {activeTab === "trash" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center">
+                    <Trash2 className="size-4" />
+                  </div>
+                  <h2 className="text-xl font-bold font-display text-foreground">Trash &amp; Recycle Bin (30 Days)</h2>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Deleted accounts and restaurants are preserved safely here for 30 days. You can restore them anytime or purge them immediately.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                  <Clock className="size-3.5" /> 30-Day Auto Purge Active
+                </span>
+              </div>
+            </div>
+
+            {/* Trash Table */}
+            <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="bg-secondary/50 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b">
+                    <tr>
+                      <th className="px-5 py-3">Account &amp; Contact</th>
+                      <th className="px-5 py-3">Associated Restaurant</th>
+                      <th className="px-5 py-3">Moved to Trash</th>
+                      <th className="px-5 py-3">Auto Purge In</th>
+                      <th className="px-5 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {trashItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-5 py-14 text-center text-muted-foreground">
+                          <CheckCircle2 className="size-8 mx-auto mb-2 text-emerald-500/60" />
+                          <p className="font-bold text-foreground text-sm">Trash is completely empty</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            No deleted accounts or restaurants currently pending purge.
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
+                      trashItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="size-9 rounded-xl bg-destructive/10 text-destructive font-bold text-sm flex items-center justify-center">
+                                {(item.fullName || item.email).slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="font-bold text-foreground">{item.fullName || "User Account"}</div>
+                                <div className="text-xs text-muted-foreground">{item.email}</div>
+                                {item.phone && (
+                                  <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5">{item.phone}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {item.restaurant ? (
+                              <div>
+                                <div className="font-bold text-xs text-foreground">{item.restaurant.name}</div>
+                                <div className="text-[11px] font-mono text-muted-foreground">/menu/{item.restaurant.slug}</div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No restaurant linked</span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-xs text-muted-foreground">
+                            {new Date(item.deletedAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border",
+                                item.daysRemaining <= 3
+                                  ? "bg-red-500/10 text-red-600 border-red-500/30 animate-pulse"
+                                  : item.daysRemaining <= 7
+                                  ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                  : "bg-secondary text-foreground border-border/40"
+                              )}
+                            >
+                              <Clock className="size-3" />
+                              {item.daysRemaining} {item.daysRemaining === 1 ? "day left" : "days left"}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Restore Button */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 font-bold cursor-pointer"
+                                disabled={restoringTrashId === item.id}
+                                onClick={() => handleRestoreTrash(item.id)}
+                                title="Restore account and restaurant to active status"
+                              >
+                                {restoringTrashId === item.id ? (
+                                  <RefreshCw className="size-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-3" />
+                                )}
+                                <span>Restore</span>
+                              </Button>
+
+                              {/* Hard Delete / Purge Button */}
+                              {isMasterAdmin && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-7 text-xs gap-1 font-bold cursor-pointer"
+                                  disabled={purgingTrashId === item.id}
+                                  onClick={() => handlePurgeTrash(item.id, item.email)}
+                                  title="Permanently remove from PostgreSQL immediately"
+                                >
+                                  {purgingTrashId === item.id ? (
+                                    <RefreshCw className="size-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3" />
+                                  )}
+                                  <span>Purge</span>
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Delete User Confirmation Dialog */}
         <Dialog open={Boolean(userToDelete)} onOpenChange={(open) => !open && setUserToDelete(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
-                <Trash2 className="size-5" /> Delete User Account
+                <Trash2 className="size-5" /> Move User Account to Trash
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-sm text-foreground">
-                Are you sure you want to permanently delete user account{" "}
+                Are you sure you want to delete user account{" "}
                 <span className="font-bold text-foreground underline">{userToDelete?.name}</span> (
                 {userToDelete?.email})?
               </p>
-              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
-                ⚠️ This will permanently remove their credentials, linked restaurants, menu dishes, and QR codes from PostgreSQL.
+              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive leading-relaxed">
+                ℹ️ This will soft-delete their account and linked restaurant, moving them to the <strong>Trash (Recycle Bin)</strong> for 30 days. You can restore them anytime from the Trash tab before the 30-day automatic permanent purge.
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
@@ -4077,15 +4486,15 @@ function AdminPage() {
                   size="sm"
                   onClick={confirmDeleteUser}
                   disabled={deletingUserLoading}
-                  className="gap-1.5 font-bold"
+                  className="gap-1.5 font-bold cursor-pointer"
                 >
                   {deletingUserLoading ? (
                     <>
-                      <RefreshCw className="size-3.5 animate-spin" /> Deleting...
+                      <RefreshCw className="size-3.5 animate-spin" /> Moving to Trash...
                     </>
                   ) : (
                     <>
-                      <Trash2 className="size-3.5" /> Confirm Delete
+                      <Trash2 className="size-3.5" /> Move to Trash
                     </>
                   )}
                 </Button>

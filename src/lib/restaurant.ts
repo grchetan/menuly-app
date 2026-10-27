@@ -233,7 +233,13 @@ export async function loadMyMenu(): Promise<FullMenu> {
   });
   const data = await res.json();
   if (!res.ok || !data.success) {
-    throw new Error(data.error || "Failed to load restaurant menu");
+    const err = new Error(data.error || "Failed to load restaurant menu");
+    (err as any).status = res.status;
+    (err as any).code = data.code;
+    (err as any).isDeleted = data.isDeleted;
+    (err as any).isBanned = data.isBanned;
+    (err as any).banReason = data.banReason;
+    throw err;
   }
 
   return {
@@ -294,6 +300,19 @@ export const myMenuQuery = queryOptions({
   staleTime: 1000 * 60 * 5, // 5 minutes - Instant 0ms page transitions, eliminates DB roundtrips on tab switches
   gcTime: 1000 * 60 * 30, // 30 minutes in memory
   refetchOnWindowFocus: false, // Prevents reloading the entire database every time user focuses window
+  retry: (failureCount, error: any) => {
+    if (
+      error?.status === 401 ||
+      error?.status === 403 ||
+      error?.code === "ACCOUNT_DELETED" ||
+      error?.code === "ACCOUNT_BANNED" ||
+      error?.isDeleted ||
+      error?.isBanned
+    ) {
+      return false;
+    }
+    return failureCount < 1;
+  },
 });
 
 export interface UploadImageResult {

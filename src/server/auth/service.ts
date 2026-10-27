@@ -593,6 +593,30 @@ export async function loginUser(params: {
     return { success: false, status: 401, error: "Invalid email/phone or password." };
   }
 
+  // Check if account has been deleted (soft-deleted into Trash)
+  if (user.deletedAt) {
+    return {
+      success: false,
+      status: 403,
+      error: "Menuly Official: Your account has been deleted by administration.",
+      data: {
+        requiresVerification: false,
+      },
+    };
+  }
+
+  // Check if account has been suspended / banned
+  if (user.isBanned) {
+    return {
+      success: false,
+      status: 403,
+      error: user.banReason || "Your account has been suspended by Menuly Administration.",
+      data: {
+        requiresVerification: false,
+      },
+    };
+  }
+
   // If email is not yet verified, send fresh OTP and prompt verification
   if (!user.isVerified) {
     const rawOtp = generateNumericOtp();
@@ -686,6 +710,12 @@ export async function forgotPassword(params: {
   let targetEmail = lookupInput.includes("@") ? lookupInput.toLowerCase() : (user?.email || "");
 
   if (user) {
+    if (user.deletedAt) {
+      return { success: false, status: 403, error: "Menuly Official: Your account has been deleted by administration." };
+    }
+    if (user.isBanned) {
+      return { success: false, status: 403, error: user.banReason || "Your account has been suspended by Menuly Administration." };
+    }
     targetEmail = user.email;
     const rawOtp = generateNumericOtp();
     const otpHash = await hashOtp(rawOtp);
