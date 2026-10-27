@@ -5,9 +5,9 @@
 
 export interface SendWhatsAppOtpResult {
   success: boolean;
-  messageId?: string;
-  phone?: string;
-  error?: string;
+  messageId?: string | undefined;
+  phone?: string | undefined;
+  error?: string | undefined;
 }
 
 export async function sendWhatsAppOtp(
@@ -39,8 +39,8 @@ export async function sendWhatsAppOtp(
 
     return {
       success: true,
-      messageId: typeof data["messageId"] === "string" ? data["messageId"] : undefined,
-      phone: typeof data["phone"] === "string" ? data["phone"] : undefined,
+      ...(typeof data["messageId"] === "string" ? { messageId: data["messageId"] } : {}),
+      ...(typeof data["phone"] === "string" ? { phone: data["phone"] } : {}),
     };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);

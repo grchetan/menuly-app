@@ -29,7 +29,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { cn } from "@/lib/utils";
 import authImage from "@/assets/auth-image.png";
 
-type AuthMode = "login" | "signup" | "otp" | "forgot" | "reset";
+type AuthMode = "login" | "signup" | "otp" | "phone_setup" | "otp_phone" | "forgot" | "reset";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -223,7 +223,6 @@ function AuthPage() {
           email: cleanEmail,
           password,
           fullName,
-          ...(phone.trim() ? { phone: phone.trim() } : {}),
         }),
       });
       const data = await res.json();
@@ -251,7 +250,7 @@ function AuthPage() {
       if (data.data?.devOtp) {
         setDevOtp(data.data.devOtp);
       }
-      toast.success(data.message || "Verification code sent to your email!");
+      toast.success(data.message || "Step 1: Verification code sent to your email!");
       setOtpType("SIGNUP");
       setCooldown(60);
       setMode("otp");
@@ -263,11 +262,11 @@ function AuthPage() {
     }
   };
 
-  // 2. Submit Login
+  // 2. Submit Login (Supports Email OR WhatsApp Mobile Number)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
-      toast.error("Please enter your email and password.");
+      toast.error("Please enter your email or mobile number and password.");
       return;
     }
     setBusy(true);
@@ -275,7 +274,11 @@ function AuthPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          identifier: email.trim(),
+          email: email.trim(),
+          password,
+        }),
       });
       const data = await res.json();
 
@@ -309,7 +312,7 @@ function AuthPage() {
     }
   };
 
-  // 3. Verify OTP
+  // 3. Verify Email / Reset OTP
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 6) {
@@ -330,8 +333,10 @@ function AuthPage() {
 
       if (otpType === "SIGNUP") {
         saveAuthSession(data.data.token, data.data.user);
-        toast.success("Email verified successfully! Welcome to Menuly.");
-        navigate({ to: "/dashboard" });
+        toast.success("Email verified! Step 2: Link your WhatsApp mobile number.");
+        setOtp("");
+        setDevOtp("");
+        setMode("phone_setup");
       } else {
         toast.success("Code confirmed. Please set your new password.");
         setMode("reset");
@@ -344,7 +349,99 @@ function AuthPage() {
     }
   };
 
-  // 4. Resend OTP
+  // 3b. Send WhatsApp Phone Verification Code (Step 2)
+  const handleSendPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = phone.trim().replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/send-phone-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone: cleanPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send WhatsApp verification code");
+      }
+      if (data.data?.devOtp) {
+        setDevOtp(data.data.devOtp);
+      }
+      toast.success(data.message || "WhatsApp verification code sent!");
+      setCooldown(60);
+      setOtp("");
+      setMode("otp_phone");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 3c. Verify WhatsApp Phone Code & Finish Onboarding
+  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      toast.error("Please enter the complete 6-digit WhatsApp verification code");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/verify-phone-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "WhatsApp verification failed");
+      }
+      if (data.data?.token && data.data?.user) {
+        saveAuthSession(data.data.token, data.data.user);
+      }
+      toast.success("WhatsApp linked successfully! Welcome to Menuly.");
+      navigate({ to: "/dashboard" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 3d. Resend Phone WhatsApp OTP
+  const handleResendPhoneOtp = async () => {
+    if (cooldown > 0) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/send-phone-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to resend WhatsApp code");
+      }
+      if (data.data?.devOtp) {
+        setDevOtp(data.data.devOtp);
+      }
+      toast.success("New verification code sent to your WhatsApp!");
+      setCooldown(60);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 4. Resend Email OTP
   const handleResendOtp = async () => {
     if (cooldown > 0) return;
     setBusy(true);
@@ -371,11 +468,11 @@ function AuthPage() {
     }
   };
 
-  // 5. Forgot Password Request
+  // 5. Forgot Password Request (Supports Email OR WhatsApp Mobile Number)
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      toast.error("Please enter your registered email address");
+      toast.error("Please enter your registered email or mobile number");
       return;
     }
     setBusy(true);
@@ -383,7 +480,10 @@ function AuthPage() {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          identifier: email.trim(),
+          email: email.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -392,7 +492,10 @@ function AuthPage() {
       if (data.data?.devOtp) {
         setDevOtp(data.data.devOtp);
       }
-      toast.success("If this email is registered, a 6-digit reset code has been sent!");
+      if (data.data?.email) {
+        setEmail(data.data.email);
+      }
+      toast.success(data.message || "A 6-digit reset code has been sent!");
       setOtpType("PASSWORD_RESET");
       setCooldown(60);
       setMode("otp");
@@ -602,11 +705,11 @@ function AuthPage() {
                       </div>
                     )}
 
-                    {/* Email Input with Real-time Availability & Instant Duplicate Detection */}
+                    {/* Email / Identifier Input with Real-time Availability & Instant Duplicate Detection */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="email" className="text-xs font-bold text-foreground">
-                          Email Address
+                          {mode === "login" ? "Email Address or Mobile Number" : "Email Address"}
                         </Label>
                         {mode === "signup" && emailCheckStatus === "available" && (
                           <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-in fade-in">
@@ -617,9 +720,9 @@ function AuthPage() {
                       <div className="relative">
                         <Input
                           id="email"
-                          type="email"
+                          type={mode === "login" ? "text" : "email"}
                           required
-                          placeholder="chef@restaurant.com"
+                          placeholder={mode === "login" ? "chef@restaurant.com or 98765 43210" : "chef@restaurant.com"}
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           onBlur={handleEmailBlur}
@@ -633,7 +736,11 @@ function AuthPage() {
                               "border-emerald-500/70 focus-visible:ring-emerald-500/20"
                           )}
                         />
-                        <Mail className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
+                        {mode === "login" && phone.length > 0 ? (
+                          <Phone className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
+                        ) : (
+                          <Mail className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-muted-foreground" />
+                        )}
                         
                         {/* Real-time Indicator Icon */}
                         {mode === "signup" && (
@@ -681,30 +788,6 @@ function AuthPage() {
                         </div>
                       )}
                     </div>
-
-                    {/* WhatsApp Mobile Number for Instant WhatsApp OTP */}
-                    {mode === "signup" && (
-                      <div className="space-y-1 animate-auth-swap">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="phone" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                            WhatsApp Number
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">(Instant OTP on WhatsApp)</span>
-                          </Label>
-                          <span className="text-[10px] text-muted-foreground">Recommended</span>
-                        </div>
-                        <div className="relative">
-                          <Input
-                            id="phone"
-                            type="tel"
-                            placeholder="e.g. 98765 43210"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className="pl-10 h-10 sm:h-11 rounded-xl text-sm"
-                          />
-                          <Phone className="absolute left-3.5 top-2.5 sm:top-3 size-4 text-emerald-600" />
-                        </div>
-                      </div>
-                    )}
 
                     {/* Password Input with Show/Hide Toggle */}
                     <div className="space-y-1">
@@ -775,7 +858,7 @@ function AuthPage() {
                       ) : emailCheckStatus === "exists" ? (
                         "Email Registered — Switch to Log In"
                       ) : (
-                        "Create Account & Verify OTP"
+                        "Create Account & Verify Email"
                       )}
                     </Button>
                   </form>
@@ -816,7 +899,7 @@ function AuthPage() {
             )}
 
             {/* --------------------------------------------------------------- */}
-            {/* MODE: OTP VERIFICATION                                          */}
+            {/* MODE: EMAIL OTP VERIFICATION (STEP 1)                           */}
             {/* --------------------------------------------------------------- */}
             {mode === "otp" && (
               <div key="otp" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
@@ -825,7 +908,7 @@ function AuthPage() {
                     <Shield className="size-3.5" /> Single-Use Verification Code
                   </span>
                   <h1 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-                    {phone.trim() ? "Check your WhatsApp & Email" : "Check your email"}
+                    {otpType === "SIGNUP" ? "Check your email" : "Check your verification code"}
                   </h1>
                   <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
                     We sent a 6-digit verification code to:
@@ -833,11 +916,6 @@ function AuthPage() {
                     <span className="font-semibold text-foreground font-mono bg-muted/60 px-2 py-0.5 rounded-md inline-block mt-1">
                       {email}
                     </span>
-                    {phone.trim() && (
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md inline-block mt-1 ml-2">
-                        WhatsApp: +{phone.replace(/\D/g, "")}
-                      </span>
-                    )}
                   </p>
                 </div>
 
@@ -895,8 +973,12 @@ function AuthPage() {
                         <RefreshCw className="size-4 animate-spin text-primary-foreground" />
                         Verifying Code...
                       </span>
+                    ) : otpType === "SIGNUP" ? (
+                      <span className="flex items-center justify-center gap-2">
+                        Verify Email & Next Step <ArrowRight className="size-4" />
+                      </span>
                     ) : (
-                      "Verify & Launch Menu"
+                      "Verify & Reset Password"
                     )}
                   </Button>
                 </form>
@@ -923,7 +1005,188 @@ function AuthPage() {
             )}
 
             {/* --------------------------------------------------------------- */}
-            {/* MODE: FORGOT PASSWORD                                           */}
+            {/* MODE: STEP 2 - PHONE SETUP (LINK WHATSAPP NUMBER)               */}
+            {/* --------------------------------------------------------------- */}
+            {mode === "phone_setup" && (
+              <div key="phone_setup" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <Phone className="size-3.5" /> Step 2 of 2: WhatsApp Link
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="size-3 text-emerald-500" /> Email Verified
+                    </span>
+                  </div>
+                  <h1 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+                    Connect WhatsApp
+                  </h1>
+                  <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    Link your mobile number to receive instant order alerts, daily sales reports, and enable 1-click WhatsApp login.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSendPhoneOtp} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phoneSetupInput" className="text-xs font-bold text-foreground">
+                      WhatsApp Mobile Number
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="phoneSetupInput"
+                        type="tel"
+                        required
+                        placeholder="e.g. 98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="pl-10 h-11 rounded-xl text-sm"
+                        autoFocus
+                      />
+                      <Phone className="absolute left-3.5 top-3.5 size-4 text-emerald-600" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      We will send a 6-digit WhatsApp OTP verification code.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <Button
+                      type="submit"
+                      size="lg"
+                      disabled={busy || !phone.trim()}
+                      className="w-full h-11 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft transition-all duration-200 cursor-pointer"
+                    >
+                      {busy ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <RefreshCw className="size-4 animate-spin text-white" />
+                          Sending WhatsApp Code...
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          Send WhatsApp Code <ArrowRight className="size-4" />
+                        </span>
+                      )}
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toast.info("WhatsApp setup skipped. You can link it anytime from Settings.");
+                        navigate({ to: "/dashboard" });
+                      }}
+                      className="w-full py-2 text-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      Skip for now & go to Dashboard →
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* --------------------------------------------------------------- */}
+            {/* MODE: STEP 2 - WHATSAPP OTP VERIFICATION                        */}
+            {/* --------------------------------------------------------------- */}
+            {mode === "otp_phone" && (
+              <div key="otp_phone" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <Phone className="size-3.5" /> WhatsApp Verification
+                  </span>
+                  <h1 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+                    Check your WhatsApp
+                  </h1>
+                  <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    We sent a 6-digit verification code via WhatsApp to:
+                    <br />
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md inline-block mt-1">
+                      +{phone.replace(/\D/g, "")}
+                    </span>
+                  </p>
+                </div>
+
+                {devOtp && (
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center shadow-xs">
+                    <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <Sparkles className="size-4 text-emerald-500 animate-pulse" />
+                      <span>WhatsApp Code:</span>
+                    </div>
+                    <div className="my-2.5 flex items-center justify-center">
+                      <span className="rounded-xl border border-emerald-500/30 bg-background px-5 py-2 font-mono text-2xl font-black tracking-widest text-emerald-600 shadow-xs">
+                        {devOtp}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setOtp(devOtp)}
+                      className="h-8 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 cursor-pointer"
+                    >
+                      <CheckCircle2 className="size-3.5" /> 1-Click Auto-Fill Code
+                    </Button>
+                  </div>
+                )}
+
+                <form onSubmit={handleVerifyPhoneOtp} className="space-y-5">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <Label htmlFor="otpPhoneInput" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Enter 6-Digit WhatsApp Code
+                    </Label>
+                    <div className="flex justify-center py-2">
+                      <InputOTP maxLength={6} value={otp} onChange={(value) => setOtp(value)}>
+                        <InputOTPGroup className="gap-2 sm:gap-2.5">
+                          <InputOTPSlot index={0} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                          <InputOTPSlot index={1} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                          <InputOTPSlot index={2} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                          <InputOTPSlot index={3} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                          <InputOTPSlot index={4} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                          <InputOTPSlot index={5} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Expires in 10 minutes</p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={busy || otp.length !== 6}
+                    className="w-full h-11 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft transition-all duration-200 cursor-pointer"
+                  >
+                    {busy ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw className="size-4 animate-spin text-white" />
+                        Verifying WhatsApp...
+                      </span>
+                    ) : (
+                      "Verify & Launch Dashboard"
+                    )}
+                  </Button>
+                </form>
+
+                <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setMode("phone_setup")}
+                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium cursor-pointer"
+                  >
+                    <ArrowLeft className="size-3.5" /> Edit phone number
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResendPhoneOtp}
+                    disabled={cooldown > 0 || busy}
+                    className="font-bold text-emerald-600 disabled:text-muted-foreground transition-colors cursor-pointer"
+                  >
+                    {cooldown > 0 ? `Resend code (${cooldown}s)` : "Resend code"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* --------------------------------------------------------------- */}
+            {/* MODE: FORGOT PASSWORD (EMAIL OR PHONE)                          */}
             {/* --------------------------------------------------------------- */}
             {mode === "forgot" && (
               <div key="forgot" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
@@ -939,27 +1202,27 @@ function AuthPage() {
                     Reset Password
                   </h1>
                   <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-                    Enter your registered email address. We'll send you a 6-digit OTP code to verify and reset your password.
+                    Enter your registered email address or mobile number. We'll send you a 6-digit OTP code to verify and reset your password.
                   </p>
                 </div>
 
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="forgotEmail" className="text-xs font-bold text-foreground">
-                      Email Address
+                      Email Address or Mobile Number
                     </Label>
                     <div className="relative">
                       <Input
                         id="forgotEmail"
-                        type="email"
+                        type="text"
                         required
-                        placeholder="chef@restaurant.com"
+                        placeholder="chef@restaurant.com or 98765 43210"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="pl-10 h-11 rounded-xl text-sm"
                         autoFocus
                       />
-                      <Mail className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                      <Mail className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                     </div>
                   </div>
 

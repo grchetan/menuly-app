@@ -308,6 +308,127 @@ export async function verifyUserOtp(params: {
 }
 
 /**
+ * 2b. SEND PHONE VERIFICATION OTP (Step 2 of Signup)
+ * Dispatches a 6-digit verification code to user's WhatsApp to link mobile number.
+ */
+export async function sendPhoneVerificationOtp(params: {
+  email: string;
+  phone: string;
+  clientIp?: string;
+}): Promise<ServiceResult<{ phone: string; devOtp?: string }>> {
+  const { email, phone, clientIp = "global" } = params;
+  const normalized = email.toLowerCase().trim();
+  const cleanDigits = phone.replace(/\D/g, "");
+
+  if (!cleanDigits || cleanDigits.length < 10) {
+    return { success: false, status: 400, error: "Please enter a valid 10-digit mobile number." };
+  }
+
+  const rate = checkRateLimit(`phone-otp:${cleanDigits}:${clientIp}`, {
+    windowMs: 60 * 1000,
+    max: 3,
+  });
+  if (!rate.allowed) {
+    return {
+      success: false,
+      status: 429,
+      error: `Please wait ${rate.resetInSeconds} seconds before requesting another code.`,
+    };
+  }
+
+  const user = await userStore.findByEmail(normalized);
+  if (!user) {
+    return { success: false, status: 404, error: "User account not found." };
+  }
+
+  const rawOtp = generateNumericOtp();
+  const otpHash = await hashOtp(rawOtp);
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+  await otpStore.saveOtp({
+    email: normalized,
+    otpHash,
+    type: "SIGNUP",
+    expiresAt,
+    maxAttempts: OTP_MAX_ATTEMPTS,
+  });
+
+  const formattedPhone = cleanDigits.length === 10 ? `+91${cleanDigits}` : `+${cleanDigits}`;
+
+  // Save phone number to user
+  await userStore.update(user.id, { phone: formattedPhone });
+
+  // Dispatch via WhatsApp bot
+  await sendWhatsAppOtp(cleanDigits, rawOtp, "SIGNUP").catch((e) => {
+    console.warn("[WhatsApp Dispatch Error]:", e);
+  });
+
+  return {
+    success: true,
+    status: 200,
+    message: `Verification code sent to WhatsApp: ${formattedPhone}`,
+    data: {
+      phone: formattedPhone,
+      ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
+    },
+  };
+}
+
+/**
+ * 2c. VERIFY PHONE VERIFICATION OTP (Step 2 of Signup)
+ * Validates the WhatsApp OTP and activates the phone link.
+ */
+export async function verifyPhoneVerificationOtp(params: {
+  email: string;
+  phone: string;
+  otp: string;
+}): Promise<
+  ServiceResult<{
+    user?: { id: string; email: string; role: UserRole; fullName: string | null; phone?: string | null };
+    token?: string;
+    refreshToken?: string;
+  }>
+> {
+  const { email, phone, otp } = params;
+  const normalized = email.toLowerCase().trim();
+  const cleanDigits = phone.replace(/\D/g, "");
+  const formattedPhone = cleanDigits.length === 10 ? `+91${cleanDigits}` : `+${cleanDigits}`;
+
+  const res = await verifyUserOtp({
+    email: normalized,
+    otp,
+    type: "SIGNUP",
+  });
+
+  if (!res.success) {
+    return res;
+  }
+
+  const user = await userStore.findByEmail(normalized);
+  if (user) {
+    const updatedUser = await userStore.update(user.id, { phone: formattedPhone });
+    return {
+      success: true,
+      status: 200,
+      message: "Phone verified and linked successfully.",
+      data: {
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          fullName: updatedUser.fullName,
+          phone: updatedUser.phone,
+        },
+        token: res.data?.token,
+        refreshToken: res.data?.refreshToken,
+      },
+    };
+  }
+
+  return res;
+}
+
+/**
  * 3. RESEND OTP
  * Dispatches a new OTP with a 60-second cooldown protection.
  */
@@ -378,7 +499,8 @@ export async function resendUserOtp(params: {
  * Authenticates user credentials. If email is unverified, dispatches a fresh OTP and halts.
  */
 export async function loginUser(params: {
-  email: string;
+  email?: string;
+  identifier?: string;
   password: string;
   clientIp?: string;
 }): Promise<
@@ -391,16 +513,15 @@ export async function loginUser(params: {
     devOtp?: string;
   }>
 > {
-  const { email, password, clientIp = "global" } = params;
+  const { email, identifier, password, clientIp = "global" } = params;
+  const lookupInput = (identifier || email || "").trim();
 
-  if (!email || !password) {
-    return { success: false, status: 400, error: "Please enter both email and password." };
+  if (!lookupInput || !password) {
+    return { success: false, status: 400, error: "Please enter your email or mobile number, and password." };
   }
 
-  const normalized = email.toLowerCase().trim();
-
   // Rate Limiting to prevent brute-force password guessing
-  const rate = checkRateLimit(`login:${normalized}:${clientIp}`, AuthRateLimits.LOGIN);
+  const rate = checkRateLimit(`login:${lookupInput.toLowerCase()}:${clientIp}`, AuthRateLimits.LOGIN);
   if (!rate.allowed) {
     return {
       success: false,
@@ -409,14 +530,14 @@ export async function loginUser(params: {
     };
   }
 
-  const user = await userStore.findByEmail(normalized);
+  const user = await userStore.findByIdentifier(lookupInput);
   if (!user) {
-    return { success: false, status: 401, error: "Invalid email or password." };
+    return { success: false, status: 401, error: "Invalid email/phone or password." };
   }
 
   const passwordMatch = await comparePassword(password, user.passwordHash);
   if (!passwordMatch) {
-    return { success: false, status: 401, error: "Invalid email or password." };
+    return { success: false, status: 401, error: "Invalid email/phone or password." };
   }
 
   // If email is not yet verified, send fresh OTP and prompt verification
@@ -426,22 +547,28 @@ export async function loginUser(params: {
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
     await otpStore.saveOtp({
-      email: normalized,
+      email: user.email,
       otpHash,
       type: "SIGNUP",
       expiresAt,
       maxAttempts: OTP_MAX_ATTEMPTS,
     });
 
-    await sendOtpEmail(normalized, rawOtp, "SIGNUP", OTP_EXPIRY_MINUTES);
+    await sendOtpEmail(user.email, rawOtp, "SIGNUP", OTP_EXPIRY_MINUTES);
+
+    if (user.phone) {
+      await sendWhatsAppOtp(user.phone, rawOtp, "SIGNUP").catch((e) => {
+        console.warn("[WhatsApp Dispatch Warning]:", e);
+      });
+    }
 
     return {
       success: false,
       status: 403,
-      message: "Your email is not verified yet. We just sent a verification code to your email.",
+      message: "Your account is not verified yet. We just sent a verification code to your email and WhatsApp.",
       data: {
         requiresVerification: true,
-        email: normalized,
+        email: user.email,
         ...(shouldExposeDevOtp() ? { devOtp: rawOtp } : {}),
       },
     };
@@ -479,19 +606,19 @@ export async function loginUser(params: {
  * Sends a password reset OTP to the registered email.
  */
 export async function forgotPassword(params: {
-  email: string;
+  email?: string;
+  identifier?: string;
   clientIp?: string;
-}): Promise<ServiceResult<{ email: string; devOtp?: string }>> {
-  const { email, clientIp = "global" } = params;
+}): Promise<ServiceResult<{ email: string; phone?: string; devOtp?: string }>> {
+  const { email, identifier, clientIp = "global" } = params;
+  const lookupInput = (identifier || email || "").trim();
 
-  if (!email || !email.includes("@")) {
-    return { success: false, status: 400, error: "Please enter a valid email." };
+  if (!lookupInput) {
+    return { success: false, status: 400, error: "Please enter your registered email address or mobile number." };
   }
 
-  const normalized = email.toLowerCase().trim();
-
   // Rate Limiting
-  const rate = checkRateLimit(`forgot:${normalized}:${clientIp}`, AuthRateLimits.FORGOT_PASSWORD);
+  const rate = checkRateLimit(`forgot:${lookupInput.toLowerCase()}:${clientIp}`, AuthRateLimits.FORGOT_PASSWORD);
   if (!rate.allowed) {
     return {
       success: false,
@@ -500,24 +627,26 @@ export async function forgotPassword(params: {
     };
   }
 
-  const user = await userStore.findByEmail(normalized);
+  const user = await userStore.findByIdentifier(lookupInput);
 
-  // Even if user does not exist, return success to prevent email enumeration attacks
   let devOtp: string | undefined;
+  let targetEmail = lookupInput.includes("@") ? lookupInput.toLowerCase() : (user?.email || "");
+
   if (user) {
+    targetEmail = user.email;
     const rawOtp = generateNumericOtp();
     const otpHash = await hashOtp(rawOtp);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
     await otpStore.saveOtp({
-      email: normalized,
+      email: user.email,
       otpHash,
       type: "PASSWORD_RESET",
       expiresAt,
       maxAttempts: OTP_MAX_ATTEMPTS,
     });
 
-    await sendOtpEmail(normalized, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
+    await sendOtpEmail(user.email, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
 
     if (user.phone) {
       await sendWhatsAppOtp(user.phone, rawOtp, "PASSWORD_RESET").catch((e) => {
@@ -530,12 +659,17 @@ export async function forgotPassword(params: {
     }
   }
 
+  const deliveryMsg = user?.phone
+    ? "Password reset code sent to your registered email and WhatsApp."
+    : "If this account is registered, a password reset code has been sent.";
+
   return {
     success: true,
     status: 200,
-    message: "If this email is registered, a password reset code has been sent.",
+    message: deliveryMsg,
     data: {
-      email: normalized,
+      email: targetEmail,
+      ...(user?.phone ? { phone: user.phone } : {}),
       ...(devOtp ? { devOtp } : {}),
     },
   };

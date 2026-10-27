@@ -21,6 +21,8 @@ import {
   resetPassword,
   updateUserProfile,
   changeUserPassword,
+  sendPhoneVerificationOtp,
+  verifyPhoneVerificationOtp,
 } from "../server/auth/service";
 
 describe("Custom Authentication & Security Suite", () => {
@@ -244,6 +246,70 @@ describe("Custom Authentication & Security Suite", () => {
       const newLogin = await loginUser({ email: testEmail, password: "UpdatedSecretPassword99!" });
       expect(newLogin.success).toBe(true);
     }
+  }, 45000);
+
+  it("supports 2-step onboarding (email OTP -> phone WhatsApp OTP), login via phone, and forgot-password via phone", async () => {
+    const testEmail = `step2-${Date.now()}@testrestaurant.in`;
+    const testPhone = `982${Date.now().toString().slice(-7)}`;
+    const testPassword = "PasswordPhone123!";
+
+    // 1. Step 1: Signup with Email
+    const signupRes = await signupUser({
+      email: testEmail,
+      password: testPassword,
+      fullName: "Chef TwoStep",
+    });
+    expect(signupRes.success).toBe(true);
+    expect(signupRes.data?.devOtp).toBeTruthy();
+
+    // Verify Step 1 Email OTP
+    const verifyEmailRes = await verifyUserOtp({
+      email: testEmail,
+      otp: signupRes.data!.devOtp!,
+      type: "SIGNUP",
+    });
+    expect(verifyEmailRes.success).toBe(true);
+    expect(verifyEmailRes.data?.user?.email).toBe(testEmail);
+
+    // 2. Step 2: Send WhatsApp OTP for Phone linking
+    const sendPhoneRes = await sendPhoneVerificationOtp({
+      email: testEmail,
+      phone: testPhone,
+    });
+    expect(sendPhoneRes.success).toBe(true);
+    expect(sendPhoneRes.data?.devOtp).toBeTruthy();
+
+    // Verify Step 2 WhatsApp OTP
+    const verifyPhoneRes = await verifyPhoneVerificationOtp({
+      email: testEmail,
+      phone: testPhone,
+      otp: sendPhoneRes.data!.devOtp!,
+    });
+    expect(verifyPhoneRes.success).toBe(true);
+    expect(verifyPhoneRes.data?.user?.phone).toContain(testPhone);
+
+    // 3. Login using Phone Number Identifier
+    const loginByPhoneRes = await loginUser({
+      identifier: testPhone,
+      password: testPassword,
+    });
+    expect(loginByPhoneRes.success).toBe(true);
+    expect(loginByPhoneRes.data?.user?.email).toBe(testEmail);
+
+    // 4. Login using +91 formatted phone
+    const loginByFullPhoneRes = await loginUser({
+      identifier: `+91${testPhone}`,
+      password: testPassword,
+    });
+    expect(loginByFullPhoneRes.success).toBe(true);
+
+    // 5. Forgot Password using Phone Number Identifier
+    const forgotRes = await forgotPassword({
+      identifier: testPhone,
+    });
+    expect(forgotRes.success).toBe(true);
+    expect(forgotRes.data?.email).toBe(testEmail);
+    expect(forgotRes.data?.devOtp).toBeTruthy();
   }, 45000);
 
   afterAll(async () => {

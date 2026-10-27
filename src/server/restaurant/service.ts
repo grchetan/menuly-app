@@ -573,7 +573,7 @@ export async function applyPresetToRestaurant(userId: string, presetId: string) 
     return { createdCategories: cats, createdItems: items };
   });
 
-  return {
+  const result = {
     restaurant: {
       id: restaurant.id,
       name: restaurant.name,

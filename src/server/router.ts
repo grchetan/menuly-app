@@ -2,6 +2,8 @@ import {
   checkEmailAvailability,
   signupUser,
   verifyUserOtp,
+  sendPhoneVerificationOtp,
+  verifyPhoneVerificationOtp,
   resendUserOtp,
   loginUser,
   forgotPassword,
@@ -289,12 +291,41 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // 2b. SEND PHONE OTP: POST /api/auth/send-phone-otp
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/send-phone-otp" && request.method === "POST") {
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
+      const res = await sendPhoneVerificationOtp({
+        email: body.email,
+        phone: body.phone,
+        clientIp,
+      });
+      return json(res, res.status);
+    }
+
+    // --------------------------------------------------------------------------
+    // 2c. VERIFY PHONE OTP: POST /api/auth/verify-phone-otp
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/verify-phone-otp" && request.method === "POST") {
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
+      const res = await verifyPhoneVerificationOtp({
+        email: body.email,
+        phone: body.phone,
+        otp: body.otp,
+      });
+      return json(res, res.status);
+    }
+
+    // --------------------------------------------------------------------------
     // 4. LOGIN: POST /api/auth/login
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/login" && request.method === "POST") {
       const rawBody = await request.json().catch(() => ({}));
       const body = sanitizeObject(rawBody);
       const res = await loginUser({
+        identifier: body.identifier || body.email,
         email: body.email,
         password: body.password,
         clientIp,
@@ -309,6 +340,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const rawBody = await request.json().catch(() => ({}));
       const body = sanitizeObject(rawBody);
       const res = await forgotPassword({
+        identifier: body.identifier || body.email,
         email: body.email,
         clientIp,
       });

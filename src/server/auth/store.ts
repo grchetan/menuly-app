@@ -167,6 +167,59 @@ export const userStore = {
     return null;
   },
 
+  async findByPhone(phone: string): Promise<StoredUser | null> {
+    const digits = phone.replace(/\D/g, "");
+    if (!digits || digits.length < 10) return null;
+    const tenDigits = digits.slice(-10);
+    const with91 = `+91${tenDigits}`;
+
+    if (isPrismaAvailable()) {
+      try {
+        const u = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { phone: with91 },
+              { phone: tenDigits },
+              { phone: `91${tenDigits}` },
+              { phone: { contains: tenDigits } },
+            ],
+          },
+        });
+        if (u) {
+          return {
+            id: u.id,
+            email: u.email,
+            passwordHash: u.passwordHash,
+            fullName: u.fullName,
+            phone: u.phone,
+            role: u.role as UserRole,
+            isVerified: u.isVerified,
+            createdAt: u.createdAt,
+            updatedAt: u.updatedAt,
+          };
+        }
+        return null;
+      } catch {
+        // Fall back to devUsers
+      }
+    }
+    for (const u of devUsers.values()) {
+      if (u.phone && (u.phone.includes(tenDigits) || u.phone.replace(/\D/g, "").includes(tenDigits))) {
+        return u;
+      }
+    }
+    return null;
+  },
+
+  async findByIdentifier(identifier: string): Promise<StoredUser | null> {
+    const trimmed = identifier.trim();
+    if (!trimmed) return null;
+    if (trimmed.includes("@")) {
+      return this.findByEmail(trimmed);
+    }
+    return this.findByPhone(trimmed);
+  },
+
   async create(data: {
     email: string;
     passwordHash: string;
