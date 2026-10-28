@@ -28,6 +28,7 @@ import {
   ClipboardPaste,
   AlertTriangle,
   RotateCcw,
+  Shield,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,9 @@ function ProfilePage() {
     role?: string;
     phone?: string | null;
   } | null>(null);
+
+  // Mobile active tab view: "profile" | "security"
+  const [activeTab, setActiveTab] = useState<"profile" | "security">("profile");
 
   // Form states: Profile
   const [fullName, setFullName] = useState("");
@@ -451,79 +455,82 @@ function ProfilePage() {
 
   return (
     <AppShell title="My Profile & Settings">
-      <div className="max-w-6xl mx-auto space-y-8 py-6">
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 pb-12 min-w-0">
         
         {/* ================================================================= */}
-        {/* 1. PROFILE EXECUTIVE HEADER BANNER                                 */}
+        {/* 1. PROFILE EXECUTIVE HEADER BANNER (MOBILE FIRST LUXURY DESIGN)   */}
         {/* ================================================================= */}
-        <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-r from-card via-card to-primary/5 p-6 sm:p-8 shadow-lift">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <div className="flex items-center gap-4 sm:gap-5">
+        <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/5 p-4 sm:p-6 lg:p-7 shadow-soft">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+            <div className="flex items-center gap-3.5 sm:gap-5 w-full sm:w-auto min-w-0">
               {/* Avatar circle with initials */}
-              <div className="relative size-16 sm:size-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 shadow-md">
-                <div className="flex size-full items-center justify-center rounded-2xl bg-card font-display text-2xl sm:text-3xl font-extrabold text-foreground">
+              <div className="relative size-14 sm:size-18 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 shadow-sm">
+                <div className="flex size-full items-center justify-center rounded-[14px] bg-card font-display text-xl sm:text-2xl font-black text-foreground">
                   {(fullName || restaurant?.name || "R").charAt(0).toUpperCase()}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-display text-xl sm:text-2xl font-black text-foreground">
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <h2 className="font-display text-base sm:text-2xl font-black text-foreground truncate max-w-[220px] sm:max-w-md">
                     {fullName || restaurant?.name || "Restaurant Partner"}
-                  </h1>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    <ShieldCheck className="size-3" /> Verified Account
+                  </h2>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                    <ShieldCheck className="size-3" /> Verified
                   </span>
                   {currentUser?.role === "SUPER_ADMIN" && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                      <Sparkles className="size-3" /> Super Admin
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                      <Sparkles className="size-3" /> Admin
                     </span>
                   )}
                 </div>
 
-                <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
-                  <Mail className="size-3.5" /> {email || currentUser?.email || "owner@menuly.app"}
+                <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5 truncate">
+                  <Mail className="size-3.5 shrink-0 text-muted-foreground/70" />
+                  <span className="truncate">{email || currentUser?.email || "owner@menuly.app"}</span>
                 </p>
 
                 {restaurant?.slug && (
-                  <div className="pt-1 flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Digital Menu:</span>
+                  <div className="pt-0.5 flex items-center gap-1.5 max-w-full">
                     <a
                       href={liveMenuUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-xs font-bold text-primary hover:underline"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/10 hover:bg-primary/15 px-2.5 py-1 text-xs font-mono font-bold text-primary transition-all max-w-full truncate"
+                      title={`Open /menu/${restaurant.slug}`}
                     >
-                      /menu/{restaurant.slug} <ExternalLink className="size-3" />
+                      <UtensilsCrossed className="size-3 shrink-0" />
+                      <span className="truncate">/menu/{restaurant.slug}</span>
+                      <ExternalLink className="size-3 shrink-0 opacity-70" />
                     </a>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Quick Action Shortcuts */}
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <Button asChild variant="outline" size="sm" className="rounded-xl gap-1.5 font-bold shadow-xs">
+            {/* Quick Action Shortcuts (Mobile-optimized 2x2 grid) */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/60">
+              <Button asChild variant="outline" size="sm" className="rounded-xl h-10 sm:h-9 text-xs font-bold shadow-xs justify-center cursor-pointer">
                 <Link to="/dashboard">
                   <LayoutDashboard className="size-3.5 text-primary" /> Dashboard
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="sm" className="rounded-xl gap-1.5 font-bold shadow-xs">
+              <Button asChild variant="outline" size="sm" className="rounded-xl h-10 sm:h-9 text-xs font-bold shadow-xs justify-center cursor-pointer">
                 <Link to="/my-menu">
-                  <UtensilsCrossed className="size-3.5 text-emerald-500" /> My Menu
+                  <UtensilsCrossed className="size-3.5 text-emerald-600" /> My Menu
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="sm" className="rounded-xl gap-1.5 font-bold shadow-xs">
+              <Button asChild variant="outline" size="sm" className="rounded-xl h-10 sm:h-9 text-xs font-bold shadow-xs justify-center cursor-pointer">
                 <Link to="/qr">
-                  <QrCode className="size-3.5 text-amber-500" /> QR Studio
+                  <QrCode className="size-3.5 text-amber-600" /> QR Studio
                 </Link>
               </Button>
               <Button
                 type="button"
-                variant="destructive"
+                variant="outline"
                 size="sm"
                 onClick={handleSignOut}
-                className="rounded-xl gap-1.5 font-bold shadow-xs cursor-pointer ml-auto sm:ml-0"
+                className="rounded-xl h-10 sm:h-9 text-xs font-bold shadow-xs justify-center text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20 cursor-pointer"
               >
                 <LogOut className="size-3.5" /> Sign Out
               </Button>
@@ -532,28 +539,58 @@ function ProfilePage() {
         </div>
 
         {/* ================================================================= */}
+        {/* MOBILE SEGMENTED VIEW SWITCHER (Profile & Brand vs Security)       */}
+        {/* ================================================================= */}
+        <div className="flex lg:hidden rounded-2xl bg-muted/60 p-1 border border-border/80 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab("profile")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+              activeTab === "profile"
+                ? "bg-card text-foreground shadow-xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Store className="size-3.5 text-primary" /> Profile & Brand
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("security")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+              activeTab === "security"
+                ? "bg-card text-foreground shadow-xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <KeyRound className="size-3.5 text-amber-600" /> Security & Login
+          </button>
+        </div>
+
+        {/* ================================================================= */}
         {/* 2-COLUMN MAIN SETTINGS GRID                                      */}
         {/* ================================================================= */}
-        <div className="grid gap-8 lg:grid-cols-12">
+        <div className="grid gap-6 lg:gap-8 lg:grid-cols-12">
           
           {/* LEFT COLUMN: Profile & Restaurant Identity (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 shadow-lift">
+          <div className={cn("lg:col-span-7 space-y-6", activeTab !== "profile" && "hidden lg:block")}>
+            <div className="rounded-3xl border border-border/80 bg-card p-4 sm:p-6 lg:p-8 shadow-soft">
               <div className="flex items-center gap-2.5 pb-4 border-b border-border/60">
                 <div className="rounded-xl bg-primary/10 p-2 text-primary">
                   <User className="size-5" />
                 </div>
                 <div>
-                  <h2 className="font-display text-lg font-bold text-foreground">Profile & Restaurant Details</h2>
+                  <h2 className="font-display text-base sm:text-lg font-bold text-foreground">Profile & Restaurant Details</h2>
                   <p className="text-xs text-muted-foreground">Update your owner contact information and brand identity.</p>
                 </div>
               </div>
 
-              <form onSubmit={handleUpdateProfile} className="mt-6 space-y-5">
+              <form onSubmit={handleUpdateProfile} className="mt-5 space-y-4 sm:space-y-5">
                 {/* Full Name */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="profileFullName" className="text-xs font-bold text-foreground">
-                    Owner or Manager Name
+                  <Label htmlFor="profileFullName" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <User className="size-3.5 text-primary" /> Owner or Manager Name
                   </Label>
                   <div className="relative">
                     <Input
@@ -562,16 +599,16 @@ function ProfilePage() {
                       placeholder="e.g. Chef Rajesh Sharma"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="pl-10 h-11 rounded-xl text-sm"
+                      className="pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <User className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <User className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                   </div>
                 </div>
 
                 {/* Restaurant Brand Name */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="profileRestName" className="text-xs font-bold text-foreground">
-                    Restaurant / Cafe Name
+                  <Label htmlFor="profileRestName" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Store className="size-3.5 text-primary" /> Restaurant / Cafe Name
                   </Label>
                   <div className="relative">
                     <Input
@@ -580,9 +617,9 @@ function ProfilePage() {
                       placeholder="e.g. Royal Spice Dining"
                       value={restaurantName}
                       onChange={(e) => setRestaurantName(e.target.value)}
-                      className="pl-10 h-11 rounded-xl text-sm"
+                      className="pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <Store className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <Store className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     This name appears on customer digital menus, QR posters, and receipts.
@@ -591,8 +628,8 @@ function ProfilePage() {
 
                 {/* Email Address */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="profileEmail" className="text-xs font-bold text-foreground">
-                    Registered Email Address
+                  <Label htmlFor="profileEmail" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Mail className="size-3.5 text-primary" /> Registered Email Address
                   </Label>
                   <div className="relative">
                     <Input
@@ -602,32 +639,32 @@ function ProfilePage() {
                       placeholder="owner@restaurant.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-11 rounded-xl text-sm"
+                      className="pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <Mail className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <Mail className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Used for OTP login authentication and critical platform notifications.
                   </p>
                 </div>
 
-                {/* Phone / WhatsApp */}
-                <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/20 p-4">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="profilePhone" className="text-xs font-bold text-foreground">
-                      Contact & WhatsApp Mobile Number
+                {/* Contact & WhatsApp Phone Number */}
+                <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                    <Label htmlFor="profilePhone" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Smartphone className="size-3.5 text-primary" /> Contact & WhatsApp Mobile Number
                     </Label>
                     {isPhoneVerified ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="self-start sm:self-auto inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 className="size-3" /> WhatsApp Verified
                       </span>
                     ) : isPhoneChanged && cleanPhoneDigits.length >= 10 ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                      <span className="self-start sm:self-auto inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
                         <AlertTriangle className="size-3" /> OTP Verification Required
                       </span>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground">
-                        {verifiedPhone ? "Verified" : "Unverified"}
+                      <span className="self-start sm:self-auto text-[11px] text-muted-foreground font-medium">
+                        {verifiedPhone ? "Verified Number" : "Unverified"}
                       </span>
                     )}
                   </div>
@@ -640,7 +677,7 @@ function ProfilePage() {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className={cn(
-                        "pl-10 h-11 rounded-xl text-sm bg-background font-mono",
+                        "pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background font-mono tracking-wide",
                         isPhoneVerified
                           ? "border-emerald-500/40 focus:border-emerald-500"
                           : isPhoneChanged && cleanPhoneDigits.length >= 10
@@ -651,15 +688,15 @@ function ProfilePage() {
                     <Smartphone className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                   </div>
 
-                  {/* Verification action buttons & helper tips */}
+                  {/* Verification action buttons */}
                   {isPhoneChanged && cleanPhoneDigits.length >= 10 && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
                       <Button
                         type="button"
                         size="sm"
                         disabled={isSendingPhoneOtp}
                         onClick={handleSendPhoneOtp}
-                        className="rounded-xl h-9 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft gap-1.5 cursor-pointer"
+                        className="w-full sm:w-auto rounded-xl h-10 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft gap-2 cursor-pointer justify-center"
                       >
                         {isSendingPhoneOtp ? (
                           <>
@@ -677,7 +714,7 @@ function ProfilePage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setPhone(verifiedPhone)}
-                          className="rounded-xl h-9 px-3 text-xs text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
+                          className="w-full sm:w-auto rounded-xl h-9 px-3 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer justify-center"
                         >
                           <RotateCcw className="size-3" /> Revert to {verifiedPhone}
                         </Button>
@@ -686,28 +723,36 @@ function ProfilePage() {
                   )}
 
                   {isPhoneVerified ? (
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5 pt-0.5">
-                      <CheckCircle2 className="size-3.5 shrink-0" />
-                      Verified: Customers can contact you directly from your live menu, and you can log in using WhatsApp OTP.
-                    </p>
+                    <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/15 p-2.5 flex items-start gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                      <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 mt-0.5" />
+                      <p className="leading-snug">
+                        <strong>Verified:</strong> Customers can contact your restaurant directly, and you can log in using WhatsApp OTP.
+                      </p>
+                    </div>
                   ) : isPhoneChanged ? (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5 pt-0.5">
-                      <AlertTriangle className="size-3.5 shrink-0" />
-                      Security Policy: You must verify this number via WhatsApp OTP to prevent unauthenticated takeovers.
-                    </p>
+                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5 flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+                      <AlertTriangle className="size-3.5 shrink-0 text-amber-600 mt-0.5" />
+                      <p className="leading-snug">
+                        <strong>Security Check:</strong> Mobile number changes require WhatsApp OTP verification before saving.
+                      </p>
+                    </div>
                   ) : (
-                    <p className="text-[11px] text-muted-foreground pt-0.5">
-                      Used for customer WhatsApp orders, password resets, and instant platform notifications.
+                    <p className="text-[11px] text-muted-foreground">
+                      Used for customer WhatsApp orders, password resets, and critical platform notifications.
                     </p>
                   )}
                 </div>
 
                 {/* Restaurant Address / Location */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="profileAddress" className="text-xs font-bold text-foreground flex items-center justify-between">
-                    <span>Restaurant Address / City Location</span>
-                    <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">📍 Menu Header me Show Hoga</span>
-                  </Label>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <Label htmlFor="profileAddress" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <MapPin className="size-3.5 text-orange-500" /> Restaurant Address & City Location
+                    </Label>
+                    <span className="self-start sm:self-auto text-[10px] font-bold text-orange-700 dark:text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">
+                      📍 Visible on Live Menu
+                    </span>
+                  </div>
                   <div className="relative">
                     <Input
                       id="profileAddress"
@@ -715,41 +760,43 @@ function ProfilePage() {
                       placeholder="e.g. 14, MG Road, Indore, Madhya Pradesh"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="pl-10 h-11 rounded-xl text-sm"
+                      className="pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <MapPin className="absolute left-3.5 top-3 size-4 text-orange-500" />
+                    <MapPin className="absolute left-3.5 top-3.5 size-4 text-orange-500" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Yeh address / location aapke public digital menu ke banner par map pin ke sath show hoga taki customers ko exact location pata chal sake.
+                  <p className="text-[11px] text-muted-foreground leading-normal">
+                    Yeh address aapke public digital menu ke banner par map pin ke sath show hoga taki customers ko exact location pata chal sake.
                   </p>
                 </div>
 
                 {/* Restaurant Brand Logo Upload */}
-                <div className="space-y-2 pt-1 border-t border-border/60">
-                  <Label className="text-xs font-bold text-foreground flex items-center justify-between">
-                    <span>Restaurant Logo & Monogram</span>
-                    <span className="text-[10px] font-normal text-muted-foreground">Appears in QR Code, Menus & Posters</span>
-                  </Label>
-                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="relative shrink-0 mx-auto sm:mx-0">
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <ImageIcon className="size-3.5 text-primary" /> Restaurant Logo & Monogram
+                    </Label>
+                    <span className="text-[10px] text-muted-foreground">Appears in QR Code & Menu</span>
+                  </div>
+                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4 flex items-center gap-3.5">
+                    <div className="relative size-16 sm:size-18 shrink-0 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-xs flex items-center justify-center">
                       {logo ? (
                         <img
                           src={logo}
                           alt="Restaurant Logo"
-                          className="size-16 rounded-xl object-cover border border-border/80 shadow-xs"
+                          className="size-full object-cover"
                         />
                       ) : (
-                        <div className="size-16 rounded-xl bg-primary/10 border border-primary/20 flex flex-col items-center justify-center text-primary font-bold text-lg">
-                          <ImageIcon className="size-6 text-primary/70 mb-0.5" />
+                        <div className="size-full bg-primary/10 flex flex-col items-center justify-center text-primary font-bold">
+                          <ImageIcon className="size-6 text-primary/60" />
                         </div>
                       )}
                     </div>
 
-                    <div className="flex-1 space-y-1.5 text-center sm:text-left">
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
                         <label className="cursor-pointer">
                           <input type="file" accept="image/*" className="hidden" onChange={onLogo} />
-                          <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3.5 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
+                          <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 text-xs font-bold hover:bg-secondary transition-colors shadow-xs cursor-pointer">
                             <Upload className="size-3.5 text-primary" /> {logo ? "Change Logo" : "Upload Logo"}
                           </span>
                         </label>
@@ -760,117 +807,118 @@ function ProfilePage() {
                               setLogo(null);
                               setLogoSummary(null);
                             }}
-                            className="text-xs text-destructive hover:underline px-2 py-1 font-medium cursor-pointer"
+                            className="text-xs text-destructive hover:underline font-semibold cursor-pointer py-1 px-1.5"
                           >
                             Remove Logo
                           </button>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-[11px] text-muted-foreground">
-                        <span>Auto-compressed with WebP for ultra-fast QR scan</span>
-                        {logoSummary && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-veg/10 px-2 py-0.5 font-bold text-veg">
-                            ✓ {logoSummary}
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        Auto-compressed with WebP for ultra-fast QR scan
+                      </p>
+                      {logoSummary && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                          ✓ {logoSummary}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Header Banner Cover Image */}
                 <div className="space-y-2 pt-2 border-t border-border/60">
-                  <Label className="text-xs font-bold text-foreground flex items-center justify-between">
-                    <span>Menu Header Cover Banner Photo</span>
-                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">Public Menu Luxury Banner</span>
-                  </Label>
-                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-3">
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                      <div className="relative shrink-0 w-full sm:w-36 h-20 rounded-xl overflow-hidden border border-border/80 bg-card shadow-xs">
-                        {coverImage ? (
-                          <img
-                            src={coverImage}
-                            alt="Cover Banner"
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <div className="size-full bg-secondary flex flex-col items-center justify-center text-muted-foreground text-xs font-semibold">
-                            <ImageIcon className="size-5 mb-1 opacity-50" />
-                            Default Dining Banner
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1 w-full space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label className="cursor-pointer">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={isCompressingCover}
-                              onChange={async (e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                setIsCompressingCover(true);
-                                try {
-                                  const res = await compressImage(f, {
-                                    maxWidth: 1200,
-                                    maxHeight: 600,
-                                    quality: 0.80,
-                                    mimeType: "image/webp",
-                                  });
-                                  setCoverImage(res.dataUrl);
-                                  setCoverSummary(res.summary);
-                                  toast.success(`Banner photo compressed & applied! (${res.summary})`);
-                                } catch (err: any) {
-                                  toast.error(err?.message || "Failed to compress image");
-                                } finally {
-                                  setIsCompressingCover(false);
-                                }
-                              }}
-                            />
-                            <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3.5 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs cursor-pointer">
-                              {isCompressingCover ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
-                              {isCompressingCover ? "Compressing WebP..." : (coverImage ? "Change Banner Photo" : "Upload Banner Photo")}
-                            </span>
-                          </label>
-
-                          {coverImage && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCoverImage(null);
-                                setCoverSummary(null);
-                              }}
-                              className="text-xs text-destructive hover:underline font-semibold cursor-pointer"
-                            >
-                              Reset to Default
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Direct URL Input */}
-                        <Input
-                          value={coverImage?.startsWith("data:") ? "" : (coverImage || "")}
-                          onChange={(e) => {
-                            setCoverImage(e.target.value || null);
-                            setCoverSummary(null);
-                          }}
-                          placeholder="Or paste direct image URL (https://...)"
-                          className="h-8 text-xs bg-background"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-amber-500" /> Menu Header Cover Banner Photo
+                    </Label>
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                      Luxury Ambience
+                    </span>
+                  </div>
+                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
+                    <div className="relative w-full h-28 sm:h-32 rounded-2xl overflow-hidden border border-border/80 bg-card shadow-xs">
+                      {coverImage ? (
+                        <img
+                          src={coverImage}
+                          alt="Cover Banner"
+                          className="size-full object-cover"
                         />
-                      </div>
+                      ) : (
+                        <div className="size-full bg-gradient-to-br from-secondary/80 to-muted flex flex-col items-center justify-center text-muted-foreground text-xs font-semibold gap-1">
+                          <ImageIcon className="size-6 opacity-40" />
+                          Default Dining Ambience Banner
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
-                      <span>Yeh banner image aapke customer menu header par luxury ambience background ke roop me show hogi (~90% auto-compressed).</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isCompressingCover}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            setIsCompressingCover(true);
+                            try {
+                              const res = await compressImage(f, {
+                                maxWidth: 1200,
+                                maxHeight: 600,
+                                quality: 0.80,
+                                mimeType: "image/webp",
+                              });
+                              setCoverImage(res.dataUrl);
+                              setCoverSummary(res.summary);
+                              toast.success(`Banner photo compressed & applied! (${res.summary})`);
+                            } catch (err: any) {
+                              toast.error(err?.message || "Failed to compress image");
+                            } finally {
+                              setIsCompressingCover(false);
+                            }
+                          }}
+                        />
+                        <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 text-xs font-bold hover:bg-secondary transition-colors shadow-xs cursor-pointer">
+                          {isCompressingCover ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
+                          {isCompressingCover ? "Compressing WebP..." : (coverImage ? "Change Banner Photo" : "Upload Banner Photo")}
+                        </span>
+                      </label>
+
+                      {coverImage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCoverImage(null);
+                            setCoverSummary(null);
+                          }}
+                          className="text-xs text-destructive hover:underline font-semibold cursor-pointer py-1 px-2"
+                        >
+                          Reset to Default
+                        </button>
+                      )}
+
                       {coverSummary && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
                           ⚡ {coverSummary}
                         </span>
                       )}
                     </div>
+
+                    {/* Direct URL Input */}
+                    <Input
+                      value={coverImage?.startsWith("data:") ? "" : (coverImage || "")}
+                      onChange={(e) => {
+                        setCoverImage(e.target.value || null);
+                        setCoverSummary(null);
+                      }}
+                      placeholder="Or paste direct image URL (https://...)"
+                      className="h-9 rounded-xl text-xs bg-background"
+                    />
+
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      Yeh banner image aapke customer menu header par luxury ambience background ke roop me show hogi (~90% auto-compressed).
+                    </p>
                   </div>
                 </div>
 
@@ -882,7 +930,7 @@ function ProfilePage() {
                   <Button
                     type="submit"
                     disabled={savingProfile}
-                    className="w-full sm:w-auto gap-2 rounded-xl h-11 px-6 font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
+                    className="w-full sm:w-auto gap-2 rounded-2xl h-12 sm:h-11 px-6 font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
                   >
                     {savingProfile ? (
                       <>
@@ -900,25 +948,25 @@ function ProfilePage() {
           </div>
 
           {/* RIGHT COLUMN: Password & Security (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className={cn("lg:col-span-5 space-y-6", activeTab !== "security" && "hidden lg:block")}>
             
             {/* Password Change Card */}
-            <div className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 shadow-lift">
+            <div className="rounded-3xl border border-border/80 bg-card p-4 sm:p-6 lg:p-8 shadow-soft">
               <div className="flex items-center gap-2.5 pb-4 border-b border-border/60">
                 <div className="rounded-xl bg-accent/20 p-2 text-accent-foreground">
                   <KeyRound className="size-5" />
                 </div>
                 <div>
-                  <h2 className="font-display text-lg font-bold text-foreground">Security & Password</h2>
+                  <h2 className="font-display text-base sm:text-lg font-bold text-foreground">Security & Password</h2>
                   <p className="text-xs text-muted-foreground">Update your account login password.</p>
                 </div>
               </div>
 
-              <form onSubmit={handleChangePassword} className="mt-6 space-y-4">
+              <form onSubmit={handleChangePassword} className="mt-5 space-y-4">
                 {/* Current Password */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="currentPassword" className="text-xs font-bold text-foreground">
-                    Current Password
+                  <Label htmlFor="currentPassword" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Lock className="size-3.5 text-muted-foreground" /> Current Password
                   </Label>
                   <div className="relative">
                     <Input
@@ -928,13 +976,13 @@ function ProfilePage() {
                       placeholder="••••••••"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="pl-10 pr-10 h-11 rounded-xl text-sm"
+                      className="pl-10 pr-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <Lock className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <Lock className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                     <button
                       type="button"
                       onClick={() => setShowCurrentPw(!showCurrentPw)}
-                      className="absolute right-3.5 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
+                      className="absolute right-3.5 top-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       {showCurrentPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
@@ -943,8 +991,8 @@ function ProfilePage() {
 
                 {/* New Password */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="newPassword" className="text-xs font-bold text-foreground">
-                    New Password
+                  <Label htmlFor="newPassword" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <KeyRound className="size-3.5 text-muted-foreground" /> New Password
                   </Label>
                   <div className="relative">
                     <Input
@@ -955,13 +1003,13 @@ function ProfilePage() {
                       placeholder="••••••••"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="pl-10 pr-10 h-11 rounded-xl text-sm"
+                      className="pl-10 pr-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <KeyRound className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <KeyRound className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                     <button
                       type="button"
                       onClick={() => setShowNewPw(!showNewPw)}
-                      className="absolute right-3.5 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
+                      className="absolute right-3.5 top-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       {showNewPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
@@ -971,8 +1019,8 @@ function ProfilePage() {
 
                 {/* Confirm New Password */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="confirmPassword" className="text-xs font-bold text-foreground">
-                    Confirm New Password
+                  <Label htmlFor="confirmPassword" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Lock className="size-3.5 text-muted-foreground" /> Confirm New Password
                   </Label>
                   <div className="relative">
                     <Input
@@ -983,9 +1031,9 @@ function ProfilePage() {
                       placeholder="••••••••"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10 h-11 rounded-xl text-sm"
+                      className="pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <Lock className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <Lock className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                   </div>
                 </div>
 
@@ -993,7 +1041,7 @@ function ProfilePage() {
                   <Button
                     type="submit"
                     disabled={changingPw}
-                    className="w-full gap-2 rounded-xl h-11 font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
+                    className="w-full gap-2 rounded-2xl h-12 sm:h-11 font-bold shadow-soft transition-all duration-200 cursor-pointer text-sm"
                   >
                     {changingPw ? (
                       <>
@@ -1010,9 +1058,9 @@ function ProfilePage() {
             </div>
 
             {/* Account & Server Telemetry Card */}
-            <div className="rounded-3xl border border-border/80 bg-card p-6 shadow-lift space-y-4">
-              <h3 className="font-display text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                Account & Edge Telemetry
+            <div className="rounded-3xl border border-border/80 bg-card p-4 sm:p-6 shadow-soft space-y-3.5">
+              <h3 className="font-display text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Shield className="size-3.5 text-primary" /> Account & Security Status
               </h3>
 
               <div className="space-y-2.5 text-xs">
@@ -1045,17 +1093,17 @@ function ProfilePage() {
       </div>
 
       {/* ================================================================= */}
-      {/* 3. WHATSAPP PHONE OTP VERIFICATION MODAL                          */}
+      {/* 3. WHATSAPP PHONE OTP VERIFICATION MODAL (MOBILE FRIENDLY)        */}
       {/* ================================================================= */}
       <Dialog open={isPhoneModalOpen} onOpenChange={setIsPhoneModalOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 sm:p-7 border-border/80 bg-card shadow-2xl">
+        <DialogContent className="max-w-[94vw] sm:max-w-md rounded-3xl p-5 sm:p-7 border-border/80 bg-card shadow-2xl">
           <DialogHeader className="text-left space-y-2">
             <div className="flex items-center gap-3">
               <div className="size-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                 <Smartphone className="size-5" />
               </div>
               <div>
-                <DialogTitle className="font-display text-lg font-bold text-foreground">
+                <DialogTitle className="font-display text-base sm:text-lg font-bold text-foreground">
                   Verify WhatsApp Number
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
@@ -1065,8 +1113,8 @@ function ProfilePage() {
             </div>
           </DialogHeader>
 
-          <div className="space-y-5 pt-3">
-            <div className="rounded-2xl bg-muted/40 p-3.5 border border-border/60 flex items-center justify-between text-xs">
+          <div className="space-y-4 pt-2">
+            <div className="rounded-2xl bg-muted/40 p-3 sm:p-3.5 border border-border/60 flex items-center justify-between text-xs">
               <span className="text-muted-foreground flex items-center gap-1.5">
                 <Smartphone className="size-3.5 text-emerald-500" /> WhatsApp Mobile:
               </span>
@@ -1078,25 +1126,25 @@ function ProfilePage() {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
                 Enter 6-Digit Verification Code
               </Label>
-              <div className="flex justify-center py-2">
+              <div className="flex justify-center py-1">
                 <InputOTP maxLength={6} value={phoneOtp} onChange={(v) => setPhoneOtp(v)}>
-                  <InputOTPGroup className="gap-2 sm:gap-2.5">
-                    <InputOTPSlot index={0} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
-                    <InputOTPSlot index={1} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
-                    <InputOTPSlot index={2} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
-                    <InputOTPSlot index={3} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
-                    <InputOTPSlot index={4} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
-                    <InputOTPSlot index={5} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                  <InputOTPGroup className="gap-1.5 sm:gap-2.5">
+                    <InputOTPSlot index={0} className="size-10 sm:size-12 text-base sm:text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={1} className="size-10 sm:size-12 text-base sm:text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={2} className="size-10 sm:size-12 text-base sm:text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={3} className="size-10 sm:size-12 text-base sm:text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={4} className="size-10 sm:size-12 text-base sm:text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={5} className="size-10 sm:size-12 text-base sm:text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
                   </InputOTPGroup>
                 </InputOTP>
               </div>
 
               {/* Paste from clipboard */}
-              <div className="flex items-center justify-center gap-2 pt-1">
+              <div className="flex items-center justify-center gap-2 pt-0.5">
                 <button
                   type="button"
                   onClick={handlePastePhoneOtp}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/15 px-3 py-1 rounded-lg border border-emerald-500/20 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/15 px-3 py-1.5 rounded-xl border border-emerald-500/20 transition-colors"
                 >
                   <ClipboardPaste className="size-3.5" /> Paste Code from Clipboard
                 </button>
@@ -1104,7 +1152,7 @@ function ProfilePage() {
 
               {/* Dev OTP helper */}
               {phoneDevOtp && (
-                <div className="pt-1">
+                <div className="pt-0.5">
                   <button
                     type="button"
                     onClick={() => setPhoneOtp(phoneDevOtp)}
@@ -1130,12 +1178,12 @@ function ProfilePage() {
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-2.5 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsPhoneModalOpen(false)}
-                className="flex-1 rounded-xl h-11 cursor-pointer font-semibold"
+                className="flex-1 rounded-2xl h-11 cursor-pointer font-semibold"
               >
                 Cancel
               </Button>
@@ -1143,7 +1191,7 @@ function ProfilePage() {
                 type="button"
                 onClick={handleVerifyPhoneOtp}
                 disabled={phoneOtp.length !== 6 || isVerifyingPhoneOtp}
-                className="flex-1 rounded-xl h-11 font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-soft"
+                className="flex-1 rounded-2xl h-11 font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-soft"
               >
                 {isVerifyingPhoneOtp ? (
                   <span className="flex items-center gap-2">
@@ -1151,7 +1199,7 @@ function ProfilePage() {
                   </span>
                 ) : (
                   <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="size-4" /> Verify & Link Number
+                    <CheckCircle2 className="size-4" /> Verify & Link
                   </span>
                 )}
               </Button>
