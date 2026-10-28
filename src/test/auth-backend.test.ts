@@ -417,6 +417,78 @@ describe("Custom Authentication & Security Suite", () => {
     expect(unknownPhoneRes.error).toContain("No registered account found");
   });
 
+  it("requires WhatsApp OTP verification to link/change phone from Profile and enforces uniqueness", async () => {
+    // 1. User A registers with email only (skipped phone during signup)
+    const emailA = `skip-phone-a-${Date.now()}@testrestaurant.in`;
+    const signupA = await signupUser({
+      email: emailA,
+      password: "Password123!",
+      fullName: "Chef Alice",
+      clientIp: `ip-alice-${Date.now()}`,
+    });
+    expect(signupA.success).toBe(true);
+    await verifyUserOtp({ email: emailA, otp: signupA.data!.devOtp!, type: "SIGNUP" });
+
+    const userA = await userStore.findByEmail(emailA);
+    expect(userA).toBeDefined();
+    expect(userA?.phone).toBeNull();
+
+    // 2. User A initiates phone linking from Profile
+    const phoneA = "9876502222";
+    const sendOtpRes = await sendPhoneVerificationOtp({
+      email: emailA,
+      phone: phoneA,
+      clientIp: `ip-alice-phone-${Date.now()}`,
+    });
+    expect(sendOtpRes.success).toBe(true);
+    expect(sendOtpRes.data?.devOtp).toBeDefined();
+
+    // Verify phone is NOT saved on User A before OTP verification!
+    const userAUnverified = await userStore.findByEmail(emailA);
+    expect(userAUnverified?.phone).toBeNull();
+
+    // 3. User A enters incorrect OTP -> fails
+    const badVerify = await verifyPhoneVerificationOtp({
+      email: emailA,
+      phone: phoneA,
+      otp: "000000",
+    });
+    expect(badVerify.success).toBe(false);
+
+    // 4. User A enters correct OTP -> succeeds and links number
+    const goodVerify = await verifyPhoneVerificationOtp({
+      email: emailA,
+      phone: phoneA,
+      otp: sendOtpRes.data!.devOtp!,
+    });
+    expect(goodVerify.success).toBe(true);
+    expect(goodVerify.data?.phone).toBe("+919876502222");
+
+    const userAVerified = await userStore.findByEmail(emailA);
+    expect(userAVerified?.phone).toBe("+919876502222");
+
+    // 5. User B registers with email
+    const emailB = `skip-phone-b-${Date.now()}@testrestaurant.in`;
+    const signupB = await signupUser({
+      email: emailB,
+      password: "Password123!",
+      fullName: "Chef Bob",
+      clientIp: `ip-bob-${Date.now()}`,
+    });
+    expect(signupB.success).toBe(true);
+    await verifyUserOtp({ email: emailB, otp: signupB.data!.devOtp!, type: "SIGNUP" });
+
+    // 6. User B tries to link User A's phone -> REJECTED with 400
+    const conflictRes = await sendPhoneVerificationOtp({
+      email: emailB,
+      phone: phoneA, // Same number!
+      clientIp: `ip-bob-conflict-${Date.now()}`,
+    });
+    expect(conflictRes.success).toBe(false);
+    expect(conflictRes.status).toBe(400);
+    expect(conflictRes.error).toContain("already linked to another Menuly account");
+  });
+
   afterAll(async () => {
     try {
       const testUsers = await prisma.user.findMany({

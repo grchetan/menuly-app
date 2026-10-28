@@ -291,13 +291,28 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
-    // 2b. SEND PHONE OTP: POST /api/auth/send-phone-otp
+    // 2b. SEND PHONE OTP: POST /api/auth/send-phone-otp & /api/auth/profile/send-phone-otp
     // --------------------------------------------------------------------------
-    if (pathname === "/api/auth/send-phone-otp" && request.method === "POST") {
+    if (
+      (pathname === "/api/auth/send-phone-otp" || pathname === "/api/auth/profile/send-phone-otp") &&
+      request.method === "POST"
+    ) {
       const rawBody = await request.json().catch(() => ({}));
       const body = sanitizeObject(rawBody);
+
+      let targetEmail = body.email;
+      const token = extractBearerToken(request);
+      if (token) {
+        const auth = verifyAccessToken(token);
+        if (auth?.email) targetEmail = auth.email;
+      }
+
+      if (!targetEmail) {
+        return json({ error: "Email or authentication required." }, 400);
+      }
+
       const res = await sendPhoneVerificationOtp({
-        email: body.email,
+        email: targetEmail,
         phone: body.phone,
         clientIp,
       });
@@ -305,13 +320,28 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
-    // 2c. VERIFY PHONE OTP: POST /api/auth/verify-phone-otp
+    // 2c. VERIFY PHONE OTP: POST /api/auth/verify-phone-otp & /api/auth/profile/verify-phone-otp
     // --------------------------------------------------------------------------
-    if (pathname === "/api/auth/verify-phone-otp" && request.method === "POST") {
+    if (
+      (pathname === "/api/auth/verify-phone-otp" || pathname === "/api/auth/profile/verify-phone-otp") &&
+      request.method === "POST"
+    ) {
       const rawBody = await request.json().catch(() => ({}));
       const body = sanitizeObject(rawBody);
+
+      let targetEmail = body.email;
+      const token = extractBearerToken(request);
+      if (token) {
+        const auth = verifyAccessToken(token);
+        if (auth?.email) targetEmail = auth.email;
+      }
+
+      if (!targetEmail) {
+        return json({ error: "Email or authentication required." }, 400);
+      }
+
       const res = await verifyPhoneVerificationOtp({
-        email: body.email,
+        email: targetEmail,
         phone: body.phone,
         otp: body.otp,
       });
@@ -393,6 +423,19 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       const rawBody = await request.json().catch(() => ({}));
       const body = sanitizeObject(rawBody);
+
+      // Security: Check if user is attempting to change phone number without OTP verification
+      const currentUser = await userStore.findById(auth.userId);
+      if (body.phone !== undefined && body.phone !== null) {
+        const cleanNew = body.phone.replace(/\D/g, "").slice(-10);
+        const cleanExisting = currentUser?.phone ? currentUser.phone.replace(/\D/g, "").slice(-10) : "";
+        if (cleanNew && cleanNew !== cleanExisting) {
+          return json({
+            error: "Changing mobile number requires WhatsApp OTP verification. Please click 'Verify via WhatsApp' to verify your number.",
+          }, 400);
+        }
+      }
+
       const res = await updateUserProfile({
         userId: auth.userId,
         fullName: body.fullName,
@@ -524,6 +567,17 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       if (pathname === "/api/restaurant/update" && request.method === "POST") {
         const rawBody = await request.json().catch(() => ({}));
         const body = sanitizeObject(rawBody);
+
+        // Security: Prevent updating restaurant phone to an unverified number
+        if (body.phone !== undefined && body.phone !== null) {
+          const user = await userStore.findById(auth.userId);
+          const cleanNew = body.phone.replace(/\D/g, "").slice(-10);
+          const cleanUserPhone = user?.phone ? user.phone.replace(/\D/g, "").slice(-10) : "";
+          if (cleanNew && cleanNew !== cleanUserPhone) {
+            delete body.phone; // Do not allow unverified phone overwrite
+          }
+        }
+
         const updated = await updateRestaurant(auth.userId, body);
         return json({ success: true, message: "Restaurant profile saved.", restaurant: updated });
       }

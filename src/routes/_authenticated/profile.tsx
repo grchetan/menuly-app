@@ -25,11 +25,26 @@ import {
   Upload,
   Save,
   Image as ImageIcon,
+  ClipboardPaste,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import { myMenuQuery, setDemoMode, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
 import { compressImage } from "@/lib/image-compress";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,12 +75,14 @@ function ProfilePage() {
     email?: string;
     fullName?: string;
     role?: string;
+    phone?: string | null;
   } | null>(null);
 
   // Form states: Profile
   const [fullName, setFullName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
   const [email, setEmail] = useState("");
+  const [verifiedPhone, setVerifiedPhone] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
@@ -75,6 +92,24 @@ function ProfilePage() {
   const [isCompressingCover, setIsCompressingCover] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // Phone WhatsApp OTP Verification States
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState("");
+  const [phoneDevOtp, setPhoneDevOtp] = useState("");
+  const [phoneToVerify, setPhoneToVerify] = useState("");
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState(false);
+  const [isVerifyingPhoneOtp, setIsVerifyingPhoneOtp] = useState(false);
+
+  // Resend OTP Cooldown timer
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setPhoneCooldown((c) => (c > 0 ? c - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phoneCooldown]);
+
   // Form states: Password
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -83,7 +118,7 @@ function ProfilePage() {
   const [showNewPw, setShowNewPw] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
 
-  // Initialize from cache/session
+  // Initialize from cache/session & fetch fresh /api/auth/me
   useEffect(() => {
     if (typeof window !== "undefined") {
       const uStr = localStorage.getItem("menuly_user");
@@ -93,9 +128,35 @@ function ProfilePage() {
           setCurrentUser(u);
           if (u.fullName) setFullName(u.fullName);
           if (u.email) setEmail(u.email);
+          if (u.phone) {
+            setVerifiedPhone(u.phone);
+            setPhone(u.phone);
+          }
         } catch {
           // ignore
         }
+      }
+
+      // Re-validate against /api/auth/me to get the freshest phone verification status
+      const token = localStorage.getItem("menuly_token");
+      if (token) {
+        fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((resData) => {
+            if (resData.success && resData.data?.user) {
+              const u = resData.data.user;
+              setCurrentUser((prev) => ({ ...prev, ...u }));
+              if (u.fullName) setFullName(u.fullName);
+              if (u.email) setEmail(u.email);
+              if (u.phone) {
+                setVerifiedPhone(u.phone);
+                setPhone((p) => p || u.phone);
+              }
+            }
+          })
+          .catch(() => {});
       }
     }
   }, []);
@@ -104,12 +165,142 @@ function ProfilePage() {
   useEffect(() => {
     if (restaurant) {
       if (restaurant.name) setRestaurantName(restaurant.name);
-      if (restaurant.phone) setPhone(restaurant.phone);
+      if (restaurant.phone) {
+        setPhone((prev) => prev || restaurant.phone || "");
+        if (!verifiedPhone && restaurant.phone) {
+          setVerifiedPhone(restaurant.phone);
+        }
+      }
       if (restaurant.address) setAddress(restaurant.address);
       if (restaurant.logo_url) setLogo(restaurant.logo_url);
       if (restaurant.cover_url) setCoverImage(restaurant.cover_url);
     }
-  }, [restaurant]);
+  }, [restaurant, verifiedPhone]);
+
+  // Derived Phone Verification States
+  const cleanPhoneDigits = phone.replace(/\D/g, "").slice(-10);
+  const cleanVerifiedDigits = verifiedPhone.replace(/\D/g, "").slice(-10);
+  const isPhoneVerified = Boolean(cleanVerifiedDigits && cleanPhoneDigits === cleanVerifiedDigits);
+  const isPhoneChanged = cleanPhoneDigits !== cleanVerifiedDigits;
+
+  // Handle Send WhatsApp OTP
+  const handleSendPhoneOtp = async () => {
+    if (cleanPhoneDigits.length !== 10) {
+      toast.error("Please enter a valid 10-digit WhatsApp number (e.g. 9876543210).");
+      return;
+    }
+    setIsSendingPhoneOtp(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const res = await fetch("/api/auth/profile/send-phone-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: email || currentUser?.email,
+          phone: cleanPhoneDigits,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Failed to send WhatsApp verification code.");
+      }
+
+      setPhoneToVerify(cleanPhoneDigits);
+      setPhoneOtp("");
+      if (resData.data?.devOtp) {
+        setPhoneDevOtp(resData.data.devOtp);
+      }
+      setPhoneCooldown(60);
+      setIsPhoneModalOpen(true);
+      toast.success(resData.message || `Verification code sent to WhatsApp: +91 ${cleanPhoneDigits}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setIsSendingPhoneOtp(false);
+    }
+  };
+
+  // Handle Verify WhatsApp OTP
+  const handleVerifyPhoneOtp = async () => {
+    if (phoneOtp.length !== 6) {
+      toast.error("Please enter the complete 6-digit WhatsApp OTP.");
+      return;
+    }
+    setIsVerifyingPhoneOtp(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const res = await fetch("/api/auth/profile/verify-phone-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: email || currentUser?.email,
+          phone: phoneToVerify,
+          otp: phoneOtp,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Incorrect verification code.");
+      }
+
+      const formatted = resData.data?.phone || `+91${phoneToVerify}`;
+      setVerifiedPhone(formatted);
+      setPhone(formatted);
+
+      if (resData.data?.token && typeof window !== "undefined") {
+        localStorage.setItem("menuly_token", resData.data.token);
+        document.cookie = `menuly_token=${encodeURIComponent(resData.data.token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+      }
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("menuly_user");
+        if (storedUser) {
+          try {
+            const u = JSON.parse(storedUser);
+            u.phone = formatted;
+            localStorage.setItem("menuly_user", JSON.stringify(u));
+            setCurrentUser(u);
+          } catch {}
+        }
+      }
+
+      setIsPhoneModalOpen(false);
+      setPhoneOtp("");
+      toast.success("WhatsApp number verified & linked to your account successfully! 🎉");
+      qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setIsVerifyingPhoneOtp(false);
+    }
+  };
+
+  // Clipboard Paste Helper for WhatsApp OTP
+  const handlePastePhoneOtp = async () => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        const text = await navigator.clipboard.readText();
+        const digits = text.replace(/\D/g, "").slice(0, 6);
+        if (digits.length === 6) {
+          setPhoneOtp(digits);
+          toast.success("6-digit code pasted from clipboard!");
+          return;
+        }
+      }
+      toast.info("Please copy a 6-digit code first or enter manually.");
+    } catch {
+      toast.info("Could not read from clipboard. Please enter code manually.");
+    }
+  };
 
   // Handle Logo Upload in Profile
   async function onLogo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -133,6 +324,13 @@ function ProfilePage() {
       return;
     }
 
+    // Security: Mobile number changes MUST be verified via WhatsApp OTP
+    if (isPhoneChanged && cleanPhoneDigits.length > 0) {
+      toast.error("WhatsApp verification required: Please click 'Verify via WhatsApp' to verify this mobile number first.");
+      handleSendPhoneOtp();
+      return;
+    }
+
     setSavingProfile(true);
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
@@ -147,7 +345,7 @@ function ProfilePage() {
             fullName,
             email,
             restaurantName,
-            phone,
+            phone: verifiedPhone || undefined,
             logoUrl: logo,
           }),
         });
@@ -169,7 +367,7 @@ function ProfilePage() {
       // Always sync linked restaurant details (including address, logo & cover banner)
       await updateRestaurantHelper({
         name: restaurantName,
-        phone,
+        phone: verifiedPhone || null,
         address: address.trim() || null,
         logoUrl: logo,
         coverUrl: coverImage,
@@ -414,10 +612,26 @@ function ProfilePage() {
                 </div>
 
                 {/* Phone / WhatsApp */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="profilePhone" className="text-xs font-bold text-foreground">
-                    Contact & WhatsApp Number
-                  </Label>
+                <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="profilePhone" className="text-xs font-bold text-foreground">
+                      Contact & WhatsApp Mobile Number
+                    </Label>
+                    {isPhoneVerified ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3" /> WhatsApp Verified
+                      </span>
+                    ) : isPhoneChanged && cleanPhoneDigits.length >= 10 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="size-3" /> OTP Verification Required
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">
+                        {verifiedPhone ? "Verified" : "Unverified"}
+                      </span>
+                    )}
+                  </div>
+
                   <div className="relative">
                     <Input
                       id="profilePhone"
@@ -425,10 +639,67 @@ function ProfilePage() {
                       placeholder="+91 98765 43210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="pl-10 h-11 rounded-xl text-sm"
+                      className={cn(
+                        "pl-10 h-11 rounded-xl text-sm bg-background font-mono",
+                        isPhoneVerified
+                          ? "border-emerald-500/40 focus:border-emerald-500"
+                          : isPhoneChanged && cleanPhoneDigits.length >= 10
+                          ? "border-amber-500/60 focus:border-amber-500"
+                          : ""
+                      )}
                     />
-                    <Smartphone className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                    <Smartphone className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                   </div>
+
+                  {/* Verification action buttons & helper tips */}
+                  {isPhoneChanged && cleanPhoneDigits.length >= 10 && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={isSendingPhoneOtp}
+                        onClick={handleSendPhoneOtp}
+                        className="rounded-xl h-9 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-soft gap-1.5 cursor-pointer"
+                      >
+                        {isSendingPhoneOtp ? (
+                          <>
+                            <RefreshCw className="size-3.5 animate-spin" /> Sending WhatsApp OTP...
+                          </>
+                        ) : (
+                          <>
+                            <Smartphone className="size-3.5" /> Verify via WhatsApp OTP
+                          </>
+                        )}
+                      </Button>
+                      {verifiedPhone && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPhone(verifiedPhone)}
+                          className="rounded-xl h-9 px-3 text-xs text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="size-3" /> Revert to {verifiedPhone}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {isPhoneVerified ? (
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5 pt-0.5">
+                      <CheckCircle2 className="size-3.5 shrink-0" />
+                      Verified: Customers can contact you directly from your live menu, and you can log in using WhatsApp OTP.
+                    </p>
+                  ) : isPhoneChanged ? (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5 pt-0.5">
+                      <AlertTriangle className="size-3.5 shrink-0" />
+                      Security Policy: You must verify this number via WhatsApp OTP to prevent unauthenticated takeovers.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground pt-0.5">
+                      Used for customer WhatsApp orders, password resets, and instant platform notifications.
+                    </p>
+                  )}
                 </div>
 
                 {/* Restaurant Address / Location */}
@@ -772,6 +1043,122 @@ function ProfilePage() {
         </div>
 
       </div>
+
+      {/* ================================================================= */}
+      {/* 3. WHATSAPP PHONE OTP VERIFICATION MODAL                          */}
+      {/* ================================================================= */}
+      <Dialog open={isPhoneModalOpen} onOpenChange={setIsPhoneModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 sm:p-7 border-border/80 bg-card shadow-2xl">
+          <DialogHeader className="text-left space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="size-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <Smartphone className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold text-foreground">
+                  Verify WhatsApp Number
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Menuly Security: Verify ownership before saving this mobile number.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-5 pt-3">
+            <div className="rounded-2xl bg-muted/40 p-3.5 border border-border/60 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Smartphone className="size-3.5 text-emerald-500" /> WhatsApp Mobile:
+              </span>
+              <span className="font-mono font-bold text-foreground text-sm">+91 {phoneToVerify}</span>
+            </div>
+
+            {/* 6-Digit OTP slots */}
+            <div className="space-y-2.5 text-center">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                Enter 6-Digit Verification Code
+              </Label>
+              <div className="flex justify-center py-2">
+                <InputOTP maxLength={6} value={phoneOtp} onChange={(v) => setPhoneOtp(v)}>
+                  <InputOTPGroup className="gap-2 sm:gap-2.5">
+                    <InputOTPSlot index={0} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={1} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={2} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={3} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={4} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                    <InputOTPSlot index={5} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+
+              {/* Paste from clipboard */}
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handlePastePhoneOtp}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/15 px-3 py-1 rounded-lg border border-emerald-500/20 transition-colors"
+                >
+                  <ClipboardPaste className="size-3.5" /> Paste Code from Clipboard
+                </button>
+              </div>
+
+              {/* Dev OTP helper */}
+              {phoneDevOtp && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPhoneOtp(phoneDevOtp)}
+                    className="text-[11px] font-mono text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-lg cursor-pointer hover:underline border border-emerald-500/20"
+                  >
+                    Dev OTP: <strong>{phoneDevOtp}</strong> (Click to auto-fill)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Resend Cooldown */}
+            <div className="text-center text-xs text-muted-foreground">
+              Didn't receive the WhatsApp message?{" "}
+              <button
+                type="button"
+                disabled={phoneCooldown > 0 || isSendingPhoneOtp}
+                onClick={handleSendPhoneOtp}
+                className="font-bold text-emerald-600 dark:text-emerald-400 disabled:text-muted-foreground cursor-pointer hover:underline"
+              >
+                {phoneCooldown > 0 ? `Resend code (${phoneCooldown}s)` : "Resend WhatsApp Code"}
+              </button>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsPhoneModalOpen(false)}
+                className="flex-1 rounded-xl h-11 cursor-pointer font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleVerifyPhoneOtp}
+                disabled={phoneOtp.length !== 6 || isVerifyingPhoneOtp}
+                className="flex-1 rounded-xl h-11 font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-soft"
+              >
+                {isVerifyingPhoneOtp ? (
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="size-4 animate-spin" /> Verifying...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="size-4" /> Verify & Link Number
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

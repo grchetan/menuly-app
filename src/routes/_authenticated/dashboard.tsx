@@ -602,15 +602,23 @@ function Dashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-                    Contact Phone
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                      Contact Phone
+                    </Label>
+                    <Link to="/profile" className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1">
+                      <Smartphone className="size-3 text-emerald-500" /> Verify on WhatsApp
+                    </Link>
+                  </div>
                   <Input
                     value={form.phone}
                     onChange={set("phone")}
                     placeholder="+91 98765 43210"
                     className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-card/60 focus:bg-card focus:ring-2 focus:ring-primary/20"
                   />
+                  <p className="text-[10px] text-muted-foreground">
+                    Official WhatsApp OTP linking is managed under <Link to="/profile" className="text-primary font-bold hover:underline">Profile & Security</Link>.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

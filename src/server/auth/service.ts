@@ -360,8 +360,15 @@ export async function sendPhoneVerificationOtp(params: {
   const tenDigits = cleanDigits.slice(-10);
   const formattedPhone = `+91${tenDigits}`;
 
-  // Save phone number to user
-  await userStore.update(user.id, { phone: formattedPhone });
+  // Check if another user already owns this phone number
+  const existingOwner = await userStore.findByPhone(formattedPhone);
+  if (existingOwner && existingOwner.id !== user.id) {
+    return {
+      success: false,
+      status: 400,
+      error: "This mobile number is already linked to another Menuly account. Please enter your own active mobile number.",
+    };
+  }
 
   // Dispatch via WhatsApp bot
   const dispatchRes = await sendWhatsAppOtp(formattedPhone, rawOtp, "SIGNUP");
@@ -397,12 +404,17 @@ export async function verifyPhoneVerificationOtp(params: {
     user?: { id: string; email: string; role: UserRole; fullName: string | null; phone?: string | null };
     token?: string | undefined;
     refreshToken?: string | undefined;
+    phone?: string;
   }>
 > {
   const { email, phone, otp } = params;
   const normalized = email.toLowerCase().trim();
   const cleanDigits = phone.replace(/\D/g, "");
-  const formattedPhone = cleanDigits.length === 10 ? `+91${cleanDigits}` : `+${cleanDigits}`;
+  if (!cleanDigits || cleanDigits.length < 10) {
+    return { success: false, status: 400, error: "Please enter a valid 10-digit mobile number." };
+  }
+  const tenDigits = cleanDigits.slice(-10);
+  const formattedPhone = `+91${tenDigits}`;
 
   const res = await verifyUserOtp({
     email: normalized,
@@ -416,11 +428,46 @@ export async function verifyPhoneVerificationOtp(params: {
 
   const user = await userStore.findByEmail(normalized);
   if (user) {
+    // Ensure no other account claimed this phone in the interim
+    const existingOwner = await userStore.findByPhone(formattedPhone);
+    if (existingOwner && existingOwner.id !== user.id) {
+      return {
+        success: false,
+        status: 400,
+        error: "This mobile number is already linked to another Menuly account.",
+      };
+    }
+
     const updatedUser = (await userStore.update(user.id, { phone: formattedPhone })) || user;
+
+    // Sync restaurant phone and whatsapp in database
+    if (Boolean(process.env["DATABASE_URL"])) {
+      try {
+        await prisma.restaurant.updateMany({
+          where: { ownerId: user.id },
+          data: {
+            phone: formattedPhone,
+            whatsapp: tenDigits,
+          },
+        });
+      } catch (e) {
+        console.warn("[Phone Link Sync Warning]:", e);
+      }
+    }
+
+    const freshPayload: TokenPayload = {
+      userId: updatedUser.id,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      fullName: updatedUser.fullName,
+      phone: updatedUser.phone,
+    };
+    const token = signAccessToken(freshPayload);
+
     return {
       success: true,
       status: 200,
-      message: "Phone verified and linked successfully.",
+      message: "WhatsApp number verified and linked successfully.",
       data: {
         user: {
           id: updatedUser.id,
@@ -429,7 +476,8 @@ export async function verifyPhoneVerificationOtp(params: {
           fullName: updatedUser.fullName,
           phone: updatedUser.phone,
         },
-        ...(res.data?.token ? { token: res.data.token } : {}),
+        token,
+        phone: updatedUser.phone || formattedPhone,
         ...(res.data?.refreshToken ? { refreshToken: res.data.refreshToken } : {}),
       },
     };
@@ -523,7 +571,7 @@ export async function loginUser(params: {
   clientIp?: string;
 }): Promise<
   ServiceResult<{
-    user?: { id: string; email: string; role: UserRole; fullName: string | null };
+    user?: { id: string; email: string; role: UserRole; fullName: string | null; phone?: string | null };
     token?: string;
     refreshToken?: string;
     requiresVerification?: boolean;
@@ -664,6 +712,7 @@ export async function loginUser(params: {
     email: user.email,
     role: user.role,
     fullName: user.fullName,
+    phone: user.phone,
   };
 
   const token = signAccessToken(payload);
@@ -679,6 +728,7 @@ export async function loginUser(params: {
         email: user.email,
         role: user.role,
         fullName: user.fullName,
+        phone: user.phone,
       },
       token,
       refreshToken,
@@ -870,6 +920,7 @@ export async function getCurrentUser(
     email: user.email,
     role: user.role,
     fullName: user.fullName,
+    phone: user.phone,
   };
   const freshToken = signAccessToken(freshPayload);
 
@@ -882,6 +933,7 @@ export async function getCurrentUser(
         email: user.email,
         role: user.role,
         fullName: user.fullName,
+        phone: user.phone,
       },
       token: freshToken,
     },
@@ -951,6 +1003,7 @@ export async function updateUserProfile(params: {
     email: normalizedEmail,
     role: updatedUser?.role || user.role,
     fullName: updatedUser?.fullName || user.fullName,
+    phone: updatedUser?.phone || user.phone,
   };
   const token = signAccessToken(payload);
 

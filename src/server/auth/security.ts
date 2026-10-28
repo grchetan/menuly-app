@@ -13,6 +13,7 @@ export interface TokenPayload {
   email: string;
   role: "SUPER_ADMIN" | "RESTAURANT_OWNER" | "STAFF";
   fullName?: string | null;
+  phone?: string | null;
 }
 
 /**
