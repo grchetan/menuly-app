@@ -303,22 +303,30 @@ app.post("/send-otp", async (req, res) => {
 
   const jid = `${cleanNumber}@s.whatsapp.net`;
 
-  let actionTitle = "Verify Your Account";
+  let actionTitle = "Account Verification";
+  let purposeDescription = "Your single-use verification code is:";
   if (type === "PASSWORD_RESET") {
-    actionTitle = "Reset Your Password";
+    actionTitle = "Password Reset Request";
+    purposeDescription = "Your password reset code is:";
   } else if (type === "LOGIN") {
-    actionTitle = "Sign In Verification";
+    actionTitle = "Sign-In Verification";
+    purposeDescription = "Your sign-in security code is:";
   }
 
   const messageText = `🍽️ *MENULY — DIGITAL QR MENUS*
-${actionTitle}
+*${actionTitle}*
 ────────────────────────
 
-Your single-use verification code is:
+${purposeDescription}
+
 👉  *${otp}*  👈
 
+📋 *Quick Copy Code:*
+\`${otp}\`
+_(Tap or long-press the code above to copy)_
+
 ⏱️ *Valid for 10 minutes.*
-🔒 *Do not share this code with anyone.*
+🔒 *Do not share this code with anyone.* Menuly staff will never ask for your OTP.
 
 Thank you for choosing Menuly for your restaurant.
 ────────────────────────

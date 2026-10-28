@@ -19,6 +19,8 @@ import {
   Check,
   RefreshCw,
   Phone,
+  Copy,
+  ClipboardPaste,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,6 +186,30 @@ function AuthPage() {
       localStorage.setItem("menuly_token", token);
       localStorage.setItem("menuly_user", JSON.stringify(user));
       document.cookie = `menuly_token=${encodeURIComponent(token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+    }
+  };
+
+  const handlePasteOtp = async () => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        const clipText = await navigator.clipboard.readText();
+        const digits = clipText.replace(/\D/g, "").slice(0, 6);
+        if (digits.length === 6) {
+          setOtp(digits);
+          toast.success("6-digit code pasted from clipboard!");
+          return;
+        }
+      }
+      toast.info("Please copy a 6-digit code first or enter manually.");
+    } catch {
+      toast.info("Please paste or type the 6-digit code directly into the boxes.");
+    }
+  };
+
+  const handleCopyOtp = (code: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(code);
+      toast.success("Verification code copied to clipboard!");
     }
   };
 
@@ -930,15 +956,27 @@ function AuthPage() {
                         {devOtp}
                       </span>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setOtp(devOtp)}
-                      className="h-8 gap-1.5 rounded-xl border-primary/30 bg-primary/10 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer"
-                    >
-                      <CheckCircle2 className="size-3.5" /> 1-Click Auto-Fill Code
-                    </Button>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setOtp(devOtp)}
+                        className="h-8 gap-1.5 rounded-xl border-primary/30 bg-primary/10 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer"
+                      >
+                        <CheckCircle2 className="size-3.5" /> 1-Click Auto-Fill Code
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleCopyOtp(devOtp)}
+                        className="h-8 gap-1.5 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Copy OTP to clipboard"
+                      >
+                        <Copy className="size-3.5" /> Copy Code
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -958,6 +996,15 @@ function AuthPage() {
                           <InputOTPSlot index={5} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
                         </InputOTPGroup>
                       </InputOTP>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={handlePasteOtp}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer bg-primary/5 hover:bg-primary/10 px-3 py-1 rounded-lg border border-primary/20 transition-colors"
+                      >
+                        <ClipboardPaste className="size-3.5" /> Paste Code from Clipboard
+                      </button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">Expires in 10 minutes</p>
                   </div>
@@ -1124,15 +1171,27 @@ function AuthPage() {
                         {devOtp}
                       </span>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setOtp(devOtp)}
-                      className="h-8 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 cursor-pointer"
-                    >
-                      <CheckCircle2 className="size-3.5" /> 1-Click Auto-Fill Code
-                    </Button>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setOtp(devOtp)}
+                        className="h-8 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 cursor-pointer"
+                      >
+                        <CheckCircle2 className="size-3.5" /> 1-Click Auto-Fill Code
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleCopyOtp(devOtp)}
+                        className="h-8 gap-1.5 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Copy OTP to clipboard"
+                      >
+                        <Copy className="size-3.5" /> Copy Code
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -1152,6 +1211,15 @@ function AuthPage() {
                           <InputOTPSlot index={5} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-emerald-500" />
                         </InputOTPGroup>
                       </InputOTP>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={handlePasteOtp}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:underline cursor-pointer bg-emerald-500/5 hover:bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 transition-colors"
+                      >
+                        <ClipboardPaste className="size-3.5" /> Paste Code from Clipboard
+                      </button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">Expires in 10 minutes</p>
                   </div>
@@ -1233,6 +1301,10 @@ function AuthPage() {
                       />
                       <Mail className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
                     </div>
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-1">
+                      <Shield className="size-3 text-primary" />
+                      We verify that this account exists in our database before dispatching code.
+                    </p>
                   </div>
 
                   <Button

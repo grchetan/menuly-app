@@ -397,6 +397,26 @@ describe("Custom Authentication & Security Suite", () => {
     expect(purgedLookup).toBeNull();
   });
 
+  it("strictly validates registered user in database for forgot-password: rejects unregistered email and phone with 404", async () => {
+    // 1. Unregistered email
+    const unknownEmailRes = await forgotPassword({
+      email: "never-registered-9999@randomdomain.xyz",
+      clientIp: `test-unknown-email-${Date.now()}`,
+    });
+    expect(unknownEmailRes.success).toBe(false);
+    expect(unknownEmailRes.status).toBe(404);
+    expect(unknownEmailRes.error).toContain("No registered account found");
+
+    // 2. Unregistered phone number
+    const unknownPhoneRes = await forgotPassword({
+      identifier: "9000000001",
+      clientIp: `test-unknown-phone-${Date.now()}`,
+    });
+    expect(unknownPhoneRes.success).toBe(false);
+    expect(unknownPhoneRes.status).toBe(404);
+    expect(unknownPhoneRes.error).toContain("No registered account found");
+  });
+
   afterAll(async () => {
     try {
       const testUsers = await prisma.user.findMany({

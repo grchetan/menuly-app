@@ -483,13 +483,21 @@ export async function resendUserOtp(params: {
   await sendOtpEmail(normalized, rawOtp, type, OTP_EXPIRY_MINUTES);
 
   const existingUser = await userStore.findByEmail(normalized);
-  if (existingUser?.phone) {
-    await sendWhatsAppOtp(existingUser.phone, rawOtp, type).catch((e) => {
+  let recipientPhone = existingUser?.phone;
+  if (!recipientPhone) {
+    const pending = await pendingRegistrationStore.findByEmail(normalized);
+    if (pending?.phone) {
+      recipientPhone = pending.phone;
+    }
+  }
+
+  if (recipientPhone) {
+    await sendWhatsAppOtp(recipientPhone, rawOtp, type).catch((e) => {
       console.warn("[WhatsApp Dispatch Warning]:", e);
     });
   }
 
-  const resendMsg = existingUser?.phone
+  const resendMsg = recipientPhone
     ? `A new verification code has been sent to ${normalized} and your WhatsApp number.`
     : `A new verification code has been sent to ${normalized}.`;
 
@@ -705,46 +713,63 @@ export async function forgotPassword(params: {
   }
 
   const user = await userStore.findByIdentifier(lookupInput);
+  if (!user) {
+    // Check if user is in pending registrations (abandoned signup without OTP completion)
+    const pending = lookupInput.includes("@")
+      ? await pendingRegistrationStore.findByEmail(lookupInput)
+      : null;
 
-  let devOtp: string | undefined;
-  let targetEmail = lookupInput.includes("@") ? lookupInput.toLowerCase() : (user?.email || "");
-
-  if (user) {
-    if (user.deletedAt) {
-      return { success: false, status: 403, error: "Menuly Official: Your account has been deleted by administration." };
-    }
-    if (user.isBanned) {
-      return { success: false, status: 403, error: user.banReason || "Your account has been suspended by Menuly Administration." };
-    }
-    targetEmail = user.email;
-    const rawOtp = generateNumericOtp();
-    const otpHash = await hashOtp(rawOtp);
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-    await otpStore.saveOtp({
-      email: user.email,
-      otpHash,
-      type: "PASSWORD_RESET",
-      expiresAt,
-      maxAttempts: OTP_MAX_ATTEMPTS,
-    });
-
-    await sendOtpEmail(user.email, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
-
-    if (user.phone) {
-      await sendWhatsAppOtp(user.phone, rawOtp, "PASSWORD_RESET").catch((e) => {
-        console.warn("[WhatsApp Dispatch Warning]:", e);
-      });
+    if (pending) {
+      return {
+        success: false,
+        status: 400,
+        error: "Your account registration is incomplete. Please finish initial verification or register again.",
+      };
     }
 
-    if (shouldExposeDevOtp()) {
-      devOtp = rawOtp;
-    }
+    return {
+      success: false,
+      status: 404,
+      error: "No registered account found with this email or mobile number. Please check your details or create a new account.",
+    };
   }
 
-  const deliveryMsg = user?.phone
+  if (user.deletedAt) {
+    return { success: false, status: 403, error: "Menuly Official: Your account has been deleted by administration." };
+  }
+  if (user.isBanned) {
+    return { success: false, status: 403, error: user.banReason || "Your account has been suspended by Menuly Administration." };
+  }
+
+  let devOtp: string | undefined;
+  const targetEmail = user.email;
+  const rawOtp = generateNumericOtp();
+  const otpHash = await hashOtp(rawOtp);
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+  await otpStore.saveOtp({
+    email: user.email,
+    otpHash,
+    type: "PASSWORD_RESET",
+    expiresAt,
+    maxAttempts: OTP_MAX_ATTEMPTS,
+  });
+
+  await sendOtpEmail(user.email, rawOtp, "PASSWORD_RESET", OTP_EXPIRY_MINUTES);
+
+  if (user.phone) {
+    await sendWhatsAppOtp(user.phone, rawOtp, "PASSWORD_RESET").catch((e) => {
+      console.warn("[WhatsApp Dispatch Warning]:", e);
+    });
+  }
+
+  if (shouldExposeDevOtp()) {
+    devOtp = rawOtp;
+  }
+
+  const deliveryMsg = user.phone
     ? "Password reset code sent to your registered email and WhatsApp."
-    : "If this account is registered, a password reset code has been sent.";
+    : `Password reset code sent to your registered email (${user.email}).`;
 
   return {
     success: true,
@@ -752,7 +777,7 @@ export async function forgotPassword(params: {
     message: deliveryMsg,
     data: {
       email: targetEmail,
-      ...(user?.phone ? { phone: user.phone } : {}),
+      ...(user.phone ? { phone: user.phone } : {}),
       ...(devOtp ? { devOtp } : {}),
     },
   };
