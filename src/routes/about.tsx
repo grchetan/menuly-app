@@ -333,7 +333,7 @@ function About() {
                     <XCircle className="size-3.5" />
                   </span>
                   <span>
-                    <strong className="text-foreground">Awkward kitchen apologies:</strong> Customers order an item only for the waiter to return saying "Sir, ye dish khatam ho gayi hai."
+                    <strong className="text-foreground">Awkward kitchen apologies:</strong> Customers order an item only for the waiter to return saying "Sir, this dish is sold out."
                   </span>
                 </li>
                 <li className="pt-3.5 first:pt-0 flex items-start gap-3">

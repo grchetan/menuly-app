@@ -765,7 +765,7 @@ function ProfilePage() {
                     <MapPin className="absolute left-3.5 top-3.5 size-4 text-orange-500" />
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-normal">
-                    Yeh address aapke public digital menu ke banner par map pin ke sath show hoga taki customers ko exact location pata chal sake.
+                    This address will appear with a map pin on your public digital menu header so customers can easily find your location.
                   </p>
                 </div>
 
@@ -917,7 +917,7 @@ function ProfilePage() {
                     />
 
                     <p className="text-[11px] text-muted-foreground leading-normal">
-                      Yeh banner image aapke customer menu header par luxury ambience background ke roop me show hogi (~90% auto-compressed).
+                      This banner photo appears as an ambient luxury background on your customer menu header (~90% auto-compressed).
                     </p>
                   </div>
                 </div>

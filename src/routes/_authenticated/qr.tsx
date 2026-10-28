@@ -3147,7 +3147,7 @@ function QrPage() {
                     <div>
                       <p className="font-bold text-foreground">Verbal or Token Ordering at Counter</p>
                       <p className="text-muted-foreground text-[11px]">
-                        Customers choose dishes from the offline text screen, then tell the waiter or cashier: "Table 3 par 2 Dal Makhani, 4 Butter Roti".
+                        Customers choose dishes from the offline text screen, then tell the waiter or cashier: "Table 3: 2 Dal Makhani, 4 Butter Roti".
                       </p>
                     </div>
                   </div>
@@ -3468,9 +3468,9 @@ function QrPage() {
                   <div className="space-y-1 leading-relaxed">
                     <p className="font-semibold text-foreground">1-Page Clean Print & PDF Guarantee</p>
                     <div className="text-[11px] space-y-1 text-foreground/85 pl-1">
-                      <div>• <strong>Download Clean PDF (1-Page)</strong>: Single-click me exact 1-page PDF download hogi bina kisi browser timestamp, date, URL ya page number ke!</div>
-                      <div>• <strong>Mobile & Desktop Print</strong>: Single-page strict constraints apply kiye gaye hain taaki mobile print me 2nd page kabhi na aaye.</div>
-                      <div>• Agar browser print dialog use karein to settings me <em>Headers & Footers</em> off aur <em>Background Graphics</em> on rakhein.</div>
+                      <div>• <strong>Download Clean PDF (1-Page)</strong>: Instant 1-click download of an exact single-page PDF with zero browser timestamps, dates, URLs, or headers!</div>
+                      <div>• <strong>Mobile & Desktop Print</strong>: Enforced with strict single-page layout constraints to prevent accidental second pages on mobile print.</div>
+                      <div>• When using your browser's print dialog, keep <em>Headers & Footers</em> disabled and <em>Background Graphics</em> enabled.</div>
                     </div>
                   </div>
                 </div>
