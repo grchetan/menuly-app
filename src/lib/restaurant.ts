@@ -4,7 +4,13 @@ import type { Tables } from "@/integrations/supabase/types";
 import { slugify } from "./config";
 import { compressImage } from "./image-compress";
 
-export type Restaurant = Tables<"restaurants">;
+export type Restaurant = Tables<"restaurants"> & {
+  description?: string | null;
+  isPureVeg?: boolean;
+  galleryPhotos?: string[];
+  profileVisits?: number;
+  isFeatured?: boolean;
+};
 export type Category = Tables<"categories">;
 export type MenuItem = Tables<"menu_items">;
 
@@ -253,12 +259,15 @@ export async function loadMyMenu(): Promise<FullMenu> {
 export async function updateRestaurantHelper(updates: {
   name?: string;
   slug?: string;
+  description?: string | null;
   address?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
   hours?: string | null;
   logoUrl?: string | null;
   coverUrl?: string | null;
+  isPureVeg?: boolean;
+  galleryPhotos?: string[];
   qrFg?: string;
   qrBg?: string;
   qrCorner?: string;
@@ -269,12 +278,15 @@ export async function updateRestaurantHelper(updates: {
       ...cur.restaurant,
       ...(updates.name ? { name: updates.name } : {}),
       ...(updates.slug ? { slug: updates.slug } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
       ...(updates.address !== undefined ? { address: updates.address } : {}),
       ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
       ...(updates.whatsapp !== undefined ? { whatsapp: updates.whatsapp } : {}),
       ...(updates.hours !== undefined ? { hours: updates.hours } : {}),
       ...(updates.logoUrl !== undefined ? { logo_url: updates.logoUrl } : {}),
       ...(updates.coverUrl !== undefined ? { cover_url: updates.coverUrl } : {}),
+      ...(updates.isPureVeg !== undefined ? { isPureVeg: updates.isPureVeg } : {}),
+      ...(updates.galleryPhotos !== undefined ? { galleryPhotos: updates.galleryPhotos } : {}),
       ...(updates.qrFg ? { qr_fg: updates.qrFg } : {}),
       ...(updates.qrBg ? { qr_bg: updates.qrBg } : {}),
       ...(updates.qrCorner ? { qr_corner: updates.qrCorner } : {}),

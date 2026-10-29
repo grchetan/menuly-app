@@ -84,9 +84,11 @@ Thumbs.db
 .wrangler/
 .dev.vars
 
-# Temporary Scratch Scripts
+# Temporary Scratch Scripts & Presentations
 scripts/test*
 scratch/
+ppt/
+*.pptx
 
 # WhatsApp Bot Sessions & Private Auth
 auth_info/

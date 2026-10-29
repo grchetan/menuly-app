@@ -29,6 +29,8 @@ import {
   AlertTriangle,
   RotateCcw,
   Shield,
+  Leaf,
+  FileText,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -89,6 +91,8 @@ function ProfilePage() {
   const [verifiedPhone, setVerifiedPhone] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [description, setDescription] = useState("");
+  const [isPureVeg, setIsPureVeg] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
   const [logoSummary, setLogoSummary] = useState<string | null>(null);
   const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -176,6 +180,8 @@ function ProfilePage() {
         }
       }
       if (restaurant.address) setAddress(restaurant.address);
+      if (restaurant.description) setDescription(restaurant.description);
+      if (restaurant.isPureVeg !== undefined) setIsPureVeg(Boolean(restaurant.isPureVeg));
       if (restaurant.logo_url) setLogo(restaurant.logo_url);
       if (restaurant.cover_url) setCoverImage(restaurant.cover_url);
     }
@@ -373,6 +379,8 @@ function ProfilePage() {
         name: restaurantName,
         phone: verifiedPhone || null,
         address: address.trim() || null,
+        description: description.trim() || null,
+        isPureVeg,
         logoUrl: logo,
         coverUrl: coverImage,
       });
@@ -767,6 +775,63 @@ function ProfilePage() {
                   <p className="text-[11px] text-muted-foreground leading-normal">
                     This address will appear with a map pin on your public digital menu header so customers can easily find your location.
                   </p>
+                </div>
+
+                {/* Restaurant Story / Tagline / About (Community & Storefront Profile) */}
+                <div className="space-y-1.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <Label htmlFor="profileDescription" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <FileText className="size-3.5 text-primary" /> Restaurant Story & Tagline
+                    </Label>
+                    <span className="self-start sm:self-auto text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                      ✨ Community Showcase
+                    </span>
+                  </div>
+                  <textarea
+                    id="profileDescription"
+                    rows={2}
+                    placeholder="e.g. Authentic charcoal tandoori specials, artisanal rooftop cafe dining, and slow-cooked North Indian curries."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full rounded-2xl p-3 text-base sm:text-sm bg-background border border-border/80 focus:border-primary/50 resize-none outline-none leading-relaxed"
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-normal">
+                    Featured on your public restaurant storefront page and community discovery card.
+                  </p>
+                </div>
+
+                {/* Pure Veg Dietary Indicator Toggle */}
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 sm:p-4 flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                        <Leaf className="size-4" />
+                      </span>
+                      <Label htmlFor="pureVegToggle" className="text-xs sm:text-sm font-bold text-foreground cursor-pointer">
+                        100% Pure Vegetarian Establishment
+                      </Label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug pl-9">
+                      Enabling this displays the green Pure Veg badge across all community listings and digital menu cards.
+                    </p>
+                  </div>
+
+                  <button
+                    id="pureVegToggle"
+                    type="button"
+                    role="switch"
+                    aria-checked={isPureVeg}
+                    onClick={() => setIsPureVeg(!isPureVeg)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      isPureVeg ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-700"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        isPureVeg ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
                 </div>
 
                 {/* Restaurant Brand Logo Upload */}

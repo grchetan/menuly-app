@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { QrCode, Smartphone, RefreshCw, ArrowRight, Sparkles, MessageCircle, Palette, Check, Star, ScanLine, Utensils, Zap } from "lucide-react";
+import { QrCode, Smartphone, RefreshCw, ArrowRight, Sparkles, MessageCircle, Palette, Check, Star, ScanLine, Utensils, Zap, Store, Compass, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SitePage, usePlatformSettings } from "@/components/SiteLayout";
 import { HowSteps } from "@/components/HowSteps";
@@ -304,6 +304,52 @@ function Index() {
           </Button>
         </div>
         <div className="mt-8"><HowSteps limit={3} /></div>
+      </section>
+
+      {/* ── RESTAURANT COMMUNITY SHOWCASE ───────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-5 py-12">
+        <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-8 sm:p-12 shadow-soft">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="max-w-xl space-y-3 text-center md:text-left">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                <Compass className="size-3.5" /> Menuly Verified Community
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+                Discover Restaurants with Live Digital Menus
+              </h2>
+              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                Explore cafes, rooftops, pure veg diners, and food shops powered by Menuly. Browse live menus, check real-time dish counts, scan table QRs, and visit dedicated storefronts.
+              </p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs font-semibold text-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Store className="size-4 text-primary" />
+                  <span>Verified Storefronts</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <QrCode className="size-4 text-emerald-500" />
+                  <span>Instant QR Scans</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Users className="size-4 text-amber-500" />
+                  <span>Real-time Visits</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row md:flex-col items-center gap-3 shrink-0">
+              <Button size="lg" asChild className="gap-2 font-bold shadow-soft">
+                <Link to="/restaurants">
+                  <Store className="size-4" /> Explore Community Directory <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/auth" search={{ mode: "signup" }}>
+                  Add Your Restaurant Free
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ── TESTIMONIAL ────────────────────────────────────────────────── */}

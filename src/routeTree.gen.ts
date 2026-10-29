@@ -15,6 +15,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CancellationRefundRouteImport } from './routes/cancellation-refund'
+import { Route as CommunityRouteImport } from './routes/community'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as HowToUseRouteImport } from './routes/how-to-use'
@@ -33,6 +34,8 @@ import { Route as AuthenticatedQrRouteImport } from './routes/_authenticated/qr'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as MenuIndexRouteImport } from './routes/menu.index'
 import { Route as MenuSlugRouteImport } from './routes/menu.$slug'
+import { Route as RestaurantsIndexRouteImport } from './routes/restaurants.index'
+import { Route as RestaurantsSlugRouteImport } from './routes/restaurants.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -61,6 +64,11 @@ const AuthRoute = AuthRouteImport.update({
 const CancellationRefundRoute = CancellationRefundRouteImport.update({
   id: '/cancellation-refund',
   path: '/cancellation-refund',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -153,6 +161,16 @@ const MenuSlugRoute = MenuSlugRouteImport.update({
   path: '/menu/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantsIndexRoute = RestaurantsIndexRouteImport.update({
+  id: '/restaurants/',
+  path: '/restaurants/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantsSlugRoute = RestaurantsSlugRouteImport.update({
+  id: '/restaurants/$slug',
+  path: '/restaurants/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -160,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/cancellation-refund': typeof CancellationRefundRoute
+  '/community': typeof CommunityRoute
   '/contact': typeof ContactRoute
   '/cookies': typeof CookiesRoute
   '/how-to-use': typeof HowToUseRoute
@@ -177,7 +196,9 @@ export interface FileRoutesByFullPath {
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
+  '/restaurants/$slug': typeof RestaurantsSlugRoute
   '/menu/': typeof MenuIndexRoute
+  '/restaurants/': typeof RestaurantsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -185,6 +206,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/cancellation-refund': typeof CancellationRefundRoute
+  '/community': typeof CommunityRoute
   '/contact': typeof ContactRoute
   '/cookies': typeof CookiesRoute
   '/how-to-use': typeof HowToUseRoute
@@ -202,7 +224,9 @@ export interface FileRoutesByTo {
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
+  '/restaurants/$slug': typeof RestaurantsSlugRoute
   '/menu': typeof MenuIndexRoute
+  '/restaurants': typeof RestaurantsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -212,6 +236,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/cancellation-refund': typeof CancellationRefundRoute
+  '/community': typeof CommunityRoute
   '/contact': typeof ContactRoute
   '/cookies': typeof CookiesRoute
   '/how-to-use': typeof HowToUseRoute
@@ -229,7 +254,9 @@ export interface FileRoutesById {
   '/_authenticated/qr': typeof AuthenticatedQrRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/menu/$slug': typeof MenuSlugRoute
+  '/restaurants/$slug': typeof RestaurantsSlugRoute
   '/menu/': typeof MenuIndexRoute
+  '/restaurants/': typeof RestaurantsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -239,6 +266,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/cancellation-refund'
+    | '/community'
     | '/contact'
     | '/cookies'
     | '/how-to-use'
@@ -256,7 +284,9 @@ export interface FileRouteTypes {
     | '/qr'
     | '/support'
     | '/menu/$slug'
+    | '/restaurants/$slug'
     | '/menu/'
+    | '/restaurants/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -264,6 +294,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/cancellation-refund'
+    | '/community'
     | '/contact'
     | '/cookies'
     | '/how-to-use'
@@ -281,7 +312,9 @@ export interface FileRouteTypes {
     | '/qr'
     | '/support'
     | '/menu/$slug'
+    | '/restaurants/$slug'
     | '/menu'
+    | '/restaurants'
   id:
     | '__root__'
     | '/'
@@ -290,6 +323,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/cancellation-refund'
+    | '/community'
     | '/contact'
     | '/cookies'
     | '/how-to-use'
@@ -307,7 +341,9 @@ export interface FileRouteTypes {
     | '/_authenticated/qr'
     | '/_authenticated/support'
     | '/menu/$slug'
+    | '/restaurants/$slug'
     | '/menu/'
+    | '/restaurants/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -317,6 +353,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AuthRoute: typeof AuthRoute
   CancellationRefundRoute: typeof CancellationRefundRoute
+  CommunityRoute: typeof CommunityRoute
   ContactRoute: typeof ContactRoute
   CookiesRoute: typeof CookiesRoute
   HowToUseRoute: typeof HowToUseRoute
@@ -329,7 +366,9 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   TermsAndConditionsRoute: typeof TermsAndConditionsRoute
   MenuSlugRoute: typeof MenuSlugRoute
+  RestaurantsSlugRoute: typeof RestaurantsSlugRoute
   MenuIndexRoute: typeof MenuIndexRoute
+  RestaurantsIndexRoute: typeof RestaurantsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -374,6 +413,13 @@ declare module '@tanstack/react-router' {
       path: '/cancellation-refund'
       fullPath: '/cancellation-refund'
       preLoaderRoute: typeof CancellationRefundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -502,6 +548,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MenuSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurants/': {
+      id: '/restaurants/'
+      path: '/restaurants'
+      fullPath: '/restaurants/'
+      preLoaderRoute: typeof RestaurantsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurants/$slug': {
+      id: '/restaurants/$slug'
+      path: '/restaurants/$slug'
+      fullPath: '/restaurants/$slug'
+      preLoaderRoute: typeof RestaurantsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -531,6 +591,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AuthRoute: AuthRoute,
   CancellationRefundRoute: CancellationRefundRoute,
+  CommunityRoute: CommunityRoute,
   ContactRoute: ContactRoute,
   CookiesRoute: CookiesRoute,
   HowToUseRoute: HowToUseRoute,
@@ -543,7 +604,9 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   TermsAndConditionsRoute: TermsAndConditionsRoute,
   MenuSlugRoute: MenuSlugRoute,
+  RestaurantsSlugRoute: RestaurantsSlugRoute,
   MenuIndexRoute: MenuIndexRoute,
+  RestaurantsIndexRoute: RestaurantsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

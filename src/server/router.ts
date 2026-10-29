@@ -41,6 +41,10 @@ import {
   saveStarterPresets,
 } from "./restaurant/service";
 import {
+  getCommunityRestaurants,
+  getCommunityRestaurantBySlug,
+} from "./community/service";
+import {
   sanitizeObject,
   sanitizeText,
   sanitizePrice,
@@ -67,9 +71,10 @@ function isOriginAllowed(origin: string | null): boolean {
 function getCorsHeaders(req: Request, pathname: string): Record<string, string> {
   const origin = req.headers.get("origin");
 
-  // Public read-only endpoints allow any origin (QR customer menu, presets, version, health)
+  // Public read-only endpoints allow any origin (QR customer menu, presets, community, version, health)
   if (
     pathname.startsWith("/api/public/") ||
+    pathname.startsWith("/api/community/") ||
     pathname === "/api/starter-presets" ||
     pathname === "/api/version" ||
     pathname === "/api/health"
@@ -488,6 +493,46 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         return json({ error: "Restaurant menu not found or currently paused." }, 404);
       }
       return json({ success: true, ...menu });
+    }
+
+    // --------------------------------------------------------------------------
+    // PUBLIC RESTAURANT COMMUNITY DIRECTORY: GET /api/community/restaurants
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/community/restaurants" && request.method === "GET") {
+      const q = url.searchParams.get("q") || undefined;
+      const city = url.searchParams.get("city") || undefined;
+      const veg = url.searchParams.get("veg") === "true";
+      const sort = (url.searchParams.get("sort") || "popular") as any;
+      const limit = Number(url.searchParams.get("limit") || "60");
+
+      const queryParams: {
+        search?: string;
+        city?: string;
+        vegOnly?: boolean;
+        sort?: "popular" | "views" | "visits" | "newest" | "name";
+        limit?: number;
+      } = {
+        vegOnly: veg,
+        sort,
+        limit,
+      };
+      if (q) queryParams.search = q;
+      if (city) queryParams.city = city;
+
+      const res = await getCommunityRestaurants(queryParams);
+      return json({ success: true, ...res });
+    }
+
+    // --------------------------------------------------------------------------
+    // PUBLIC RESTAURANT STOREFRONT PROFILE: GET /api/community/restaurant/:slug
+    // --------------------------------------------------------------------------
+    if (pathname.startsWith("/api/community/restaurant/") && request.method === "GET") {
+      const slug = pathname.replace("/api/community/restaurant/", "").trim();
+      const restaurant = await getCommunityRestaurantBySlug(slug);
+      if (!restaurant) {
+        return json({ error: "Restaurant not found or currently unavailable." }, 404);
+      }
+      return json({ success: true, restaurant });
     }
 
     // --------------------------------------------------------------------------

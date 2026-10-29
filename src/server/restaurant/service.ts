@@ -18,6 +18,9 @@ export interface RestaurantPayload {
   hours?: string | null;
   logoUrl?: string | null;
   coverUrl?: string | null;
+  description?: string | null;
+  isPureVeg?: boolean;
+  galleryPhotos?: string[];
   qrFg?: string;
   qrBg?: string;
   qrCorner?: string;
@@ -777,6 +780,11 @@ export async function updateRestaurant(userId: string, data: Partial<RestaurantP
       ...(data.whatsapp !== undefined ? { whatsapp: sanitizePhone(data.whatsapp) } : {}),
       ...(data.address !== undefined ? { address: data.address ? sanitizeText(data.address, 300) : null } : {}),
       ...(data.hours !== undefined ? { hours: data.hours ? sanitizeText(data.hours, 120) : null } : {}),
+      ...(data.description !== undefined ? { description: data.description ? sanitizeText(data.description, 500) : null } : {}),
+      ...(data.isPureVeg !== undefined ? { isPureVeg: Boolean(data.isPureVeg) } : {}),
+      ...(data.galleryPhotos !== undefined && Array.isArray(data.galleryPhotos)
+        ? { galleryPhotos: data.galleryPhotos.filter((u): u is string => typeof u === "string").slice(0, 15) }
+        : {}),
       ...(data.logoUrl !== undefined ? { logoUrl: sanitizeUrl(data.logoUrl) } : {}),
       ...(data.coverUrl !== undefined ? { coverUrl: sanitizeUrl(data.coverUrl) } : {}),
       ...(data.qrFg ? { qrFg: sanitizeColor(data.qrFg, "#0f5132") } : {}),

@@ -13,6 +13,7 @@ import { isDemoMode } from "@/lib/restaurant";
 const publicLinks = [
   { to: "/", label: "Home" },
   { to: "/how-to-use", label: "How to use" },
+  { to: "/restaurants", label: "Community" },
   { to: "/shop", label: "Shop", soon: true },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
