@@ -374,17 +374,25 @@ function RestaurantCommunityPage() {
 
                       {/* Floating Badges */}
                       <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                        {/* Open Status */}
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold backdrop-blur-md shadow-xs ${
-                            openStatus
-                              ? "bg-emerald-500/90 text-white"
-                              : "bg-black/60 text-white/90"
-                          }`}
-                        >
-                          <span className={`size-1.5 rounded-full ${openStatus ? "bg-white animate-ping" : "bg-neutral-400"}`} />
-                          {openStatus ? "Open Now" : "Closed"}
-                        </span>
+                        {/* Open / Live Status (Creative Solar Amber Pulse Beacon) */}
+                        {openStatus ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-black/75 backdrop-blur-xl border border-amber-400/40 shadow-[0_0_14px_rgba(245,158,11,0.35)] text-white select-none">
+                            <span className="relative flex size-2 items-center justify-center">
+                              <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75 duration-1000" />
+                              <span className="relative inline-flex size-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400">
+                              Live
+                            </span>
+                            <span className="text-white/30 text-xs">·</span>
+                            <span className="font-semibold text-white/95">Open Now</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-medium bg-black/60 backdrop-blur-md border border-white/10 text-white/70 select-none">
+                            <Clock className="size-3 text-white/50" />
+                            <span>Closed</span>
+                          </div>
+                        )}
 
                         {/* Quick Share Button */}
                         <button
@@ -474,17 +482,21 @@ function RestaurantCommunityPage() {
 
                       {/* Action Buttons */}
                       <div className="pt-2 flex items-center gap-2">
-                        {/* Live Digital Menu Link */}
+                        {/* Live Digital Menu Link (Creative Vibrant Flame Glow) */}
                         <a
                           href={`/menu/${restaurant.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-soft transition-all duration-200 cursor-pointer"
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:via-orange-600 hover:to-rose-700 text-white text-xs font-bold shadow-[0_4px_16px_rgba(245,158,11,0.3)] hover:shadow-[0_6px_22px_rgba(245,158,11,0.45)] border border-amber-300/30 transition-all duration-200 cursor-pointer"
                         >
+                          <span className="relative flex size-1.5 items-center justify-center">
+                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-80" />
+                            <span className="relative inline-flex size-1.5 rounded-full bg-white" />
+                          </span>
                           <QrCode className="size-3.5" />
                           <span>Live Menu</span>
-                          <ExternalLink className="size-3 opacity-70" />
+                          <ExternalLink className="size-3 opacity-80" />
                         </a>
 
                         {/* View Storefront Profile */}

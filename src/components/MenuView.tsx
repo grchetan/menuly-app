@@ -332,8 +332,11 @@ export function MenuView({
                 {r.name}
               </h1>
               <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span className="font-medium text-emerald-600 dark:text-emerald-400 shrink-0">Open now</span>
+                <span className="relative flex size-2 items-center justify-center shrink-0">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
+                </span>
+                <span className="font-bold text-amber-600 dark:text-amber-400 shrink-0">Live · Open now</span>
                 {!compact && (
                   <>
                     <span className="text-muted-foreground/60">•</span>

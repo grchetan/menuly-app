@@ -342,15 +342,25 @@ function RestaurantStorefrontPage() {
 
               {/* Top Bar Floating Badges */}
               <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 flex items-center justify-between gap-2 z-10">
-                {/* Real-time Open/Closed Status */}
-                <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md shadow-md ${
-                    openStatus ? "bg-emerald-500/90 text-white" : "bg-black/70 text-white/90"
-                  }`}
-                >
-                  <span className={`size-2 rounded-full ${openStatus ? "bg-white animate-ping" : "bg-neutral-400"}`} />
-                  {openStatus ? "Open Now" : "Currently Closed"}
-                </span>
+                {/* Real-time Open/Closed Status (Creative Solar Amber Pulse Beacon) */}
+                {openStatus ? (
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-black/75 backdrop-blur-xl border border-amber-400/50 shadow-[0_0_18px_rgba(245,158,11,0.4)] text-white select-none">
+                    <span className="relative flex size-2.5 items-center justify-center">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75 duration-1000" />
+                      <span className="relative inline-flex size-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 shadow-sm" />
+                    </span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400">
+                      Live Dining
+                    </span>
+                    <span className="text-white/30 text-xs">·</span>
+                    <span className="text-xs font-bold text-white">Open Now</span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/65 backdrop-blur-md border border-white/10 text-white/75 select-none">
+                    <Clock className="size-3.5 text-white/50" />
+                    <span>Currently Closed</span>
+                  </div>
+                )}
 
                 {/* Quick Share Button (Clean Vector Icon, No Emojis) */}
                 <button
@@ -396,13 +406,17 @@ function RestaurantStorefrontPage() {
                   </div>
                 </div>
 
-                {/* Direct CTA on Banner (Full width on mobile, auto width on desktop) */}
+                {/* Direct CTA on Banner (Creative Vibrant Flame Glow) */}
                 <a
                   href={`/menu/${restaurant.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-6 rounded-2xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm shadow-soft transition-all duration-200 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-6 rounded-2xl font-bold bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:via-orange-600 hover:to-rose-700 text-white text-xs sm:text-sm shadow-[0_4px_20px_rgba(245,158,11,0.4)] hover:shadow-[0_6px_28px_rgba(245,158,11,0.55)] border border-amber-300/30 transition-all duration-200 cursor-pointer shrink-0"
                 >
+                  <span className="relative flex size-2 items-center justify-center">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-80" />
+                    <span className="relative inline-flex size-1.5 rounded-full bg-white" />
+                  </span>
                   <QrCode className="size-4" />
                   <span>Open Live Menu</span>
                   <ExternalLink className="size-3.5 opacity-80" />
@@ -663,10 +677,14 @@ function RestaurantStorefrontPage() {
               )}
 
               {/* Bottom Menu Banner CTA */}
-              <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-card p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-card p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
-                  <h4 className="font-display text-base font-bold text-foreground">
-                    Hungry? Browse the complete interactive menu
+                  <h4 className="font-display text-base font-bold text-foreground flex items-center gap-2">
+                    <span>Hungry? Browse the complete interactive menu</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25">
+                      <span className="size-1.5 rounded-full bg-amber-500 animate-ping" />
+                      Live
+                    </span>
                   </h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     View high-resolution food images, customize orders, and explore full chef specials.
@@ -677,11 +695,15 @@ function RestaurantStorefrontPage() {
                   href={`/menu/${restaurant.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-11 px-6 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-xs shadow-soft transition-all shrink-0 cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-11 px-6 rounded-xl font-bold bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:via-orange-600 hover:to-rose-700 text-white text-xs shadow-[0_4px_16px_rgba(245,158,11,0.35)] transition-all shrink-0 cursor-pointer border border-amber-300/30"
                 >
+                  <span className="relative flex size-1.5 items-center justify-center">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-80" />
+                    <span className="relative inline-flex size-1.5 rounded-full bg-white" />
+                  </span>
                   <QrCode className="size-4" />
                   <span>View Full Menu</span>
-                  <ExternalLink className="size-3" />
+                  <ExternalLink className="size-3 opacity-80" />
                 </a>
               </div>
             </div>
@@ -691,8 +713,11 @@ function RestaurantStorefrontPage() {
               {/* 1. Live Interactive QR Stand */}
               <div className="sticky top-24 rounded-3xl border border-border/80 bg-card p-6 shadow-soft space-y-5">
                 <div className="text-center space-y-1">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
-                    <Sparkles className="size-3" />
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-rose-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs">
+                    <span className="relative flex size-2 items-center justify-center">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-80" />
+                      <span className="relative inline-flex size-1.5 rounded-full bg-amber-500" />
+                    </span>
                     <span>Live Table QR</span>
                   </div>
                   <h3 className="font-display text-lg font-black text-foreground pt-1">
