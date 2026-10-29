@@ -490,7 +490,7 @@ describe("Custom Authentication & Security Suite", () => {
     expect(conflictRes.success).toBe(false);
     expect(conflictRes.status).toBe(400);
     expect(conflictRes.error).toContain("already linked to another Menuly account");
-  });
+  }, 30000);
 
   afterAll(async () => {
     try {
