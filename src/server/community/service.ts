@@ -263,8 +263,8 @@ export async function getCommunityRestaurantBySlug(
     address: restaurant.address || null,
     city: extractedCity,
     hours: restaurant.hours || "Mon–Sun, 10:00 AM – 11:00 PM",
-    phone: restaurant.phone || null,
-    whatsapp: restaurant.whatsapp || null,
+    phone: null, // Hidden for privacy reasons as requested
+    whatsapp: null, // Hidden for privacy reasons as requested
     logoUrl: restaurant.logoUrl || null,
     coverUrl: restaurant.coverUrl || null,
     isPureVeg: restaurant.isPureVeg,

@@ -5,8 +5,6 @@ import {
   Utensils,
   MapPin,
   Clock,
-  Phone,
-  MessageCircle,
   Share2,
   ExternalLink,
   QrCode,
@@ -226,25 +224,6 @@ function RestaurantStorefrontPage() {
     return `https://www.google.com/maps/search/?api=1&query=${q}`;
   }, [restaurant]);
 
-  // WhatsApp Order / Inquiry link
-  const whatsappUrl = useMemo(() => {
-    if (!restaurant) return null;
-    const raw = (restaurant.whatsapp || restaurant.phone || "").replace(/\D/g, "");
-    if (!raw) return null;
-    const normalized = raw.length === 10 ? `91${raw}` : raw;
-    const text = encodeURIComponent(
-      `Hello ${restaurant.name}! I am browsing your digital menu on Menuly and would like to ask a question / place an order.`
-    );
-    return `https://wa.me/${normalized}?text=${text}`;
-  }, [restaurant]);
-
-  // Phone call link
-  const phoneCallUrl = useMemo(() => {
-    if (!restaurant) return null;
-    const raw = (restaurant.phone || restaurant.whatsapp || "").replace(/\s/g, "");
-    return raw ? `tel:${raw}` : null;
-  }, [restaurant]);
-
   // Filtered categories and dishes
   const displayedCategories = useMemo(() => {
     if (!restaurant?.categories) return [];
@@ -439,7 +418,7 @@ function RestaurantStorefrontPage() {
                 </p>
               )}
 
-              {/* Quick Contact & Action Buttons */}
+              {/* Action Buttons (Strictly zero personal phone/number exposure for owner privacy) */}
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-1">
                 {/* Google Maps Directions */}
                 <a
@@ -452,35 +431,21 @@ function RestaurantStorefrontPage() {
                   <span>Get Directions</span>
                 </a>
 
-                {/* WhatsApp Chat / Order */}
-                {whatsappUrl && (
-                  <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    <MessageCircle className="size-3.5" />
-                    <span>Order on WhatsApp</span>
-                  </a>
-                )}
-
-                {/* Call Button */}
-                {phoneCallUrl && (
-                  <a
-                    href={phoneCallUrl}
-                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border border-border/80 bg-background hover:bg-muted text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    <Phone className="size-3.5 text-primary" />
-                    <span>Call Restaurant</span>
-                  </a>
-                )}
-
                 {/* Operating Hours */}
                 <div className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-muted/50 border border-border/60 text-xs text-muted-foreground">
                   <Clock className="size-3.5 text-primary shrink-0" />
                   <span>{restaurant.hours || "Mon–Sun, 10:00 AM – 11:00 PM"}</span>
                 </div>
+
+                {/* Share Profile */}
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border border-border/80 bg-background hover:bg-muted text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Share2 className="size-3.5 text-primary" />
+                  <span>Share Profile</span>
+                </button>
               </div>
             </div>
           </div>
