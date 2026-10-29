@@ -284,6 +284,9 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const body = sanitizeObject(rawBody);
       const res = await resendUserOtp({
         email: body.email,
+        identifier: body.identifier,
+        phone: body.phone,
+        channel: body.channel,
         type: body.type || "SIGNUP",
         clientIp,
       });
@@ -372,6 +375,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const res = await forgotPassword({
         identifier: body.identifier || body.email,
         email: body.email,
+        channel: body.channel,
         clientIp,
       });
       return json(res, res.status);
@@ -385,6 +389,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const body = sanitizeObject(rawBody);
       const res = await resetPassword({
         email: body.email,
+        identifier: body.identifier,
         otp: body.otp,
         newPassword: body.newPassword,
       });

@@ -63,6 +63,7 @@ function AuthPage() {
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState("");
   const [otpType, setOtpType] = useState<"SIGNUP" | "PASSWORD_RESET">("SIGNUP");
+  const [resetChannel, setResetChannel] = useState<"email" | "phone">("email");
 
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -467,15 +468,22 @@ function AuthPage() {
     }
   };
 
-  // 4. Resend Email OTP
+  // 4. Resend OTP (Supports both Email & WhatsApp channels)
   const handleResendOtp = async () => {
     if (cooldown > 0) return;
     setBusy(true);
     try {
+      const isPhoneReset = otpType === "PASSWORD_RESET" && resetChannel === "phone";
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, type: otpType }),
+        body: JSON.stringify({
+          email,
+          phone,
+          identifier: isPhoneReset ? (phone || email) : email,
+          type: otpType,
+          channel: isPhoneReset ? "phone" : "email",
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -484,7 +492,12 @@ function AuthPage() {
       if (data.data?.devOtp) {
         setDevOtp(data.data.devOtp);
       }
-      toast.success("New verification code sent to your email!");
+      toast.success(
+        data.message ||
+          (isPhoneReset
+            ? "New verification code sent to your WhatsApp!"
+            : "New verification code sent to your email!")
+      );
       setCooldown(60);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -497,18 +510,21 @@ function AuthPage() {
   // 5. Forgot Password Request (Supports Email OR WhatsApp Mobile Number)
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
+    const cleanInput = email.trim();
+    if (!cleanInput) {
       toast.error("Please enter your registered email or mobile number");
       return;
     }
+    const isPhone = !cleanInput.includes("@") && /^[0-9+\s()-]{7,15}$/.test(cleanInput);
     setBusy(true);
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          identifier: email.trim(),
-          email: email.trim(),
+          identifier: cleanInput,
+          email: cleanInput,
+          channel: isPhone ? "phone" : "email",
         }),
       });
       const data = await res.json();
@@ -521,9 +537,21 @@ function AuthPage() {
       if (data.data?.email) {
         setEmail(data.data.email);
       }
-      toast.success(data.message || "A 6-digit reset code has been sent!");
+      if (data.data?.phone) {
+        setPhone(data.data.phone);
+      }
+      const channel = (data.data?.channel || (isPhone ? "phone" : "email")) as "email" | "phone";
+      setResetChannel(channel);
+
+      toast.success(
+        data.message ||
+          (channel === "phone"
+            ? "WhatsApp reset code sent!"
+            : "A 6-digit reset code has been sent to your email!")
+      );
       setOtpType("PASSWORD_RESET");
       setCooldown(60);
+      setOtp("");
       setMode("otp");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -925,34 +953,93 @@ function AuthPage() {
             )}
 
             {/* --------------------------------------------------------------- */}
-            {/* MODE: EMAIL OTP VERIFICATION (STEP 1)                           */}
+            {/* MODE: EMAIL OR WHATSAPP OTP VERIFICATION                        */}
             {/* --------------------------------------------------------------- */}
             {mode === "otp" && (
               <div key="otp" className="animate-auth-swap flex flex-col justify-between flex-1 space-y-4 my-auto py-1">
                 <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                    <Shield className="size-3.5" /> Single-Use Verification Code
-                  </span>
-                  <h1 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-                    {otpType === "SIGNUP" ? "Check your email" : "Check your verification code"}
-                  </h1>
-                  <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                    We sent a 6-digit verification code to:
-                    <br />
-                    <span className="font-semibold text-foreground font-mono bg-muted/60 px-2 py-0.5 rounded-md inline-block mt-1">
-                      {email}
+                  {otpType === "PASSWORD_RESET" && resetChannel === "phone" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <Phone className="size-3.5" /> WhatsApp Password Reset
                     </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                      <Shield className="size-3.5" /> Single-Use Verification Code
+                    </span>
+                  )}
+
+                  <h1 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+                    {otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                      ? "Check your WhatsApp"
+                      : otpType === "SIGNUP"
+                        ? "Check your email"
+                        : "Check your verification code"}
+                  </h1>
+
+                  <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    {otpType === "PASSWORD_RESET" && resetChannel === "phone" ? (
+                      <>
+                        We sent a 6-digit password reset code via WhatsApp to:
+                        <br />
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-md inline-block mt-1">
+                          {(() => {
+                            const digits = (phone || email).replace(/\D/g, "");
+                            return digits.length === 10
+                              ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`
+                              : (phone || email).startsWith("+")
+                                ? (phone || email)
+                                : `+${digits}`;
+                          })()}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        We sent a 6-digit verification code to:
+                        <br />
+                        <span className="font-semibold text-foreground font-mono bg-muted/60 px-2 py-0.5 rounded-md inline-block mt-1">
+                          {email}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
 
                 {devOtp && (
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-center shadow-xs">
-                    <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-primary">
-                      <Sparkles className="size-4 text-amber-500 animate-pulse" />
-                      <span>Verification Code:</span>
+                  <div
+                    className={
+                      otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                        ? "rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center shadow-xs"
+                        : "rounded-2xl border border-primary/30 bg-primary/5 p-4 text-center shadow-xs"
+                    }
+                  >
+                    <div
+                      className={
+                        otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                          ? "flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                          : "flex items-center justify-center gap-1.5 text-xs font-bold text-primary"
+                      }
+                    >
+                      <Sparkles
+                        className={
+                          otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                            ? "size-4 text-emerald-500 animate-pulse"
+                            : "size-4 text-amber-500 animate-pulse"
+                        }
+                      />
+                      <span>
+                        {otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                          ? "WhatsApp Reset Code:"
+                          : "Verification Code:"}
+                      </span>
                     </div>
                     <div className="my-2.5 flex items-center justify-center">
-                      <span className="rounded-xl border border-primary/30 bg-background px-5 py-2 font-mono text-2xl font-black tracking-widest text-primary shadow-xs">
+                      <span
+                        className={
+                          otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                            ? "rounded-xl border border-emerald-500/30 bg-background px-5 py-2 font-mono text-2xl font-black tracking-widest text-emerald-600 shadow-xs"
+                            : "rounded-xl border border-primary/30 bg-background px-5 py-2 font-mono text-2xl font-black tracking-widest text-primary shadow-xs"
+                        }
+                      >
                         {devOtp}
                       </span>
                     </div>
@@ -962,7 +1049,11 @@ function AuthPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => setOtp(devOtp)}
-                        className="h-8 gap-1.5 rounded-xl border-primary/30 bg-primary/10 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer"
+                        className={
+                          otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                            ? "h-8 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 cursor-pointer"
+                            : "h-8 gap-1.5 rounded-xl border-primary/30 bg-primary/10 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer"
+                        }
                       >
                         <CheckCircle2 className="size-3.5" /> 1-Click Auto-Fill Code
                       </Button>
@@ -983,17 +1074,61 @@ function AuthPage() {
                 <form onSubmit={handleVerifyOtp} className="space-y-5">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Label htmlFor="otp" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Enter 6-Digit Code
+                      {otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                        ? "Enter 6-Digit WhatsApp Code"
+                        : "Enter 6-Digit Code"}
                     </Label>
                     <div className="flex justify-center py-2">
                       <InputOTP maxLength={6} value={otp} onChange={(value) => setOtp(value)}>
                         <InputOTPGroup className="gap-2 sm:gap-2.5">
-                          <InputOTPSlot index={0} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
-                          <InputOTPSlot index={1} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
-                          <InputOTPSlot index={2} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
-                          <InputOTPSlot index={3} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
-                          <InputOTPSlot index={4} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
-                          <InputOTPSlot index={5} className="size-11 sm:size-12 text-lg font-bold border-2 rounded-xl focus:border-primary" />
+                          <InputOTPSlot
+                            index={0}
+                            className={`size-11 sm:size-12 text-lg font-bold border-2 rounded-xl ${
+                              otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                                ? "focus:border-emerald-500"
+                                : "focus:border-primary"
+                            }`}
+                          />
+                          <InputOTPSlot
+                            index={1}
+                            className={`size-11 sm:size-12 text-lg font-bold border-2 rounded-xl ${
+                              otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                                ? "focus:border-emerald-500"
+                                : "focus:border-primary"
+                            }`}
+                          />
+                          <InputOTPSlot
+                            index={2}
+                            className={`size-11 sm:size-12 text-lg font-bold border-2 rounded-xl ${
+                              otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                                ? "focus:border-emerald-500"
+                                : "focus:border-primary"
+                            }`}
+                          />
+                          <InputOTPSlot
+                            index={3}
+                            className={`size-11 sm:size-12 text-lg font-bold border-2 rounded-xl ${
+                              otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                                ? "focus:border-emerald-500"
+                                : "focus:border-primary"
+                            }`}
+                          />
+                          <InputOTPSlot
+                            index={4}
+                            className={`size-11 sm:size-12 text-lg font-bold border-2 rounded-xl ${
+                              otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                                ? "focus:border-emerald-500"
+                                : "focus:border-primary"
+                            }`}
+                          />
+                          <InputOTPSlot
+                            index={5}
+                            className={`size-11 sm:size-12 text-lg font-bold border-2 rounded-xl ${
+                              otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                                ? "focus:border-emerald-500"
+                                : "focus:border-primary"
+                            }`}
+                          />
                         </InputOTPGroup>
                       </InputOTP>
                     </div>
@@ -1001,7 +1136,11 @@ function AuthPage() {
                       <button
                         type="button"
                         onClick={handlePasteOtp}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer bg-primary/5 hover:bg-primary/10 px-3 py-1 rounded-lg border border-primary/20 transition-colors"
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline cursor-pointer px-3 py-1 rounded-lg border transition-colors ${
+                          otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                            ? "text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-500/20"
+                            : "text-primary bg-primary/5 hover:bg-primary/10 border-primary/20"
+                        }`}
                       >
                         <ClipboardPaste className="size-3.5" /> Paste Code from Clipboard
                       </button>
@@ -1013,7 +1152,11 @@ function AuthPage() {
                     type="submit"
                     size="lg"
                     disabled={busy || otp.length !== 6}
-                    className="w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer"
+                    className={`w-full h-11 rounded-xl font-bold shadow-soft transition-all duration-200 cursor-pointer ${
+                      otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : ""
+                    }`}
                   >
                     {busy ? (
                       <span className="flex items-center justify-center gap-2">
@@ -1033,17 +1176,33 @@ function AuthPage() {
                 <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs">
                   <button
                     type="button"
-                    onClick={() => setMode(otpType === "SIGNUP" ? "signup" : "forgot")}
+                    onClick={() => {
+                      if (otpType === "PASSWORD_RESET") {
+                        setMode("forgot");
+                        if (resetChannel === "phone" && phone) {
+                          setEmail(phone);
+                        }
+                      } else {
+                        setMode("signup");
+                      }
+                    }}
                     className="flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium cursor-pointer"
                   >
-                    <ArrowLeft className="size-3.5" /> Back / Edit email
+                    <ArrowLeft className="size-3.5" />{" "}
+                    {otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                      ? "Back / Edit mobile number"
+                      : "Back / Edit email"}
                   </button>
 
                   <button
                     type="button"
                     onClick={handleResendOtp}
                     disabled={cooldown > 0 || busy}
-                    className="font-bold text-primary disabled:text-muted-foreground transition-colors cursor-pointer"
+                    className={`font-bold disabled:text-muted-foreground transition-colors cursor-pointer ${
+                      otpType === "PASSWORD_RESET" && resetChannel === "phone"
+                        ? "text-emerald-600"
+                        : "text-primary"
+                    }`}
                   >
                     {cooldown > 0 ? `Resend code (${cooldown}s)` : "Resend code"}
                   </button>
@@ -1299,11 +1458,24 @@ function AuthPage() {
                         className="pl-10 h-11 rounded-xl text-sm"
                         autoFocus
                       />
-                      <Mail className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
+                      {!email.includes("@") && /\d/.test(email) ? (
+                        <Phone className="absolute left-3.5 top-3.5 size-4 text-emerald-500" />
+                      ) : (
+                        <Mail className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
+                      )}
                     </div>
                     <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <Shield className="size-3 text-primary" />
-                      We verify that this account exists in our database before dispatching code.
+                      {!email.includes("@") && /\d/.test(email) ? (
+                        <>
+                          <Phone className="size-3 text-emerald-500 shrink-0" />
+                          <span>We will send a 6-digit WhatsApp verification code to this mobile number.</span>
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="size-3 text-primary shrink-0" />
+                          <span>We verify that this account exists in our database before dispatching code.</span>
+                        </>
+                      )}
                     </p>
                   </div>
 

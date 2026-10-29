@@ -304,12 +304,15 @@ describe("Custom Authentication & Security Suite", () => {
     });
     expect(loginByFullPhoneRes.success).toBe(true);
 
-    // 5. Forgot Password using Phone Number Identifier
+    // 5. Forgot Password using Phone Number Identifier -> Dispatches to WhatsApp, not email
     const forgotRes = await forgotPassword({
       identifier: testPhone,
     });
     expect(forgotRes.success).toBe(true);
     expect(forgotRes.data?.email).toBe(testEmail);
+    expect(forgotRes.data?.channel).toBe("phone");
+    expect(forgotRes.data?.phone).toBe(`+91${testPhone}`);
+    expect(forgotRes.message).toContain("WhatsApp");
     expect(forgotRes.data?.devOtp).toBeTruthy();
   }, 45000);
 
