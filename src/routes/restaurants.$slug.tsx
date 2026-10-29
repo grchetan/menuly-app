@@ -12,7 +12,6 @@ import {
   QrCode,
   Download,
   CheckCircle2,
-  Leaf,
   Users,
   Eye,
   Store,
@@ -363,7 +362,7 @@ function RestaurantStorefrontPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
 
               {/* Top Bar Floating Badges */}
-              <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2 z-10">
+              <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 flex items-center justify-between gap-2 z-10">
                 {/* Real-time Open/Closed Status */}
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md shadow-md ${
@@ -374,34 +373,22 @@ function RestaurantStorefrontPage() {
                   {openStatus ? "Open Now" : "Currently Closed"}
                 </span>
 
-                {/* Dietary badge & Share */}
-                <div className="flex items-center gap-2">
-                  {restaurant.isPureVeg ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-600/95 text-white backdrop-blur-md shadow-md">
-                      <Leaf className="size-3.5 text-white" /> Pure Veg
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-600/95 text-white backdrop-blur-md shadow-md">
-                      🍗 Multi-Cuisine
-                    </span>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleShare}
-                    className="flex size-9 items-center justify-center rounded-full bg-black/60 hover:bg-black/85 text-white backdrop-blur-md transition-all shadow-md cursor-pointer"
-                    title="Share Storefront Profile"
-                  >
-                    <Share2 className="size-4" />
-                  </button>
-                </div>
+                {/* Quick Share Button (Clean Vector Icon, No Emojis) */}
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="flex size-9 items-center justify-center rounded-full bg-black/60 hover:bg-black/85 text-white backdrop-blur-md transition-all shadow-md cursor-pointer"
+                  title="Share Storefront Profile"
+                >
+                  <Share2 className="size-4" />
+                </button>
               </div>
 
-              {/* Bottom Floating Info Over Banner */}
-              <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4 z-10">
-                <div className="flex items-end gap-3.5 sm:gap-4">
+              {/* Bottom Floating Info Over Banner (Fully Responsive for Mobile & Desktop) */}
+              <div className="absolute bottom-3 left-3 right-3 sm:bottom-6 sm:left-6 sm:right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3.5 sm:gap-4 z-10">
+                <div className="flex items-end gap-3 sm:gap-4 min-w-0">
                   {/* Floating Logo */}
-                  <div className="relative size-20 sm:size-24 rounded-2xl sm:rounded-3xl border-3 border-background bg-card overflow-hidden shadow-2xl flex items-center justify-center shrink-0">
+                  <div className="relative size-16 sm:size-22 md:size-24 rounded-2xl sm:rounded-3xl border-2 sm:border-3 border-background bg-card overflow-hidden shadow-2xl flex items-center justify-center shrink-0">
                     {restaurant.logoUrl ? (
                       <img
                         src={restaurant.logoUrl}
@@ -409,33 +396,33 @@ function RestaurantStorefrontPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-primary/10 flex items-center justify-center font-display font-black text-2xl sm:text-3xl text-primary">
+                      <div className="w-full h-full bg-primary/10 flex items-center justify-center font-display font-black text-xl sm:text-3xl text-primary">
                         {restaurant.name.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
 
                   {/* Title & Location */}
-                  <div className="min-w-0 pb-1 text-white">
-                    <h1 className="font-display text-xl sm:text-3xl md:text-4xl font-black drop-shadow-md flex items-center gap-2 truncate">
-                      {restaurant.name}
+                  <div className="min-w-0 pb-0.5 sm:pb-1 text-white flex-1">
+                    <h1 className="font-display text-lg sm:text-2xl md:text-3xl font-black drop-shadow-md flex items-center gap-1.5 sm:gap-2 truncate">
+                      <span className="truncate">{restaurant.name}</span>
                       <span title="Menuly Verified Partner">
-                        <CheckCircle2 className="size-5 sm:size-6 text-emerald-400 shrink-0 inline" />
+                        <CheckCircle2 className="size-4 sm:size-5 text-emerald-400 shrink-0 inline" />
                       </span>
                     </h1>
-                    <p className="text-xs sm:text-sm text-white/90 drop-shadow-xs flex items-center gap-1.5 mt-1">
+                    <p className="text-xs sm:text-sm text-white/90 drop-shadow-xs flex items-center gap-1.5 mt-0.5 sm:mt-1 truncate">
                       <MapPin className="size-3.5 sm:size-4 text-amber-400 shrink-0" />
                       <span className="truncate">{restaurant.address || restaurant.city || "India"}</span>
                     </p>
                   </div>
                 </div>
 
-                {/* Direct CTA on Banner */}
+                {/* Direct CTA on Banner (Full width on mobile, auto width on desktop) */}
                 <a
                   href={`/menu/${restaurant.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-6 rounded-2xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-soft transition-all duration-200 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-6 rounded-2xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm shadow-soft transition-all duration-200 cursor-pointer shrink-0"
                 >
                   <QrCode className="size-4" />
                   <span>Open Live Menu</span>
@@ -751,9 +738,9 @@ function RestaurantStorefrontPage() {
                   </p>
                 </div>
 
-                {/* QR Canvas Container with custom restaurant styling */}
-                <div className="mx-auto flex size-60 items-center justify-center rounded-2xl border-2 border-border/80 bg-white p-3 shadow-inner">
-                  <div ref={qrBoxRef} className="size-full flex items-center justify-center select-none" />
+                {/* QR Canvas Container with custom restaurant styling (Fully Responsive) */}
+                <div className="mx-auto flex size-52 sm:size-60 max-w-full items-center justify-center rounded-2xl border-2 border-border/80 bg-white p-2.5 sm:p-3 shadow-inner">
+                  <div ref={qrBoxRef} className="size-full flex items-center justify-center select-none overflow-hidden [&>canvas]:!w-full [&>canvas]:!h-auto [&>svg]:!w-full [&>svg]:!h-auto" />
                 </div>
 
                 {/* QR Action Buttons */}

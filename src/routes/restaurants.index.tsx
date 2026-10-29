@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Sparkles,
   CheckCircle2,
-  Leaf,
   Store,
   Compass,
   SlidersHorizontal,
@@ -85,15 +84,13 @@ function RestaurantCommunityPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState<string>("all");
-  const [vegOnly, setVegOnly] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<"popular" | "views" | "visits" | "newest" | "name">("popular");
 
   // Fetch community restaurants from backend
   const { data, isLoading, isError, refetch } = useQuery<CommunityResponse>({
-    queryKey: ["community-restaurants", vegOnly, sortBy],
+    queryKey: ["community-restaurants", sortBy],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (vegOnly) params.set("veg", "true");
       if (sortBy) params.set("sort", sortBy);
       const res = await fetch(`/api/community/restaurants?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to load community restaurants");
@@ -208,76 +205,64 @@ function RestaurantCommunityPage() {
         </section>
 
         {/* ------------------------------------------------------------- */}
-        {/* SEARCH, CITY FILTERS & CONTROLS BAR                           */}
+        {/* SEARCH, CITY FILTERS & CONTROLS BAR (RESPONSIVE NO-EMOJI)    */}
         {/* ------------------------------------------------------------- */}
         <section className="sticky top-16 sm:top-[70px] z-20 px-4 sm:px-6 py-3 bg-background/85 backdrop-blur-xl border-y border-border/60 transition-all shadow-xs">
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3.5 top-3.5 size-4 text-muted-foreground" />
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
+            {/* Search Input (Full width on mobile, max-w-md on desktop) */}
+            <div className="relative flex-1 sm:max-w-md">
+              <Search className="absolute left-3.5 top-3.5 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by restaurant name, city, or dish..."
-                className="pl-10 h-11 rounded-xl bg-card border-border/80 focus:border-primary text-sm shadow-xs"
+                placeholder="Search restaurant, city, or dish..."
+                className="pl-10 pr-16 h-11 rounded-xl bg-card border-border/80 focus:border-primary text-sm shadow-xs"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-3 text-xs text-muted-foreground hover:text-foreground font-semibold px-1.5 py-0.5 rounded bg-muted cursor-pointer"
+                  className="absolute right-3 top-3 text-xs text-muted-foreground hover:text-foreground font-semibold px-2 py-0.5 rounded bg-muted cursor-pointer"
                 >
                   Clear
                 </button>
               )}
             </div>
 
-            {/* Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs">
-              {/* Veg Toggle */}
-              <button
-                type="button"
-                onClick={() => setVegOnly(!vegOnly)}
-                className={`inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-bold border transition-all cursor-pointer ${
-                  vegOnly
-                    ? "bg-emerald-600 text-white border-emerald-600 shadow-soft"
-                    : "bg-card text-muted-foreground border-border/80 hover:text-foreground hover:border-emerald-500/50"
-                }`}
-              >
-                <Leaf className="size-3.5 text-emerald-400" />
-                <span>Pure Veg Only</span>
-              </button>
-
-              {/* Sort Selector */}
-              <div className="relative flex items-center">
+            {/* Filter Selects Row (Side-by-side 50%/50% on mobile for ultra clean alignment) */}
+            <div className="flex items-center gap-2 sm:gap-2.5 text-xs w-full sm:w-auto">
+              {/* Sort Selector with Vector SVG Icon */}
+              <div className="relative flex-1 sm:w-48 flex items-center">
+                <SlidersHorizontal className="absolute left-3 size-3.5 text-primary pointer-events-none" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                   aria-label="Sort restaurants by"
-                  className="h-10 pl-3 pr-8 rounded-xl font-semibold bg-card border border-border/80 text-foreground text-xs focus:ring-1 focus:ring-primary cursor-pointer"
+                  className="w-full h-11 pl-8 pr-7 rounded-xl font-semibold bg-card border border-border/80 text-foreground text-xs focus:ring-1 focus:ring-primary cursor-pointer truncate shadow-xs"
                 >
-                  <option value="popular">🔥 Most Popular</option>
-                  <option value="views">👁️ Most Scanned</option>
-                  <option value="visits">👥 Most Visited</option>
-                  <option value="newest">✨ Newest First</option>
-                  <option value="name">🔤 Name (A-Z)</option>
+                  <option value="popular">Most Popular</option>
+                  <option value="views">Most Scanned</option>
+                  <option value="visits">Most Visited</option>
+                  <option value="newest">Newest First</option>
+                  <option value="name">Name (A-Z)</option>
                 </select>
               </div>
 
-              {/* City Filter if available */}
+              {/* City Filter with Vector SVG Icon */}
               {availableCities.length > 0 && (
-                <div className="relative flex items-center">
+                <div className="relative flex-1 sm:w-44 flex items-center">
+                  <MapPin className="absolute left-3 size-3.5 text-primary pointer-events-none" />
                   <select
                     value={selectedCity}
                     onChange={(e) => setSelectedCity(e.target.value)}
                     aria-label="Filter restaurants by city"
-                    className="h-10 pl-3 pr-8 rounded-xl font-semibold bg-card border border-border/80 text-foreground text-xs focus:ring-1 focus:ring-primary cursor-pointer"
+                    className="w-full h-11 pl-8 pr-7 rounded-xl font-semibold bg-card border border-border/80 text-foreground text-xs focus:ring-1 focus:ring-primary cursor-pointer truncate shadow-xs"
                   >
-                    <option value="all">📍 All Locations</option>
+                    <option value="all">All Locations</option>
                     {availableCities.map((c) => (
                       <option key={c} value={c}>
-                        📍 {c}
+                        {c}
                       </option>
                     ))}
                   </select>
@@ -296,13 +281,12 @@ function RestaurantCommunityPage() {
             <span>
               Showing <strong className="text-foreground">{filteredRestaurants.length}</strong> of {restaurants.length} active digital restaurants
             </span>
-            {(searchTerm || selectedCity !== "all" || vegOnly) && (
+            {(searchTerm || selectedCity !== "all") && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
-                  setVegOnly(false);
                 }}
                 className="text-primary hover:underline font-semibold cursor-pointer"
               >
@@ -350,7 +334,6 @@ function RestaurantCommunityPage() {
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
-                  setVegOnly(false);
                 }}
                 className="rounded-xl font-bold"
               >
@@ -403,28 +386,15 @@ function RestaurantCommunityPage() {
                           {openStatus ? "Open Now" : "Closed"}
                         </span>
 
-                        {/* Pure Veg or Multi Cuisine Badge */}
-                        <div className="flex items-center gap-1.5">
-                          {restaurant.isPureVeg ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600/95 text-white backdrop-blur-md shadow-xs">
-                              <Leaf className="size-3 text-white" /> Pure Veg
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-600/90 text-white backdrop-blur-md shadow-xs">
-                              🍗 Multi-Cuisine
-                            </span>
-                          )}
-
-                          {/* Quick Share Button */}
-                          <button
-                            type="button"
-                            onClick={(e) => handleShareRestaurant(restaurant, e)}
-                            className="flex size-7 items-center justify-center rounded-full bg-black/50 text-white/90 hover:bg-black/80 hover:text-white transition-colors cursor-pointer backdrop-blur-md"
-                            title="Share Restaurant"
-                          >
-                            <Share2 className="size-3.5" />
-                          </button>
-                        </div>
+                        {/* Quick Share Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleShareRestaurant(restaurant, e)}
+                          className="flex size-7 items-center justify-center rounded-full bg-black/50 text-white/90 hover:bg-black/80 hover:text-white transition-colors cursor-pointer backdrop-blur-md"
+                          title="Share Restaurant"
+                        >
+                          <Share2 className="size-3.5" />
+                        </button>
                       </div>
 
                       {/* Floating Branded Logo & Header Name */}

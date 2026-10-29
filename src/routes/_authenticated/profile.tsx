@@ -29,7 +29,6 @@ import {
   AlertTriangle,
   RotateCcw,
   Shield,
-  Leaf,
   FileText,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -92,7 +91,6 @@ function ProfilePage() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
-  const [isPureVeg, setIsPureVeg] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
   const [logoSummary, setLogoSummary] = useState<string | null>(null);
   const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -181,7 +179,6 @@ function ProfilePage() {
       }
       if (restaurant.address) setAddress(restaurant.address);
       if (restaurant.description) setDescription(restaurant.description);
-      if (restaurant.isPureVeg !== undefined) setIsPureVeg(Boolean(restaurant.isPureVeg));
       if (restaurant.logo_url) setLogo(restaurant.logo_url);
       if (restaurant.cover_url) setCoverImage(restaurant.cover_url);
     }
@@ -284,7 +281,7 @@ function ProfilePage() {
 
       setIsPhoneModalOpen(false);
       setPhoneOtp("");
-      toast.success("WhatsApp number verified & linked to your account successfully! 🎉");
+      toast.success("WhatsApp number verified and linked to your account successfully!");
       qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -380,7 +377,6 @@ function ProfilePage() {
         phone: verifiedPhone || null,
         address: address.trim() || null,
         description: description.trim() || null,
-        isPureVeg,
         logoUrl: logo,
         coverUrl: coverImage,
       });
@@ -755,10 +751,10 @@ function ProfilePage() {
                 <div className="space-y-1.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <Label htmlFor="profileAddress" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <MapPin className="size-3.5 text-orange-500" /> Restaurant Address & City Location
+                      <MapPin className="size-3.5 text-primary" /> Restaurant Address & City Location
                     </Label>
-                    <span className="self-start sm:self-auto text-[10px] font-bold text-orange-700 dark:text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">
-                      📍 Visible on Live Menu
+                    <span className="self-start sm:self-auto text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                      Visible on Live Menu
                     </span>
                   </div>
                   <div className="relative">
@@ -770,7 +766,7 @@ function ProfilePage() {
                       onChange={(e) => setAddress(e.target.value)}
                       className="pl-10 h-11 rounded-2xl text-base sm:text-sm bg-background border-border/80 focus:border-primary/50"
                     />
-                    <MapPin className="absolute left-3.5 top-3.5 size-4 text-orange-500" />
+                    <MapPin className="absolute left-3.5 top-3.5 size-4 text-muted-foreground pointer-events-none" />
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-normal">
                     This address will appear with a map pin on your public digital menu header so customers can easily find your location.
@@ -784,13 +780,13 @@ function ProfilePage() {
                       <FileText className="size-3.5 text-primary" /> Restaurant Story & Tagline
                     </Label>
                     <span className="self-start sm:self-auto text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                      ✨ Community Showcase
+                      Community Showcase
                     </span>
                   </div>
                   <textarea
                     id="profileDescription"
                     rows={2}
-                    placeholder="e.g. Authentic charcoal tandoori specials, artisanal rooftop cafe dining, and slow-cooked North Indian curries."
+                    placeholder="e.g. Authentic charcoal tandoori specials, artisanal rooftop cafe dining, and slow-cooked curries."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full rounded-2xl p-3 text-base sm:text-sm bg-background border border-border/80 focus:border-primary/50 resize-none outline-none leading-relaxed"
@@ -800,41 +796,7 @@ function ProfilePage() {
                   </p>
                 </div>
 
-                {/* Pure Veg Dietary Indicator Toggle */}
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 sm:p-4 flex items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
-                        <Leaf className="size-4" />
-                      </span>
-                      <Label htmlFor="pureVegToggle" className="text-xs sm:text-sm font-bold text-foreground cursor-pointer">
-                        100% Pure Vegetarian Establishment
-                      </Label>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground leading-snug pl-9">
-                      Enabling this displays the green Pure Veg badge across all community listings and digital menu cards.
-                    </p>
-                  </div>
-
-                  <button
-                    id="pureVegToggle"
-                    type="button"
-                    role="switch"
-                    aria-checked={isPureVeg}
-                    onClick={() => setIsPureVeg(!isPureVeg)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isPureVeg ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-700"
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                        isPureVeg ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Restaurant Brand Logo Upload */}
+                {/* Restaurant Brand Logo Upload (Fully Responsive) */}
                 <div className="space-y-2 pt-2 border-t border-border/60">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -842,7 +804,7 @@ function ProfilePage() {
                     </Label>
                     <span className="text-[10px] text-muted-foreground">Appears in QR Code & Menu</span>
                   </div>
-                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4 flex items-center gap-3.5">
+                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3.5">
                     <div className="relative size-16 sm:size-18 shrink-0 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-xs flex items-center justify-center">
                       {logo ? (
                         <img
@@ -857,7 +819,7 @@ function ProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex-1 min-w-0 space-y-1.5 w-full">
                       <div className="flex flex-wrap items-center gap-2">
                         <label className="cursor-pointer">
                           <input type="file" accept="image/*" className="hidden" onChange={onLogo} />
@@ -883,25 +845,25 @@ function ProfilePage() {
                       </p>
                       {logoSummary && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                          ✓ {logoSummary}
+                          {logoSummary}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Header Banner Cover Image */}
+                {/* Header Banner Cover Image (Fully Responsive) */}
                 <div className="space-y-2 pt-2 border-t border-border/60">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Sparkles className="size-3.5 text-amber-500" /> Menu Header Cover Banner Photo
+                      <Sparkles className="size-3.5 text-primary" /> Menu Header Cover Banner Photo
                     </Label>
-                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
                       Luxury Ambience
                     </span>
                   </div>
                   <div className="rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
-                    <div className="relative w-full h-28 sm:h-32 rounded-2xl overflow-hidden border border-border/80 bg-card shadow-xs">
+                    <div className="relative w-full h-32 sm:h-36 rounded-2xl overflow-hidden border border-border/80 bg-card shadow-xs">
                       {coverImage ? (
                         <img
                           src={coverImage}
@@ -965,7 +927,7 @@ function ProfilePage() {
 
                       {coverSummary && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
-                          ⚡ {coverSummary}
+                          {coverSummary}
                         </span>
                       )}
                     </div>
@@ -978,7 +940,7 @@ function ProfilePage() {
                         setCoverSummary(null);
                       }}
                       placeholder="Or paste direct image URL (https://...)"
-                      className="h-9 rounded-xl text-xs bg-background"
+                      className="h-10 rounded-xl text-xs bg-background"
                     />
 
                     <p className="text-[11px] text-muted-foreground leading-normal">
