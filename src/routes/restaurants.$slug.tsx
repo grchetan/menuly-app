@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { APP_NAME } from "@/lib/config";
+import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
 
 export const Route = createFileRoute("/restaurants/$slug")({
   head: () => ({
@@ -318,24 +319,22 @@ function RestaurantStorefrontPage() {
           {/* LUXURY BANNER & BRAND HEADER                                  */}
           {/* ------------------------------------------------------------- */}
           <div className="relative rounded-3xl overflow-hidden border border-border/80 bg-card shadow-soft">
-            {/* Cover Banner */}
+            {/* Cover Banner (Aesthetic Curated Ambience Banner with Fallback) */}
             <div className="relative h-56 sm:h-80 md:h-96 w-full bg-muted overflow-hidden select-none">
-              {restaurant.coverUrl ? (
-                <img
-                  src={restaurant.coverUrl}
-                  alt={`${restaurant.name} banner`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-emerald-950 via-primary/30 to-background flex items-center justify-center">
-                  <div className="text-center p-6 space-y-2">
-                    <Utensils className="size-12 mx-auto text-primary/40 animate-pulse" />
-                    <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
-                      Official Menuly Digital Storefront
-                    </p>
-                  </div>
-                </div>
-              )}
+              <img
+                src={getOptimizedBannerUrl(restaurant.coverUrl, restaurant.slug, 1400)}
+                alt={`${restaurant.name} dining banner`}
+                loading="eager"
+                decoding="async"
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-102"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  const fallback = getDefaultBanner(restaurant.slug);
+                  if (target.src !== fallback) {
+                    target.src = fallback;
+                  }
+                }}
+              />
 
               {/* Gradient Scrim */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />

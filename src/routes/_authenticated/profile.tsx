@@ -30,6 +30,7 @@ import {
   RotateCcw,
   Shield,
   FileText,
+  Palette,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { myMenuQuery, setDemoMode, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
+import { RESTAURANT_BANNER_PRESETS, getDefaultBanner, getOptimizedBannerUrl } from "@/lib/banner-presets";
 import { compressImage } from "@/lib/image-compress";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -852,100 +854,186 @@ function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Header Banner Cover Image (Fully Responsive) */}
-                <div className="space-y-2 pt-2 border-t border-border/60">
+                {/* Header Banner Cover Image & Discovery Showcase System */}
+                <div className="space-y-3 pt-3 border-t border-border/60">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Sparkles className="size-3.5 text-primary" /> Menu Header Cover Banner Photo
-                    </Label>
-                    <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                      Luxury Ambience
+                    <div>
+                      <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="size-4 text-amber-500" /> Restaurant Cover Banner
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Shown across your Community Profile card, Public Storefront, and Customer Digital Menu.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full shrink-0">
+                      Community Card Banner
                     </span>
                   </div>
-                  <div className="rounded-2xl border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
-                    <div className="relative w-full h-32 sm:h-36 rounded-2xl overflow-hidden border border-border/80 bg-card shadow-xs">
-                      {coverImage ? (
-                        <img
-                          src={coverImage}
-                          alt="Cover Banner"
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <div className="size-full bg-gradient-to-br from-secondary/80 to-muted flex flex-col items-center justify-center text-muted-foreground text-xs font-semibold gap-1">
-                          <ImageIcon className="size-6 opacity-40" />
-                          Default Dining Ambience Banner
+
+                  <div className="rounded-3xl border border-border/80 bg-muted/20 p-4 sm:p-5 space-y-4">
+                    {/* Live Realistic Preview Card */}
+                    <div className="relative w-full h-36 sm:h-44 rounded-2xl overflow-hidden border border-border/80 bg-card shadow-md select-none group">
+                      <img
+                        src={getOptimizedBannerUrl(coverImage, restaurantName || "menuly", 1200)}
+                        alt="Restaurant Banner Preview"
+                        className="size-full object-cover transition-transform duration-500 group-hover:scale-102"
+                      />
+                      {/* Gradient vignette */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+
+                      {/* Top status indicator pill */}
+                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[10px] font-bold text-white border border-white/10">
+                        <span className="size-1.5 rounded-full bg-amber-400 animate-ping" />
+                        <span>Live Preview</span>
+                      </div>
+
+                      {/* Floating bottom brand info on banner */}
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-end gap-2.5">
+                        <div className="size-11 sm:size-12 rounded-xl border-2 border-background bg-card overflow-hidden shadow-md flex items-center justify-center shrink-0">
+                          {logo ? (
+                            <img src={logo} alt="Logo" className="size-full object-cover" />
+                          ) : (
+                            <span className="font-bold text-sm text-primary">
+                              {(restaurantName || "M").charAt(0).toUpperCase()}
+                            </span>
+                          )}
                         </div>
-                      )}
+                        <div className="min-w-0 flex-1 text-white">
+                          <p className="text-xs sm:text-sm font-black truncate drop-shadow-sm flex items-center gap-1">
+                            {restaurantName || "Your Restaurant"}
+                            <CheckCircle2 className="size-3 text-emerald-400 shrink-0 inline" />
+                          </p>
+                          <p className="text-[10px] text-white/80 truncate drop-shadow-xs flex items-center gap-1">
+                            <MapPin className="size-2.5 text-amber-400 shrink-0" />
+                            <span>{address || "India"}</span>
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label className="cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={isCompressingCover}
-                          onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            if (!f) return;
-                            setIsCompressingCover(true);
-                            try {
-                              const res = await compressImage(f, {
-                                maxWidth: 1200,
-                                maxHeight: 600,
-                                quality: 0.80,
-                                mimeType: "image/webp",
-                              });
-                              setCoverImage(res.dataUrl);
-                              setCoverSummary(res.summary);
-                              toast.success(`Banner photo compressed & applied! (${res.summary})`);
-                            } catch (err: any) {
-                              toast.error(err?.message || "Failed to compress image");
-                            } finally {
-                              setIsCompressingCover(false);
-                            }
-                          }}
-                        />
-                        <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 text-xs font-bold hover:bg-secondary transition-colors shadow-xs cursor-pointer">
-                          {isCompressingCover ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
-                          {isCompressingCover ? "Compressing WebP..." : (coverImage ? "Change Banner Photo" : "Upload Banner Photo")}
+                    {/* Preset Banner Selector (1-Click Instant Choice) */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-foreground flex items-center gap-1.5">
+                          <Palette className="size-3.5 text-primary" /> Curated Dining Ambience Presets
                         </span>
-                      </label>
-
-                      {coverImage && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCoverImage(null);
-                            setCoverSummary(null);
-                          }}
-                          className="text-xs text-destructive hover:underline font-semibold cursor-pointer py-1 px-2"
-                        >
-                          Reset to Default
-                        </button>
-                      )}
-
-                      {coverSummary && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
-                          {coverSummary}
-                        </span>
-                      )}
+                        <span className="text-[11px] text-muted-foreground">Click to apply</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {RESTAURANT_BANNER_PRESETS.map((preset) => {
+                          const isSelected = coverImage === preset.url;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => {
+                                setCoverImage(preset.url);
+                                setCoverSummary(null);
+                                toast.success(`Selected "${preset.title}" banner! Click Save to apply.`);
+                              }}
+                              className={`group/preset relative flex flex-col rounded-xl overflow-hidden border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? "ring-2 ring-amber-500 border-amber-500 shadow-sm"
+                                  : "border-border/80 hover:border-primary/50 opacity-85 hover:opacity-100"
+                              }`}
+                            >
+                              <div className="relative h-16 w-full overflow-hidden bg-muted">
+                                <img
+                                  src={preset.previewUrl}
+                                  alt={preset.title}
+                                  loading="lazy"
+                                  className="size-full object-cover transition-transform duration-300 group-hover/preset:scale-105"
+                                />
+                                {isSelected && (
+                                  <div className="absolute inset-0 bg-amber-500/25 flex items-center justify-center">
+                                    <div className="size-5 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                                      <CheckCircle2 className="size-3.5" />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-1.5 bg-card flex-1 flex flex-col justify-between">
+                                <p className="text-[10px] font-bold text-foreground line-clamp-1">
+                                  {preset.title}
+                                </p>
+                                <span className="text-[9px] text-muted-foreground">
+                                  {preset.category}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* Direct URL Input */}
-                    <Input
-                      value={coverImage?.startsWith("data:") ? "" : (coverImage || "")}
-                      onChange={(e) => {
-                        setCoverImage(e.target.value || null);
-                        setCoverSummary(null);
-                      }}
-                      placeholder="Or paste direct image URL (https://...)"
-                      className="h-10 rounded-xl text-xs bg-background"
-                    />
+                    {/* Custom Upload & Direct URL Controls */}
+                    <div className="pt-2 border-t border-border/60 space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={isCompressingCover}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              if (!f) return;
+                              setIsCompressingCover(true);
+                              try {
+                                const res = await compressImage(f, {
+                                  maxWidth: 1400,
+                                  maxHeight: 700,
+                                  quality: 0.82,
+                                  mimeType: "image/webp",
+                                });
+                                setCoverImage(res.dataUrl);
+                                setCoverSummary(res.summary);
+                                toast.success(`Banner photo compressed & applied! (${res.summary})`);
+                              } catch (err: any) {
+                                toast.error(err?.message || "Failed to compress image");
+                              } finally {
+                                setIsCompressingCover(false);
+                              }
+                            }}
+                          />
+                          <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 text-xs font-bold hover:bg-secondary transition-colors shadow-xs cursor-pointer">
+                            {isCompressingCover ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
+                            {isCompressingCover ? "Compressing WebP..." : (coverImage ? "Upload Custom Banner Photo" : "Upload Banner Photo")}
+                          </span>
+                        </label>
 
-                    <p className="text-[11px] text-muted-foreground leading-normal">
-                      This banner photo appears as an ambient luxury background on your customer menu header (~90% auto-compressed).
-                    </p>
+                        {coverImage && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCoverImage(null);
+                              setCoverSummary(null);
+                              toast.info("Reset to default curated banner.");
+                            }}
+                            className="text-xs text-destructive hover:underline font-semibold cursor-pointer py-1 px-2"
+                          >
+                            Reset to Default Banner
+                          </button>
+                        )}
+
+                        {coverSummary && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 text-[10px]">
+                            {coverSummary}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Direct URL Input */}
+                      <Input
+                        value={coverImage?.startsWith("data:") ? "" : (coverImage || "")}
+                        onChange={(e) => {
+                          setCoverImage(e.target.value || null);
+                          setCoverSummary(null);
+                        }}
+                        placeholder="Or paste direct image URL (https://...)"
+                        className="h-10 rounded-xl text-xs bg-background"
+                      />
+                    </div>
                   </div>
                 </div>
 

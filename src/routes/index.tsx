@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { QrCode, Smartphone, RefreshCw, ArrowRight, Sparkles, MessageCircle, Palette, Check, Star, ScanLine, Utensils, Zap, Store, Compass, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { QrCode, Smartphone, RefreshCw, ArrowRight, Sparkles, MessageCircle, Palette, Check, Star, ScanLine, Utensils, Zap, Store, Compass, Users, MapPin, Eye, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SitePage, usePlatformSettings } from "@/components/SiteLayout";
 import { HowSteps } from "@/components/HowSteps";
 import { AnimatedQR } from "@/components/AnimatedQR";
+import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
 import hero from "@/assets/hero.png";
 
 const DEFAULT_DEMO_URL = "https://menuly-app-blush.vercel.app/menu/menuly-official";
@@ -117,6 +119,23 @@ function Index() {
   const { data: platformData } = usePlatformSettings();
   const demoMenuUrl = platformData?.settings?.demoMenuUrl?.trim() || DEFAULT_DEMO_URL;
   const demoQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=1a5c38&bgcolor=ffffff&data=${encodeURIComponent(demoMenuUrl)}&margin=2`;
+
+  const { data: communityData } = useQuery<{ restaurants: any[] }>({
+    queryKey: ["community-restaurants-home"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/community/restaurants?sort=popular");
+        if (!res.ok) return { restaurants: [] };
+        return res.json();
+      } catch {
+        return { restaurants: [] };
+      }
+    },
+    staleTime: 60_000,
+    gcTime: 300_000,
+  });
+
+  const featuredCommunity = (communityData?.restaurants || []).slice(0, 3);
 
   return (
     <SitePage>
@@ -308,19 +327,19 @@ function Index() {
 
       {/* ── RESTAURANT COMMUNITY SHOWCASE ───────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 py-12">
-        <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-8 sm:p-12 shadow-soft">
+        <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-6 sm:p-10 shadow-soft space-y-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="max-w-xl space-y-3 text-center md:text-left">
+            <div className="max-w-xl space-y-2 text-center md:text-left">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                 <Compass className="size-3.5" /> Menuly Verified Community
               </span>
-              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+              <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight">
                 Discover Restaurants with Live Digital Menus
               </h2>
-              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+              <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">
                 Explore cafes, rooftops, pure veg diners, and food shops powered by Menuly. Browse live menus, check real-time dish counts, scan table QRs, and visit dedicated storefronts.
               </p>
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs font-semibold text-foreground">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-1 text-xs font-semibold text-foreground">
                 <div className="flex items-center gap-1.5">
                   <Store className="size-4 text-primary" />
                   <span>Verified Storefronts</span>
@@ -336,8 +355,8 @@ function Index() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row md:flex-col items-center gap-3 shrink-0">
-              <Button size="lg" asChild className="gap-2 font-bold shadow-soft">
+            <div className="flex flex-col sm:flex-row md:flex-col items-center gap-2.5 shrink-0">
+              <Button size="default" asChild className="gap-2 font-bold shadow-soft">
                 <Link to="/restaurants">
                   <Store className="size-4" /> Explore Community Directory <ArrowRight className="size-4" />
                 </Link>
@@ -349,6 +368,125 @@ function Index() {
               </Button>
             </div>
           </div>
+
+          {/* Featured Community Restaurant Profile Cards Grid with Banners */}
+          {featuredCommunity.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
+              {featuredCommunity.map((r: any) => {
+                return (
+                  <article
+                    key={r.id}
+                    className="group relative flex flex-col justify-between rounded-3xl border border-border/70 bg-card overflow-hidden shadow-xs hover:shadow-soft hover:border-primary/40 hover:-translate-y-1 transition-all duration-300"
+                  >
+                    {/* Top Media Banner */}
+                    <div className="relative h-40 w-full bg-muted overflow-hidden select-none">
+                      <img
+                        src={getOptimizedBannerUrl(r.coverUrl, r.id || r.slug, 700)}
+                        alt={`${r.name} banner`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          const fallback = getDefaultBanner(r.slug);
+                          if (target.src !== fallback) target.src = fallback;
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+
+                      {/* Floating Open/Live Status Badge */}
+                      <div className="absolute top-2.5 left-2.5">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-black/75 backdrop-blur-xl border border-amber-400/40 shadow-[0_0_12px_rgba(245,158,11,0.35)] text-white select-none">
+                          <span className="relative flex size-1.5 items-center justify-center">
+                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex size-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
+                          </span>
+                          <span className="font-black uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400">
+                            Live
+                          </span>
+                          <span className="text-white/30 text-xs">·</span>
+                          <span className="font-semibold text-white/95">Open</span>
+                        </div>
+                      </div>
+
+                      {/* Brand Logo & Name */}
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-end gap-2.5">
+                        <div className="size-12 shrink-0 rounded-xl border-2 border-background/90 bg-card overflow-hidden shadow-md flex items-center justify-center">
+                          {r.logoUrl ? (
+                            <img src={r.logoUrl} alt={r.name} className="size-full object-cover" />
+                          ) : (
+                            <div className="size-full bg-primary/10 flex items-center justify-center font-display font-black text-base text-primary">
+                              {r.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 pb-0.5">
+                          <h3 className="font-display text-sm font-black text-white truncate drop-shadow-md flex items-center gap-1">
+                            {r.name}
+                            <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0 inline" />
+                          </h3>
+                          <p className="text-[10px] text-white/80 flex items-center gap-1 truncate drop-shadow-xs">
+                            <MapPin className="size-2.5 text-amber-400 shrink-0" />
+                            <span>{r.address || r.city || "India"}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                        {r.description || `Explore digital contactless menu at ${r.name}. Powered by Menuly.`}
+                      </p>
+
+                      {/* Metrics */}
+                      <div className="grid grid-cols-3 gap-1.5 py-2 px-2.5 rounded-xl bg-muted/40 border border-border/60 text-center select-none text-[10px]">
+                        <div>
+                          <p className="font-bold text-muted-foreground flex items-center justify-center gap-0.5">
+                            <Eye className="size-2.5 text-primary" /> Views
+                          </p>
+                          <p className="font-black text-foreground">{r.menuViews.toLocaleString()}</p>
+                        </div>
+                        <div className="border-x border-border/60">
+                          <p className="font-bold text-muted-foreground flex items-center justify-center gap-0.5">
+                            <Users className="size-2.5 text-emerald-500" /> Visits
+                          </p>
+                          <p className="font-black text-foreground">{r.profileVisits.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-muted-foreground flex items-center justify-center gap-0.5">
+                            <Utensils className="size-2.5 text-amber-500" /> Dishes
+                          </p>
+                          <p className="font-black text-foreground">{r.dishCount}</p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <a
+                          href={`/menu/${r.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:via-orange-600 hover:to-rose-700 text-white text-[11px] font-bold shadow-xs border border-amber-300/30 transition-all cursor-pointer"
+                        >
+                          <QrCode className="size-3" />
+                          <span>Live Menu</span>
+                          <ExternalLink className="size-2.5 opacity-80" />
+                        </a>
+                        <Link
+                          to={`/restaurants/${r.slug}` as any}
+                          className="flex-1 inline-flex items-center justify-center gap-1 h-9 rounded-xl bg-card hover:bg-muted text-foreground border border-border/80 text-[11px] font-bold transition-colors cursor-pointer"
+                        >
+                          <span>Storefront</span>
+                          <ArrowRight className="size-2.5 text-muted-foreground" />
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 

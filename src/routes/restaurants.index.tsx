@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { APP_NAME } from "@/lib/config";
+import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
 
 export const Route = createFileRoute("/restaurants/")({
   head: () => ({
@@ -96,7 +97,8 @@ function RestaurantCommunityPage() {
       if (!res.ok) throw new Error("Failed to load community restaurants");
       return res.json();
     },
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 300_000,
   });
 
   const restaurants = data?.restaurants || [];
@@ -354,20 +356,22 @@ function RestaurantCommunityPage() {
                     onClick={() => navigate({ to: `/restaurants/${restaurant.slug}` as any })}
                     className="group relative flex flex-col justify-between rounded-3xl border border-border/70 bg-card overflow-hidden shadow-xs hover:shadow-soft hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
                   >
-                    {/* Top Media Banner */}
+                    {/* Top Media Banner (High-Res Dynamic & Curated Fallback Banner) */}
                     <div className="relative h-44 w-full bg-muted overflow-hidden select-none">
-                      {restaurant.coverUrl ? (
-                        <img
-                          src={restaurant.coverUrl}
-                          alt={restaurant.name}
-                          loading="lazy"
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-emerald-900/40 via-primary/30 to-background flex items-center justify-center">
-                          <Utensils className="size-10 text-primary/40 animate-pulse" />
-                        </div>
-                      )}
+                      <img
+                        src={getOptimizedBannerUrl(restaurant.coverUrl, restaurant.id || restaurant.slug, 800)}
+                        alt={`${restaurant.name} dining banner`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          const fallback = getDefaultBanner(restaurant.slug);
+                          if (target.src !== fallback) {
+                            target.src = fallback;
+                          }
+                        }}
+                      />
 
                       {/* Smooth Dark Vignette for Badges */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />

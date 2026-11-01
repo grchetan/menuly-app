@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { getOptimizedBannerUrl } from "@/lib/banner-presets";
 
 export function VegMark({ veg: _veg, className: _className }: { veg?: boolean; className?: string }) {
   return null;
@@ -259,9 +260,11 @@ export function MenuView({
   }, [availableItems]);
 
   // Cover image for the hero card (priority: restaurant custom cover_url -> ambient dining banner, NEVER the logo)
-  const heroCoverPhoto =
-    (r as any).cover_url ||
-    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80";
+  const heroCoverPhoto = getOptimizedBannerUrl(
+    (r as any).cover_url,
+    r.slug || r.name,
+    1200
+  );
 
   const contact = r.whatsapp || r.phone;
 
