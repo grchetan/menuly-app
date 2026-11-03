@@ -13,6 +13,12 @@ import {
   changeUserPassword,
   seedSuperAdmin,
 } from "./auth/service";
+import {
+  getGoogleAuthConfig,
+  verifyGoogleIdToken,
+  exchangeGoogleAuthCode,
+  handleGoogleAuth,
+} from "./auth/google";
 import { verifyAccessToken } from "./auth/security";
 import { checkRateLimit, AuthRateLimits } from "./auth/rate-limiter";
 import { userStore, pendingRegistrationStore } from "./auth/store";
@@ -248,6 +254,151 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       const body = sanitizeObject(rawBody);
       const res = await checkEmailAvailability(body.email || "");
       return json(res, res.status);
+    }
+
+    // --------------------------------------------------------------------------
+    // 0b. GOOGLE OAUTH: GET /api/auth/google/config (Client ID configuration)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/google/config" && request.method === "GET") {
+      return json({ success: true, data: getGoogleAuthConfig() });
+    }
+
+    // --------------------------------------------------------------------------
+    // 0c. GOOGLE AUTHENTICATION: POST /api/auth/google (One-Click Login / Signup)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/google" && request.method === "POST") {
+      const rawBody = await request.json().catch(() => ({}));
+      const body = sanitizeObject(rawBody);
+
+      let googleUser = null;
+
+      // 1. Client-Side GIS Credential (ID Token)
+      if (body.credential && typeof body.credential === "string") {
+        googleUser = await verifyGoogleIdToken(body.credential);
+        if (!googleUser) {
+          return json(
+            { success: false, error: "Invalid or expired Google authentication credential. Please try again." },
+            401
+          );
+        }
+      }
+      // 2. Authorization Code (Standard OAuth2 Redirect)
+      else if (body.code && typeof body.code === "string") {
+        const origin = url.origin;
+        const redirectUri = body.redirectUri || `${origin}/api/auth/google/callback`;
+        googleUser = await exchangeGoogleAuthCode({
+          code: body.code,
+          redirectUri,
+        });
+        if (!googleUser) {
+          return json(
+            { success: false, error: "Failed to exchange Google authorization code. Please try again." },
+            401
+          );
+        }
+      }
+      // 3. Demo / Development Testing Mode (when unconfigured or in non-production)
+      else if (body.demoEmail && (process.env["NODE_ENV"] !== "production" || !getGoogleAuthConfig().configured)) {
+        googleUser = {
+          email: String(body.demoEmail).toLowerCase().trim(),
+          fullName: String(body.demoName || "Google Verified User").trim(),
+          emailVerified: true,
+        };
+      } else {
+        return json(
+          {
+            success: false,
+            error: "Missing Google authentication credential. Please use the Google sign-in button.",
+          },
+          400
+        );
+      }
+
+      const res = await handleGoogleAuth({ googleUser, clientIp });
+      const cookieHeaders: Record<string, string> = res.data?.token
+        ? {
+            "Set-Cookie": `menuly_token=${encodeURIComponent(
+              res.data.token
+            )}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`,
+          }
+        : {};
+
+      return json(res, res.status, cookieHeaders);
+    }
+
+    // --------------------------------------------------------------------------
+    // 0d. GOOGLE REDIRECT: GET /api/auth/google/redirect
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/google/redirect" && request.method === "GET") {
+      const config = getGoogleAuthConfig();
+      if (!config.clientId) {
+        return new Response(
+          "Google Sign-In is not configured yet. Please configure GOOGLE_CLIENT_ID in .env.",
+          { status: 400 }
+        );
+      }
+      const origin = url.origin;
+      const redirectUri = encodeURIComponent(`${origin}/api/auth/google/callback`);
+      const googleOAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+        config.clientId
+      )}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=select_account`;
+
+      return new Response(null, {
+        status: 302,
+        headers: { Location: googleOAuthUrl },
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 0e. GOOGLE CALLBACK: GET /api/auth/google/callback
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/auth/google/callback" && request.method === "GET") {
+      const code = url.searchParams.get("code");
+      const error = url.searchParams.get("error");
+      if (error || !code) {
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: `/auth?error=${encodeURIComponent(error || "Google sign-in was cancelled.")}`,
+          },
+        });
+      }
+
+      const origin = url.origin;
+      const redirectUri = `${origin}/api/auth/google/callback`;
+      const googleUser = await exchangeGoogleAuthCode({ code, redirectUri });
+
+      if (!googleUser) {
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: `/auth?error=${encodeURIComponent("Failed to verify Google account credentials.")}`,
+          },
+        });
+      }
+
+      const res = await handleGoogleAuth({ googleUser, clientIp });
+      if (!res.success || !res.data?.token) {
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: `/auth?error=${encodeURIComponent(res.error || "Authentication failed.")}`,
+          },
+        });
+      }
+
+      const targetPath = res.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: `/auth?google_token=${encodeURIComponent(
+            res.data.token
+          )}&redirect=${encodeURIComponent(targetPath)}`,
+          "Set-Cookie": `menuly_token=${encodeURIComponent(
+            res.data.token
+          )}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`,
+        },
+      });
     }
 
     // --------------------------------------------------------------------------

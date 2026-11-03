@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Sparkles,
@@ -28,15 +28,54 @@ import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
 import { AnimatedQR } from "@/components/AnimatedQR";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import authImage from "@/assets/auth-image.png";
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+      />
+    </svg>
+  );
+}
 
 type AuthMode = "login" | "signup" | "otp" | "phone_setup" | "otp_phone" | "forgot" | "reset";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
-  validateSearch: (s: Record<string, unknown>): { mode?: "signup" } =>
-    s["mode"] === "signup" ? { mode: "signup" } : {},
+  validateSearch: (s: Record<string, unknown>): {
+    mode?: "signup" | undefined;
+    google_token?: string | undefined;
+    redirect?: string | undefined;
+    error?: string | undefined;
+  } => ({
+    mode: s["mode"] === "signup" ? "signup" : undefined,
+    google_token: typeof s["google_token"] === "string" ? s["google_token"] : undefined,
+    redirect: typeof s["redirect"] === "string" ? s["redirect"] : undefined,
+    error: typeof s["error"] === "string" ? s["error"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Restaurant Sign In & Registration — Menuly" },
@@ -72,9 +111,41 @@ function AuthPage() {
   const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "exists" | "available">("idle");
   const [emailCheckMsg, setEmailCheckMsg] = useState("");
 
-  // 1. Session Auto-Detection on Mount (With Smooth Skeleton Loading)
+  // Google One-Click Authentication States
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [showGoogleSetupDialog, setShowGoogleSetupDialog] = useState(false);
+  const [demoGoogleEmail, setDemoGoogleEmail] = useState("");
+  const [demoGoogleName, setDemoGoogleName] = useState("");
+
+  // 1. Session & Google Callback Auto-Detection on Mount (With Smooth Skeleton Loading)
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    if (search.error) {
+      toast.error(decodeURIComponent(search.error));
+    }
+
+    if (search.google_token) {
+      const gToken = search.google_token;
+      fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${gToken}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.user) {
+            saveAuthSession(gToken, data.user);
+            toast.success("Welcome! Signed in with Google.");
+            const destination =
+              search.redirect || (data.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+            navigate({ to: destination as any, replace: true });
+          } else {
+            setCheckingSession(false);
+          }
+        })
+        .catch(() => setCheckingSession(false));
+      return;
+    }
 
     const token = localStorage.getItem("menuly_token");
     if (token) {
@@ -100,7 +171,133 @@ function AuthPage() {
 
     setCheckingSession(false);
     return undefined;
-  }, [navigate]);
+  }, [navigate, search]);
+
+  const handleGoogleCredentialResponse = useCallback(
+    async (response: { credential?: string }) => {
+      if (!response?.credential) return;
+      setIsGoogleLoading(true);
+      try {
+        const res = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential: response.credential }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Google sign-in failed. Please try again.");
+        }
+
+        saveAuthSession(data.data.token, data.data.user);
+        toast.success(data.message || "Signed in with Google!");
+
+        const destination =
+          data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+        navigate({ to: destination as any, replace: true });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(msg);
+      } finally {
+        setIsGoogleLoading(false);
+      }
+    },
+    [navigate]
+  );
+
+  // Initialize Google Identity Services (GIS)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    fetch("/api/auth/google/config")
+      .then((res) => res.json())
+      .then((configRes) => {
+        const clientId = configRes?.data?.clientId;
+        if (clientId) {
+          setGoogleClientId(clientId);
+
+          const initGis = () => {
+            try {
+              (window as any).google?.accounts?.id?.initialize({
+                client_id: clientId,
+                callback: handleGoogleCredentialResponse,
+                auto_select: false,
+                cancel_on_tap_outside: true,
+              });
+            } catch (e) {
+              console.warn("[Google GIS Init Notice]:", e);
+            }
+          };
+
+          if (!(window as any).google?.accounts?.id) {
+            const script = document.createElement("script");
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.defer = true;
+            script.onload = initGis;
+            document.head.appendChild(script);
+          } else {
+            initGis();
+          }
+        }
+      })
+      .catch(() => {});
+  }, [handleGoogleCredentialResponse]);
+
+  const handleGoogleClick = () => {
+    if (googleClientId) {
+      if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
+        setIsGoogleLoading(true);
+        try {
+          (window as any).google.accounts.id.prompt((notification: any) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              window.location.href = "/api/auth/google/redirect";
+            }
+          });
+        } catch {
+          window.location.href = "/api/auth/google/redirect";
+        }
+        setTimeout(() => setIsGoogleLoading(false), 2500);
+      } else {
+        window.location.href = "/api/auth/google/redirect";
+      }
+    } else {
+      setShowGoogleSetupDialog(true);
+    }
+  };
+
+  const handleDemoGoogleAuth = async (emailToUse?: string, nameToUse?: string) => {
+    const targetEmail = (emailToUse || demoGoogleEmail || "demo.chef@gmail.com").trim().toLowerCase();
+    const targetName = (nameToUse || demoGoogleName || "Chef Demo").trim();
+
+    setIsGoogleLoading(true);
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          demoEmail: targetEmail,
+          demoName: targetName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Demo Google sign-in failed.");
+      }
+
+      saveAuthSession(data.data.token, data.data.user);
+      toast.success(data.message || `Signed in as ${targetEmail}!`);
+      setShowGoogleSetupDialog(false);
+
+      const destination =
+        data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+      navigate({ to: destination as any, replace: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   // Resend OTP Cooldown timer
   useEffect(() => {
@@ -735,6 +932,40 @@ function AuthPage() {
                         ? "Sign in to manage dishes, tables, and view live customer scans."
                         : "Create your restaurant account and launch your dynamic QR code in 2 minutes."}
                     </p>
+                  </div>
+
+                  {/* ----------------------------------------------------------- */}
+                  {/* ONE-CLICK GOOGLE SIGN IN / SIGN UP                           */}
+                  {/* ----------------------------------------------------------- */}
+                  <div className="space-y-3 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleGoogleClick}
+                      disabled={busy || isGoogleLoading}
+                      className="w-full h-11 rounded-2xl font-bold bg-secondary/70 hover:bg-secondary text-foreground border border-border/80 transition-all shadow-2xs hover:shadow-xs flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 active:scale-[0.99] select-none group"
+                    >
+                      {isGoogleLoading ? (
+                        <RefreshCw className="size-4 animate-spin text-primary" />
+                      ) : (
+                        <GoogleIcon className="size-5 shrink-0 group-hover:scale-105 transition-transform" />
+                      )}
+                      <span className="text-xs sm:text-sm font-bold">
+                        {isGoogleLoading
+                          ? "Connecting Google..."
+                          : mode === "login"
+                            ? "Continue with Google"
+                            : "Sign up with Google"}
+                      </span>
+                    </button>
+
+                    {/* Clean Divider */}
+                    <div className="relative flex items-center justify-center py-0.5">
+                      <div className="border-t border-border/70 w-full" />
+                      <span className="bg-card px-3 text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider relative shrink-0 select-none">
+                        or continue with email
+                      </span>
+                      <div className="border-t border-border/70 w-full" />
+                    </div>
                   </div>
 
                   <form onSubmit={mode === "login" ? handleLogin : handleSignup} className="space-y-3.5">
@@ -1575,6 +1806,83 @@ function AuthPage() {
           </div>
         </div>
       </div>
+
+      {/* Google Setup & Developer Demo Test Dialog */}
+      <Dialog open={showGoogleSetupDialog} onOpenChange={setShowGoogleSetupDialog}>
+        <DialogContent className="max-w-md rounded-3xl p-6 sm:p-7 border border-border/80 shadow-lift">
+          <DialogHeader className="text-left space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="size-10 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shadow-xs border border-border/80 shrink-0">
+                <GoogleIcon className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
+                  Google One-Click Sign-In
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Instant one-tap login and registration with Google
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-xs leading-relaxed text-muted-foreground">
+            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3.5 space-y-2 text-foreground">
+              <p className="font-bold text-xs flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                <Sparkles className="size-3.5" /> How to connect your live Google Client ID:
+              </p>
+              <ol className="list-decimal pl-4 space-y-1 text-[11px] text-muted-foreground">
+                <li>Go to <strong>Google Cloud Console</strong> &rarr; APIs &amp; Services &rarr; Credentials.</li>
+                <li>Create an <strong>OAuth 2.0 Client ID</strong> (Web Application).</li>
+                <li>Add Authorized JS Origin: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000</code></li>
+                <li>Add Authorized Redirect: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000/api/auth/google/callback</code></li>
+                <li>Add to your <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">.env</code> file: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">GOOGLE_CLIENT_ID="..."</code></li>
+              </ol>
+            </div>
+
+            <div className="border-t border-border/70 pt-3 space-y-2.5">
+              <div>
+                <p className="font-bold text-foreground text-xs">
+                  Instant Development Test:
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Test the one-click Google flow right now. If the email already exists, you will be logged into that account. If new, a verified restaurant owner account will be created instantly.
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <Input
+                  type="email"
+                  value={demoGoogleEmail}
+                  onChange={(e) => setDemoGoogleEmail(e.target.value)}
+                  placeholder="e.g. chef.rajesh@gmail.com (or leave blank for demo)"
+                  className="h-10 rounded-xl text-xs bg-background"
+                />
+                <Input
+                  type="text"
+                  value={demoGoogleName}
+                  onChange={(e) => setDemoGoogleName(e.target.value)}
+                  placeholder="Name (e.g. Rajesh Kumar)"
+                  className="h-10 rounded-xl text-xs bg-background"
+                />
+                <Button
+                  type="button"
+                  onClick={() => handleDemoGoogleAuth()}
+                  disabled={isGoogleLoading}
+                  className="w-full h-10 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-2 cursor-pointer shadow-soft"
+                >
+                  {isGoogleLoading ? (
+                    <RefreshCw className="size-3.5 animate-spin" />
+                  ) : (
+                    <GoogleIcon className="size-4" />
+                  )}
+                  <span>Simulate Instant Google Sign-In</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   verifyPhoneVerificationOtp,
 } from "../server/auth/service";
 import { userStore } from "../server/auth/store";
+import { handleGoogleAuth, getGoogleAuthConfig } from "../server/auth/google";
 
 describe("Custom Authentication & Security Suite", () => {
   it("securely hashes and verifies passwords", async () => {
@@ -491,6 +492,75 @@ describe("Custom Authentication & Security Suite", () => {
     expect(conflictRes.status).toBe(400);
     expect(conflictRes.error).toContain("already linked to another Menuly account");
   }, 30000);
+
+  it("supports Google One-Click Auth: registers new user with auto-verified status, logs into existing account if already registered, and enforces ban/delete policies", async () => {
+    const timestamp = Date.now();
+    const newGoogleEmail = `google-new-${timestamp}@testrestaurant.in`;
+    const existingGoogleEmail = `google-exist-${timestamp}@testrestaurant.in`;
+
+    // 1. New user signs in with Google
+    const newAuth = await handleGoogleAuth({
+      googleUser: {
+        email: newGoogleEmail,
+        fullName: "Google Chef New",
+        emailVerified: true,
+      },
+      clientIp: `ip-google-new-${timestamp}`,
+    });
+    expect(newAuth.success).toBe(true);
+    expect(newAuth.status).toBe(201);
+    expect(newAuth.data?.isNewUser).toBe(true);
+    expect(newAuth.data?.user?.email).toBe(newGoogleEmail);
+    expect(newAuth.data?.token).toBeDefined();
+
+    // Verify token can be decoded and user is verified
+    const decodedNew = verifyAccessToken(newAuth.data!.token!);
+    expect(decodedNew?.email).toBe(newGoogleEmail);
+
+    const storedNew = await userStore.findByEmail(newGoogleEmail);
+    expect(storedNew?.isVerified).toBe(true);
+
+    // 2. Pre-existing user (registered via normal email previously)
+    await userStore.create({
+      email: existingGoogleEmail,
+      passwordHash: await hashPassword("ExistingPass123!"),
+      fullName: "Original Owner",
+      role: "RESTAURANT_OWNER",
+      isVerified: false,
+    });
+
+    // Existing user now clicks "Continue with Google"
+    const existAuth = await handleGoogleAuth({
+      googleUser: {
+        email: existingGoogleEmail,
+        fullName: "Updated Google Name",
+        emailVerified: true,
+      },
+      clientIp: `ip-google-exist-${timestamp}`,
+    });
+    expect(existAuth.success).toBe(true);
+    expect(existAuth.status).toBe(200);
+    expect(existAuth.data?.isNewUser).toBe(false);
+    expect(existAuth.data?.user?.email).toBe(existingGoogleEmail);
+    expect(existAuth.data?.token).toBeDefined();
+
+    // Ensure unverified existing user is now marked verified
+    const storedExist = await userStore.findByEmail(existingGoogleEmail);
+    expect(storedExist?.isVerified).toBe(true);
+
+    // 3. Banned user tries to sign in with Google -> BLOCKED with 403
+    await userStore.update(storedExist!.id, { isBanned: true, banReason: "Terms violation" });
+    const bannedAuth = await handleGoogleAuth({
+      googleUser: {
+        email: existingGoogleEmail,
+        emailVerified: true,
+      },
+      clientIp: `ip-google-banned-${timestamp}`,
+    });
+    expect(bannedAuth.success).toBe(false);
+    expect(bannedAuth.status).toBe(403);
+    expect(bannedAuth.error).toContain("Terms violation");
+  });
 
   afterAll(async () => {
     try {
