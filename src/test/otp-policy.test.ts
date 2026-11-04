@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { otpStore } from "../server/auth/store";
 import { hashOtp } from "../server/auth/security";
 import { verifyUserOtp, resendUserOtp } from "../server/auth/service";
+import {
+  sendWhatsAppOtp,
+  isAuthorizedTestPhone,
+  PRIMARY_TEST_WHATSAPP_PHONE,
+} from "../server/whatsapp/sender";
 
 describe("Menuly OTP Security & Policy Verification Suite", () => {
   const testEmail = "policy-check@menuly.app";
@@ -136,5 +141,23 @@ describe("Menuly OTP Security & Policy Verification Suite", () => {
     expect(r2.success).toBe(false);
     expect(r2.status).toBe(429);
     expect(r2.error).toMatch(/wait \d+ seconds/i);
+  });
+
+  it("POLICY 6: WhatsApp Safety Guard restricts real OTP dispatch to authorized test number", async () => {
+    // 1. Primary owner test number is authorized
+    expect(isAuthorizedTestPhone("9179878521")).toBe(true);
+    expect(isAuthorizedTestPhone("+919179878521")).toBe(true);
+    expect(isAuthorizedTestPhone("+91 91798-78521")).toBe(true);
+    expect(PRIMARY_TEST_WHATSAPP_PHONE).toBe("9179878521");
+
+    // 2. Random public numbers are strictly rejected from real dispatch
+    expect(isAuthorizedTestPhone("9876543210")).toBe(false);
+    expect(isAuthorizedTestPhone("+919811122233")).toBe(false);
+    expect(isAuthorizedTestPhone("")).toBe(false);
+
+    // 3. Automated test runs simulate dispatch safely without hitting internet
+    const simRes = await sendWhatsAppOtp("9899999999", "123456", "SIGNUP");
+    expect(simRes.success).toBe(true);
+    expect(simRes.messageId).toContain("simulated");
   });
 });
