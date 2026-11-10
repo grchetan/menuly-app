@@ -22,6 +22,11 @@ import {
   Check,
   CheckCircle2,
   Share2,
+  Printer,
+  FileText,
+  CookingPot,
+  Edit2,
+  RefreshCw,
 } from "lucide-react";
 import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
 import { formatPrice, whatsappLink, APP_NAME } from "@/lib/config";
@@ -29,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getOptimizedBannerUrl } from "@/lib/banner-presets";
 
 export function VegMark({ veg: _veg, className: _className }: { veg?: boolean; className?: string }) {
@@ -96,6 +102,90 @@ export function MenuView({
   const [cart, setCart] = useState<Record<string, OrderItem>>({});
   const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
   const [isShowSlipModalOpen, setIsShowSlipModalOpen] = useState(false);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+  // Table & Dine-in Details
+  const [activeTableNumber, setActiveTableNumber] = useState<string>(() => {
+    return table || (typeof window !== "undefined" ? localStorage.getItem(`menuly_last_table_${r.slug}`) || "1" : "1");
+  });
+  const [isEditingTable, setIsEditingTable] = useState(false);
+  const [dinerName, setDinerName] = useState(() => {
+    return typeof window !== "undefined" ? localStorage.getItem("menuly_diner_name") || "" : "";
+  });
+  const [dinerPhone, setDinerPhone] = useState(() => {
+    return typeof window !== "undefined" ? localStorage.getItem("menuly_diner_phone") || "" : "";
+  });
+  const [cookingNotes, setCookingNotes] = useState("");
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
+  // Placed Order tracking
+  const [activeOrder, setActiveOrder] = useState<any>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem(`menuly_active_order_${r.slug}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Date.now() - new Date(parsed.createdAt).getTime() < 4 * 60 * 60 * 1000) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const handlePlaceDineInOrder = async () => {
+    if (cartItems.length === 0) return;
+    const finalTable = (activeTableNumber || table || "1").trim();
+    if (!finalTable) {
+      toast.error("Please specify your Table Number");
+      return;
+    }
+
+    setIsPlacingOrder(true);
+    try {
+      if (dinerName.trim() && typeof window !== "undefined") localStorage.setItem("menuly_diner_name", dinerName.trim());
+      if (dinerPhone.trim() && typeof window !== "undefined") localStorage.setItem("menuly_diner_phone", dinerPhone.trim());
+      if (typeof window !== "undefined") localStorage.setItem(`menuly_last_table_${r.slug}`, finalTable);
+
+      const res = await fetch("/api/orders/place", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: r.id,
+          slug: r.slug,
+          tableNumber: finalTable,
+          customerName: dinerName.trim() || undefined,
+          customerPhone: dinerPhone.trim() || undefined,
+          notes: cookingNotes.trim() || undefined,
+          items: cartItems.map((c) => ({
+            id: c.id,
+            name: c.name,
+            price: c.price,
+            quantity: c.quantity,
+          })),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to submit order to kitchen");
+      }
+
+      const order = data.order;
+      setActiveOrder(order);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`menuly_active_order_${r.slug}`, JSON.stringify(order));
+      }
+      setCart({});
+      setIsOrderDrawerOpen(false);
+      setIsReceiptOpen(true);
+      toast.success(`🎉 Order ${order.orderNumber} sent to kitchen for Table #${finalTable}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to place order. Please try again.");
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
 
   // Dish Detail Bottom Sheet State
   const [selectedDish, setSelectedDish] = useState<MenuItem | null>(null);
@@ -352,15 +442,21 @@ export function MenuView({
 
           {/* Right Action: Table # Badge + Dark Mode Theme Toggle */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {table && (
-              <span
+            {(table || activeTableNumber) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingTable(true);
+                  setIsOrderDrawerOpen(true);
+                }}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0",
+                  "inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 active:scale-95 transition-all cursor-pointer",
                   compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-0.5 text-[11px]"
                 )}
+                title="Tap to change table"
               >
-                Table #{table}
-              </span>
+                Table #{activeTableNumber || table}
+              </button>
             )}
             <button
               type="button"
@@ -1060,6 +1156,29 @@ export function MenuView({
         </aside>
       )}
 
+      {/* FLOATING ACTIVE ORDER RECEIPT / STATUS PILL (WHEN CART IS EMPTY BUT AN ORDER IS PLACED) */}
+      {!compact && totalItemsCount === 0 && activeOrder && (
+        <aside className="fixed inset-x-0 bottom-4 z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
+          <div
+            onClick={() => setIsReceiptOpen(true)}
+            className="mx-auto max-w-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white font-bold rounded-2xl shadow-xl flex items-center justify-between p-3 sm:p-3.5 transition-all duration-200 cursor-pointer pointer-events-auto border border-emerald-400/40"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-xl bg-white/20 text-white">
+                <CookingPot className="size-4 animate-pulse" />
+              </span>
+              <div className="text-left leading-tight">
+                <span className="text-xs font-black block">Table #{activeOrder.tableNumber} • {activeOrder.orderNumber}</span>
+                <span className="text-[10px] text-emerald-100 font-medium">Order In Kitchen • View Receipt &amp; Status</span>
+              </div>
+            </div>
+            <span className="text-xs font-black bg-white/20 px-2.5 py-1 rounded-xl">
+              {formatPrice(activeOrder.grandTotal)}
+            </span>
+          </div>
+        </aside>
+      )}
+
       {/* ORDER SUMMARY DRAWER MODAL */}
       <Dialog open={isOrderDrawerOpen} onOpenChange={setIsOrderDrawerOpen}>
         <DialogContent
@@ -1131,24 +1250,85 @@ export function MenuView({
               <span className="text-lg text-orange-600 dark:text-orange-400">{formatPrice(totalBill)}</span>
             </div>
 
+            {/* Table & Dine-In Details */}
+            <div className="p-3 rounded-2xl bg-secondary/50 border border-border/60 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-foreground">Dine-In Table:</span>
+                  <span className="rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 font-black px-2 py-0.5">
+                    Table #{activeTableNumber || "1"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTable(!isEditingTable)}
+                  className="text-[11px] text-primary hover:underline font-bold"
+                >
+                  {isEditingTable ? "Done" : "Change Table"}
+                </button>
+              </div>
+
+              {isEditingTable && (
+                <div className="pt-1">
+                  <Input
+                    type="text"
+                    value={activeTableNumber}
+                    onChange={(e) => setActiveTableNumber(e.target.value)}
+                    placeholder="Enter Table # (e.g. 1, 2, Outdoor-A)"
+                    className="h-8 text-xs rounded-xl bg-card border-border"
+                  />
+                </div>
+              )}
+
+              {/* Cooking Instructions / Notes */}
+              <div>
+                <Input
+                  type="text"
+                  value={cookingNotes}
+                  onChange={(e) => setCookingNotes(e.target.value)}
+                  placeholder="Cooking note (e.g. less spicy, no onion garlic)..."
+                  className="h-8 text-xs rounded-xl bg-card border-border placeholder:text-muted-foreground/70"
+                />
+              </div>
+            </div>
+
             {/* Ordering Options */}
-            <div className="pt-2 space-y-2">
+            <div className="pt-1 space-y-2">
+              {/* PRIMARY ACTION: Place Dine-In Order directly to Kitchen POS */}
+              <Button
+                type="button"
+                disabled={isPlacingOrder || totalItemsCount === 0}
+                onClick={handlePlaceDineInOrder}
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-black text-sm shadow-soft gap-2"
+              >
+                {isPlacingOrder ? (
+                  <>
+                    <RefreshCw className="size-4 animate-spin" /> Sending to Kitchen...
+                  </>
+                ) : (
+                  <>
+                    <CookingPot className="size-4" /> Place Dine-In Order (Table #{activeTableNumber || "1"})
+                  </>
+                )}
+              </Button>
+
               {r.whatsapp && (
                 <Button
                   asChild
-                  className="w-full h-11 rounded-xl bg-whatsapp hover:bg-whatsapp/90 text-whatsapp-foreground font-bold text-sm shadow-soft gap-2"
+                  variant="outline"
+                  className="w-full h-10 rounded-xl border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-bold text-xs gap-2"
                 >
                   <a
                     href={whatsappLink(
                       r.whatsapp,
-                      `Hi *${r.name}*!\nI would like to order from Table #${table || "Dine-In"}:\n\n${cartItems
+                      `Hi *${r.name}*!\nI would like to order from Table #${activeTableNumber || table || "Dine-In"}:\n\n${cartItems
                         .map((it) => `• ${it.quantity}x ${it.name} - ${formatPrice(it.price * it.quantity)}`)
                         .join("\n")}\n\n*Total Bill: ${formatPrice(totalBill)}*`
                     )}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <MessageCircle className="size-4" /> Send Order on WhatsApp
+                    <MessageCircle className="size-3.5" /> Order via WhatsApp Backup
                   </a>
                 </Button>
               )}
@@ -1158,7 +1338,7 @@ export function MenuView({
                   type="button"
                   variant="outline"
                   onClick={() => setIsShowSlipModalOpen(true)}
-                  className="flex-1 h-10 rounded-xl text-xs font-bold border-border"
+                  className="flex-1 h-9 rounded-xl text-xs font-bold border-border"
                 >
                   Show Slip to Server
                 </Button>
@@ -1170,13 +1350,139 @@ export function MenuView({
                     setIsOrderDrawerOpen(false);
                     toast.info("Order cleared");
                   }}
-                  className="h-10 text-xs text-destructive hover:bg-destructive/10"
+                  className="h-9 text-xs text-destructive hover:bg-destructive/10"
                 >
-                  <Trash2 className="size-3.5" />
+                  <Trash2 className="size-3.5" /> Clear
                 </Button>
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIGITAL ORDER RECEIPT & LIVE TRACKING MODAL */}
+      <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
+        <DialogContent
+          className={cn(
+            "sm:max-w-md p-0 overflow-hidden rounded-3xl border-border bg-card",
+            isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
+          )}
+        >
+          {activeOrder && (
+            <div className="p-5 sm:p-6 space-y-4 print:p-0">
+              {/* Receipt Header with animated badge */}
+              <div className="text-center space-y-1 border-b border-dashed border-border/80 pb-4">
+                <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center font-bold mb-2">
+                  <CheckCircle2 className="size-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                  Order Placed Successfully
+                </span>
+                <h3 className="font-serif font-black text-xl text-foreground">
+                  {r.name}
+                </h3>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30 px-3 py-0.5 text-xs font-bold mt-1">
+                  Table #{activeOrder.tableNumber} • Dine-In
+                </div>
+                <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground font-mono mt-1">
+                  <span>{activeOrder.orderNumber}</span>
+                  <span>•</span>
+                  <span>{new Date(activeOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+
+              {/* Live Kitchen Status Banner */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-center space-y-1">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                    Sent to Kitchen — Being Prepared
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Your server will bring dishes directly to Table #{activeOrder.tableNumber}
+                </p>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-2 py-1 text-xs max-h-48 overflow-y-auto no-scrollbar">
+                <div className="flex justify-between text-muted-foreground font-semibold border-b border-border/50 pb-1">
+                  <span>Ordered Dishes</span>
+                  <span>Total</span>
+                </div>
+                {activeOrder.items?.map((it: any, idx: number) => (
+                  <div key={it.id + idx} className="flex justify-between items-center text-foreground">
+                    <span>
+                      <strong className="font-bold mr-1">{it.quantity}x</strong> {it.name}
+                    </span>
+                    <span className="font-mono font-semibold">{formatPrice(it.total || it.price * it.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total & Payment mode */}
+              <div className="border-t border-dashed border-border/80 pt-3 space-y-1 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal ({activeOrder.totalItems || activeOrder.items?.length} items)</span>
+                  <span>{formatPrice(activeOrder.subtotal || activeOrder.grandTotal)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Taxes &amp; Service</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">Included</span>
+                </div>
+                <div className="flex justify-between items-center text-base font-black text-foreground pt-2 border-t border-border/50">
+                  <span>Grand Total</span>
+                  <span className="text-orange-600 dark:text-orange-400 font-mono">{formatPrice(activeOrder.grandTotal)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
+                  <span>Payment</span>
+                  <span className="font-bold">Pay at Counter / Server</span>
+                </div>
+              </div>
+
+              {/* Receipt Action Buttons */}
+              <div className="pt-2 flex flex-col gap-2 print:hidden">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5"
+                  >
+                    <Printer className="size-3.5" /> Save / Print Receipt
+                  </Button>
+                  {r.whatsapp && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="rounded-xl h-10 font-bold text-xs gap-1.5 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
+                    >
+                      <a
+                        href={whatsappLink(
+                          r.whatsapp,
+                          `Hi ${r.name}! I just placed Order ${activeOrder.orderNumber} from Table #${activeOrder.tableNumber}:\n\n${activeOrder.items
+                            ?.map((it: any) => `• ${it.quantity}x ${it.name}`)
+                            .join("\n")}\n\nTotal: ${formatPrice(activeOrder.grandTotal)}`
+                        )}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <MessageCircle className="size-3.5" /> WhatsApp
+                      </a>
+                    </Button>
+                  )}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setIsReceiptOpen(false)}
+                  className="rounded-xl h-9 text-xs text-muted-foreground hover:text-foreground font-semibold"
+                >
+                  Order More Items / Close Receipt
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

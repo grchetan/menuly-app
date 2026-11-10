@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { myMenuQuery, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
 import { slugify } from "@/lib/config";
 import { cn } from "@/lib/utils";
+import { LiveOrdersManager } from "@/components/dashboard/LiveOrdersManager";
 
 function DashboardSkeleton() {
   return (
@@ -475,6 +476,15 @@ function Dashboard() {
             </p>
           </div>
         </div>
+
+        {/* Live Table Orders & Kitchen POS Manager */}
+        {r && (
+          <LiveOrdersManager
+            restaurantId={r.id}
+            restaurantSlug={r.slug}
+            restaurantName={r.name}
+          />
+        )}
 
         {/* Clean 2-Column Section */}
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] lg:grid-cols-[minmax(0,1fr)_320px] min-w-0">

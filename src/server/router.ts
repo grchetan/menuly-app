@@ -51,6 +51,13 @@ import {
   getCommunityRestaurantBySlug,
 } from "./community/service";
 import {
+  createOrder,
+  getOrderById,
+  getRestaurantOrders,
+  updateOrderStatus,
+  getRestaurantOrderStats,
+} from "./orders/service";
+import {
   sanitizeObject,
   sanitizeText,
   sanitizePrice,
@@ -687,6 +694,39 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // PUBLIC DINE-IN ORDERS: POST /api/orders/place & GET /api/orders/track
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/orders/place" && request.method === "POST") {
+      const rate = checkRateLimit(`order:${clientIp}`, { windowMs: 60 * 1000, max: 30 });
+      if (!rate.allowed) {
+        return json(
+          { error: `Too many order requests. Please wait ${rate.resetInSeconds}s.` },
+          429
+        );
+      }
+      const rawBody = await request.json().catch(() => ({}));
+      const res = await createOrder({
+        restaurantId: rawBody.restaurantId,
+        slug: rawBody.slug,
+        tableNumber: rawBody.tableNumber,
+        customerName: rawBody.customerName,
+        customerPhone: rawBody.customerPhone,
+        notes: rawBody.notes,
+        items: rawBody.items || [],
+      });
+      return json(res, res.status);
+    }
+
+    if (pathname === "/api/orders/track" && request.method === "GET") {
+      const orderId = url.searchParams.get("orderId") || "";
+      const order = await getOrderById(orderId);
+      if (!order) {
+        return json({ error: "Order not found." }, 404);
+      }
+      return json({ success: true, order });
+    }
+
+    // --------------------------------------------------------------------------
     // USER STATUS / VERIFICATION: GET /api/user/status & GET /api/auth/me
     // --------------------------------------------------------------------------
     if ((pathname === "/api/user/status" || pathname === "/api/auth/me") && request.method === "GET") {
@@ -914,6 +954,50 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         const prefix = body.prefix || "Table ";
         const tables = await bulkCreateTablesForRestaurant(auth.userId, count, prefix);
         return json({ success: true, tables });
+      }
+
+      // 15. GET /api/restaurant/orders (Live and Historical Table Orders)
+      if (pathname === "/api/restaurant/orders" && request.method === "GET") {
+        const restaurant = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        if (!restaurant) {
+          return json({ error: "No restaurant found for this account" }, 404);
+        }
+        const status = url.searchParams.get("status") || undefined;
+        const table = url.searchParams.get("table") || undefined;
+        const limit = Number(url.searchParams.get("limit") || "100");
+        const orders = await getRestaurantOrders({
+          restaurantId: restaurant.id,
+          status,
+          tableNumber: table,
+          limit,
+        });
+        return json({ success: true, orders });
+      }
+
+      // 16. POST /api/restaurant/orders/update-status (Update status: PREPARING, SERVED, COMPLETED, CANCELLED)
+      if (pathname === "/api/restaurant/orders/update-status" && request.method === "POST") {
+        const restaurant = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        if (!restaurant) {
+          return json({ error: "No restaurant found for this account" }, 404);
+        }
+        const rawBody = await request.json().catch(() => ({}));
+        const res = await updateOrderStatus({
+          orderId: rawBody.orderId,
+          restaurantId: restaurant.id,
+          status: rawBody.status,
+          paymentStatus: rawBody.paymentStatus,
+        });
+        return json(res, res.status);
+      }
+
+      // 17. GET /api/restaurant/orders/stats (Live Active Orders, Today Revenue, Tables)
+      if (pathname === "/api/restaurant/orders/stats" && request.method === "GET") {
+        const restaurant = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        if (!restaurant) {
+          return json({ error: "No restaurant found for this account" }, 404);
+        }
+        const stats = await getRestaurantOrderStats(restaurant.id);
+        return json({ success: true, stats });
       }
     }
 
