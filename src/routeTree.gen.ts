@@ -29,6 +29,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TermsAndConditionsRouteImport } from './routes/terms-and-conditions'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMyMenuRouteImport } from './routes/_authenticated/my-menu'
+import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedQrRouteImport } from './routes/_authenticated/qr'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
@@ -136,6 +137,11 @@ const AuthenticatedMyMenuRoute = AuthenticatedMyMenuRouteImport.update({
   path: '/my-menu',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedOrdersRoute = AuthenticatedOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/terms-and-conditions': typeof TermsAndConditionsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-menu': typeof AuthenticatedMyMenuRoute
+  '/orders': typeof AuthenticatedOrdersRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/terms-and-conditions': typeof TermsAndConditionsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-menu': typeof AuthenticatedMyMenuRoute
+  '/orders': typeof AuthenticatedOrdersRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/qr': typeof AuthenticatedQrRoute
   '/support': typeof AuthenticatedSupportRoute
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/terms-and-conditions': typeof TermsAndConditionsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/my-menu': typeof AuthenticatedMyMenuRoute
+  '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/qr': typeof AuthenticatedQrRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
@@ -280,6 +289,7 @@ export interface FileRouteTypes {
     | '/terms-and-conditions'
     | '/dashboard'
     | '/my-menu'
+    | '/orders'
     | '/profile'
     | '/qr'
     | '/support'
@@ -308,6 +318,7 @@ export interface FileRouteTypes {
     | '/terms-and-conditions'
     | '/dashboard'
     | '/my-menu'
+    | '/orders'
     | '/profile'
     | '/qr'
     | '/support'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/terms-and-conditions'
     | '/_authenticated/dashboard'
     | '/_authenticated/my-menu'
+    | '/_authenticated/orders'
     | '/_authenticated/profile'
     | '/_authenticated/qr'
     | '/_authenticated/support'
@@ -513,6 +525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyMenuRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/orders': {
+      id: '/_authenticated/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof AuthenticatedOrdersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
       path: '/profile'
@@ -568,6 +587,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMyMenuRoute: typeof AuthenticatedMyMenuRoute
+  AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedQrRoute: typeof AuthenticatedQrRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
@@ -576,6 +596,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMyMenuRoute: AuthenticatedMyMenuRoute,
+  AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedQrRoute: AuthenticatedQrRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,

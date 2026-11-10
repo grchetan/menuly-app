@@ -244,8 +244,13 @@ export function generateReceiptHtml(order: ReceiptOrderData, restaurant: Receipt
     </tr>
     ${order.customerName ? `
     <tr>
-      <td>Diner Name:</td>
-      <td class="text-right">${escapeHtml(order.customerName)}</td>
+      <td>Diner:</td>
+      <td class="text-right bold">${escapeHtml(order.customerName)} ${order.customerPhone ? `(${escapeHtml(order.customerPhone)})` : ""}</td>
+    </tr>
+    ` : order.customerPhone ? `
+    <tr>
+      <td>Contact:</td>
+      <td class="text-right">${escapeHtml(order.customerPhone)}</td>
     </tr>
     ` : ""}
   </table>

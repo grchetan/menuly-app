@@ -131,6 +131,38 @@ describe("Table-Wise Dine-In Order Engine & POS Suite", () => {
     expect(compRes.order?.paymentStatus).toBe("PAID_AT_COUNTER");
   });
 
+  it("supports order cancellation with specific reason and lookup by orderNumber", async () => {
+    const created = await createOrder({
+      restaurantId,
+      tableNumber: "Table 9",
+      customerName: "Pooja Verma",
+      customerPhone: "9179878521",
+      items: [{ id: "dish-5", name: "Masala Dosa", price: 150, quantity: 1 }],
+    });
+
+    expect(created.order).toBeDefined();
+    const orderNumber = created.order!.orderNumber;
+    createdOrderIds.push(created.order!.id);
+
+    // Cancel using orderNumber instead of id
+    const cancelRes = await updateOrderStatus({
+      orderId: orderNumber,
+      restaurantId,
+      status: "CANCELLED",
+      cancelReason: "Item out of stock",
+    });
+
+    expect(cancelRes.success).toBe(true);
+    expect(cancelRes.order?.status).toBe("CANCELLED");
+    expect(cancelRes.order?.cancelReason).toBe("Item out of stock");
+
+    // Fetch stats and verify breakdown and recentCancelled
+    const stats = await getRestaurantOrderStats(restaurantId);
+    expect(stats.cancelledCount).toBeGreaterThanOrEqual(1);
+    expect(stats.recentCancelled.some((c) => c.orderNumber === orderNumber)).toBe(true);
+    expect(stats.dailyBreakdown.length).toBe(7);
+  });
+
   it("calculates live restaurant order stats accurately", async () => {
     const stats = await getRestaurantOrderStats(restaurantId);
     expect(stats).toBeDefined();

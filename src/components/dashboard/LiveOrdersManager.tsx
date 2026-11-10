@@ -19,6 +19,7 @@ import {
   CookingPot,
   Plus,
   Sparkles,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ export interface StoredOrder {
   customerName: string | null;
   customerPhone: string | null;
   notes: string | null;
+  cancelReason?: string | null | undefined;
   items: Array<{
     id: string;
     name: string;
@@ -109,6 +111,9 @@ export function LiveOrdersManager({
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewingReceiptOrder, setViewingReceiptOrder] = useState<StoredOrder | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<StoredOrder | null>(null);
+  const [selectedCancelReason, setSelectedCancelReason] = useState("Customer Left / Changed Mind");
+  const [customCancelReason, setCustomCancelReason] = useState("");
 
   const prevPendingIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef(false);
@@ -170,21 +175,29 @@ export function LiveOrdersManager({
   }, [fetchOrders]);
 
   // Update Status handler
-  const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus, cancelReason?: string) => {
     setUpdatingId(orderId);
     try {
       const res = await fetch("/api/restaurant/orders/update-status", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ orderId, status }),
+        body: JSON.stringify({ orderId, status, cancelReason }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to update order");
       }
-      toast.success(`Order marked as ${status.toLowerCase()}`);
+      toast.success(
+        status === "CANCELLED"
+          ? `Order cancelled (${cancelReason || "Cancelled"})`
+          : `Order marked as ${status.toLowerCase()}`
+      );
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o))
+        prev.map((o) =>
+          o.id === orderId || o.orderNumber === orderId
+            ? { ...o, status, cancelReason: cancelReason || o.cancelReason, updatedAt: new Date().toISOString() }
+            : o
+        )
       );
     } catch (err: any) {
       toast.error(err.message || "Failed to update status");
@@ -573,16 +586,35 @@ export function LiveOrdersManager({
 
                   {/* Customer Information & Cooking Notes */}
                   {(order.customerName || order.customerPhone || order.notes) && (
-                    <div className="rounded-xl bg-secondary/50 p-2.5 text-xs space-y-1">
+                    <div className="rounded-xl bg-secondary/50 p-2.5 text-xs space-y-1.5">
                       {order.customerName && (
-                        <p className="font-semibold text-foreground truncate">
-                          Diner: {order.customerName}
+                        <div className="flex items-center justify-between gap-1.5">
+                          <p className="font-bold text-foreground flex items-center gap-1.5 truncate">
+                            <User className="size-3 text-orange-500 shrink-0" />
+                            <span>{order.customerName}</span>
+                          </p>
                           {order.customerPhone && (
-                            <span className="text-muted-foreground font-normal ml-1">
-                              ({order.customerPhone})
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a
+                                href={`tel:${order.customerPhone}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-secondary hover:bg-secondary/80 text-[10px] font-mono text-foreground font-semibold"
+                                title="Call diner"
+                              >
+                                <Phone className="size-2.5 text-emerald-600" />
+                                {order.customerPhone}
+                              </a>
+                              <a
+                                href={whatsappLink(order.customerPhone, `Hi ${order.customerName}! Your order ${order.orderNumber} from Table #${order.tableNumber} is being prepared at ${restaurantName}.`)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                                title="WhatsApp diner"
+                              >
+                                <MessageCircle className="size-3" />
+                              </a>
+                            </div>
                           )}
-                        </p>
+                        </div>
                       )}
                       {order.notes && (
                         <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
@@ -663,20 +695,20 @@ export function LiveOrdersManager({
                       <Printer className="size-3.5" />
                     </Button>
 
-                    {/* Cancel button if pending */}
-                    {isPending && (
+                    {/* Cancel button if pending or preparing */}
+                    {(isPending || isPreparing) && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         disabled={isUpdating}
                         onClick={() => {
-                          if (confirm(`Cancel Order ${order.orderNumber}?`)) {
-                            handleUpdateStatus(order.id, "CANCELLED");
-                          }
+                          setCancellingOrder(order);
+                          setSelectedCancelReason("Customer Left / Changed Mind");
+                          setCustomCancelReason("");
                         }}
                         className="h-9 px-2.5 rounded-xl text-destructive hover:bg-destructive/10"
-                        title="Cancel Order"
+                        title="Cancel / Reject Order"
                       >
                         <X className="size-3.5" />
                       </Button>
@@ -737,6 +769,11 @@ export function LiveOrdersManager({
                       >
                         {o.status}
                       </span>
+                      {o.cancelReason && (
+                        <p className="text-[10px] text-destructive/80 font-medium truncate max-w-[140px] mt-0.5" title={o.cancelReason}>
+                          {o.cancelReason}
+                        </p>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <Button
@@ -852,6 +889,93 @@ export function LiveOrdersManager({
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 7. CANCEL ORDER MODAL WITH REASON SELECTION                   */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog open={Boolean(cancellingOrder)} onOpenChange={(open) => !open && setCancellingOrder(null)}>
+        <DialogContent className="sm:max-w-md p-5 rounded-3xl border-border bg-card space-y-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-destructive">
+              <AlertCircle className="size-5 text-destructive" />
+              Cancel Order {cancellingOrder?.orderNumber} (Table #{cancellingOrder?.tableNumber})
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs">
+            <p className="text-muted-foreground">
+              Please choose a reason for cancelling this order so it reflects in your Order Analytics and Daily Reports.
+            </p>
+
+            <div className="space-y-1.5">
+              {[
+                "Customer Left / Changed Mind",
+                "Item Out of Stock",
+                "Kitchen Overcapacity / Delay",
+                "Mistake / Duplicate Order",
+                "Other Reason",
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setSelectedCancelReason(reason)}
+                  className={cn(
+                    "w-full text-left p-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-between",
+                    selectedCancelReason === reason
+                      ? "border-destructive bg-destructive/10 text-destructive font-bold"
+                      : "border-border/70 hover:bg-secondary/60 text-foreground"
+                  )}
+                >
+                  <span>{reason}</span>
+                  {selectedCancelReason === reason && <Check className="size-3.5 text-destructive" />}
+                </button>
+              ))}
+            </div>
+
+            {selectedCancelReason === "Other Reason" && (
+              <div className="pt-1">
+                <Input
+                  type="text"
+                  value={customCancelReason}
+                  onChange={(e) => setCustomCancelReason(e.target.value)}
+                  placeholder="Type specific reason..."
+                  className="h-9 text-xs rounded-xl bg-card border-border"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCancellingOrder(null)}
+              className="rounded-xl text-xs"
+            >
+              Back
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={Boolean(updatingId)}
+              onClick={async () => {
+                if (!cancellingOrder) return;
+                const reason =
+                  selectedCancelReason === "Other Reason"
+                    ? customCancelReason.trim() || "Other"
+                    : selectedCancelReason;
+                await handleUpdateStatus(cancellingOrder.id, "CANCELLED", reason);
+                setCancellingOrder(null);
+              }}
+              className="rounded-xl text-xs font-bold gap-1"
+            >
+              Confirm Cancellation
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </section>

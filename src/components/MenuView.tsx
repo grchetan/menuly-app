@@ -27,6 +27,7 @@ import {
   CookingPot,
   Edit2,
   RefreshCw,
+  User,
 } from "lucide-react";
 import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
 import { formatPrice, whatsappLink, APP_NAME } from "@/lib/config";
@@ -142,11 +143,25 @@ export function MenuView({
       return;
     }
 
+    const cleanName = dinerName.trim();
+    if (!cleanName) {
+      toast.error("Please enter your name so the kitchen knows who ordered.");
+      return;
+    }
+
+    const cleanDigits = dinerPhone.replace(/\D/g, "");
+    if (cleanDigits.length < 10) {
+      toast.error("Please enter a valid 10-digit contact mobile number.");
+      return;
+    }
+
     setIsPlacingOrder(true);
     try {
-      if (dinerName.trim() && typeof window !== "undefined") localStorage.setItem("menuly_diner_name", dinerName.trim());
-      if (dinerPhone.trim() && typeof window !== "undefined") localStorage.setItem("menuly_diner_phone", dinerPhone.trim());
-      if (typeof window !== "undefined") localStorage.setItem(`menuly_last_table_${r.slug}`, finalTable);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("menuly_diner_name", cleanName);
+        localStorage.setItem("menuly_diner_phone", dinerPhone.trim());
+        localStorage.setItem(`menuly_last_table_${r.slug}`, finalTable);
+      }
 
       const res = await fetch("/api/orders/place", {
         method: "POST",
@@ -155,8 +170,8 @@ export function MenuView({
           restaurantId: r.id,
           slug: r.slug,
           tableNumber: finalTable,
-          customerName: dinerName.trim() || undefined,
-          customerPhone: dinerPhone.trim() || undefined,
+          customerName: cleanName,
+          customerPhone: dinerPhone.trim(),
           notes: cookingNotes.trim() || undefined,
           items: cartItems.map((c) => ({
             id: c.id,
@@ -1281,8 +1296,50 @@ export function MenuView({
                 </div>
               )}
 
+              {/* Diner Name & Mobile Number (Required for kitchen notification) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-border/50">
+                <div>
+                  <label className="text-[10px] font-bold text-foreground flex items-center gap-1 mb-1">
+                    <User className="size-3 text-orange-500" /> Your Name <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    value={dinerName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDinerName(val);
+                      if (typeof window !== "undefined") localStorage.setItem("menuly_diner_name", val);
+                    }}
+                    placeholder="e.g. Rahul Sharma"
+                    className="h-8 text-xs rounded-xl bg-card border-border placeholder:text-muted-foreground/60"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-foreground flex items-center gap-1 mb-1">
+                    <Phone className="size-3 text-emerald-500" /> Contact Number <span className="text-destructive">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">
+                      +91
+                    </span>
+                    <Input
+                      type="tel"
+                      maxLength={14}
+                      value={dinerPhone}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDinerPhone(val);
+                        if (typeof window !== "undefined") localStorage.setItem("menuly_diner_phone", val);
+                      }}
+                      placeholder="98765 43210"
+                      className="h-8 pl-8 text-xs rounded-xl bg-card border-border font-mono placeholder:text-muted-foreground/60"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Cooking Instructions / Notes */}
-              <div>
+              <div className="pt-1">
                 <Input
                   type="text"
                   value={cookingNotes}
@@ -1385,6 +1442,12 @@ export function MenuView({
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30 px-3 py-0.5 text-xs font-bold mt-1">
                   Table #{activeOrder.tableNumber} • Dine-In
                 </div>
+                {activeOrder.customerName && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Guest: <span className="font-bold text-foreground">{activeOrder.customerName}</span>
+                    {activeOrder.customerPhone ? <span className="ml-1 text-[11px]">({activeOrder.customerPhone})</span> : null}
+                  </div>
+                )}
                 <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground font-mono mt-1">
                   <span>{activeOrder.orderNumber}</span>
                   <span>•</span>

@@ -962,15 +962,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 15. GET /api/restaurant/orders (Live and Historical Table Orders)
       if (pathname === "/api/restaurant/orders" && request.method === "GET") {
-        const restaurant = await getOrCreateUserRestaurant(auth.userId, auth.email);
-        if (!restaurant) {
+        const userRest = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        const restaurantId = (userRest as any)?.restaurant?.id || (userRest as any)?.id;
+        if (!restaurantId) {
           return json({ error: "No restaurant found for this account" }, 404);
         }
         const status = url.searchParams.get("status") || undefined;
         const table = url.searchParams.get("table") || undefined;
         const limit = Number(url.searchParams.get("limit") || "100");
         const orders = await getRestaurantOrders({
-          restaurantId: restaurant.id,
+          restaurantId,
           status,
           tableNumber: table,
           limit,
@@ -980,27 +981,30 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // 16. POST /api/restaurant/orders/update-status (Update status: PREPARING, SERVED, COMPLETED, CANCELLED)
       if (pathname === "/api/restaurant/orders/update-status" && request.method === "POST") {
-        const restaurant = await getOrCreateUserRestaurant(auth.userId, auth.email);
-        if (!restaurant) {
+        const userRest = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        const restaurantId = (userRest as any)?.restaurant?.id || (userRest as any)?.id;
+        if (!restaurantId) {
           return json({ error: "No restaurant found for this account" }, 404);
         }
         const rawBody = await request.json().catch(() => ({}));
         const res = await updateOrderStatus({
           orderId: rawBody.orderId,
-          restaurantId: restaurant.id,
+          restaurantId,
           status: rawBody.status,
           paymentStatus: rawBody.paymentStatus,
+          cancelReason: rawBody.cancelReason,
         });
         return json(res, res.status);
       }
 
       // 17. GET /api/restaurant/orders/stats (Live Active Orders, Today Revenue, Tables)
       if (pathname === "/api/restaurant/orders/stats" && request.method === "GET") {
-        const restaurant = await getOrCreateUserRestaurant(auth.userId, auth.email);
-        if (!restaurant) {
+        const userRest = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        const restaurantId = (userRest as any)?.restaurant?.id || (userRest as any)?.id;
+        if (!restaurantId) {
           return json({ error: "No restaurant found for this account" }, 404);
         }
-        const stats = await getRestaurantOrderStats(restaurant.id);
+        const stats = await getRestaurantOrderStats(restaurantId);
         return json({ success: true, stats });
       }
     }

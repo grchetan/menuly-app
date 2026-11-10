@@ -30,6 +30,7 @@ export interface StoredOrder {
   customerName: string | null;
   customerPhone: string | null;
   notes: string | null;
+  cancelReason?: string | null | undefined;
   items: Array<{
     id: string;
     name: string;
@@ -51,6 +52,12 @@ export interface StoredOrder {
 
 // In-Memory Fallback Cache for resilient offline/local/high-throughput operations
 const memoryOrders = new Map<string, StoredOrder>();
+
+function extractCancelReason(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const match = notes.match(/\[Cancelled:\s*([^\]]+)\]/i);
+  return match && match[1] ? match[1].trim() : null;
+}
 
 function generateOrderNumber(): string {
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -192,8 +199,10 @@ export async function getOrderById(orderId: string): Promise<StoredOrder | null>
   if (!orderId) return null;
 
   try {
-    const dbOrder = await prisma.order.findUnique({
-      where: { id: orderId },
+    const dbOrder = await prisma.order.findFirst({
+      where: {
+        OR: [{ id: orderId }, { orderNumber: orderId }],
+      },
     });
     if (dbOrder) {
       return {
@@ -204,6 +213,7 @@ export async function getOrderById(orderId: string): Promise<StoredOrder | null>
         customerName: dbOrder.customerName,
         customerPhone: dbOrder.customerPhone,
         notes: dbOrder.notes,
+        cancelReason: extractCancelReason(dbOrder.notes),
         items: Array.isArray(dbOrder.items) ? (dbOrder.items as any) : [],
         totalItems: dbOrder.totalItems,
         subtotal: Number(dbOrder.subtotal),
@@ -220,7 +230,16 @@ export async function getOrderById(orderId: string): Promise<StoredOrder | null>
     console.warn("[Orders] Database lookup failed, falling back to memory:", err);
   }
 
-  return memoryOrders.get(orderId) || null;
+  let mem = memoryOrders.get(orderId);
+  if (!mem) {
+    for (const o of memoryOrders.values()) {
+      if (o.orderNumber === orderId) {
+        mem = o;
+        break;
+      }
+    }
+  }
+  return mem || null;
 }
 
 export async function getRestaurantOrders(params: {
@@ -255,6 +274,7 @@ export async function getRestaurantOrders(params: {
         customerName: o.customerName,
         customerPhone: o.customerPhone,
         notes: o.notes,
+        cancelReason: extractCancelReason(o.notes),
         items: Array.isArray(o.items) ? (o.items as any) : [],
         totalItems: o.totalItems,
         subtotal: Number(o.subtotal),
@@ -282,16 +302,24 @@ export async function getRestaurantOrders(params: {
   return list;
 }
 
-export async function updateOrderStatus(params: {
+export interface UpdateOrderStatusParams {
   orderId: string;
-  restaurantId: string;
+  restaurantId?: string | undefined;
   status?: OrderStatus | undefined;
   paymentStatus?: PaymentStatus | undefined;
-}): Promise<{ success: boolean; status: number; error?: string; order?: StoredOrder }> {
-  const { orderId, restaurantId, status, paymentStatus } = params;
+  cancelReason?: string | undefined;
+}
+
+export async function updateOrderStatus(params: UpdateOrderStatusParams): Promise<{
+  success: boolean;
+  status: number;
+  error?: string;
+  order?: StoredOrder;
+}> {
+  const { orderId, restaurantId, status, paymentStatus, cancelReason } = params;
 
   let existing = await getOrderById(orderId);
-  if (!existing || existing.restaurantId !== restaurantId) {
+  if (!existing || (restaurantId && existing.restaurantId !== restaurantId)) {
     return { success: false, status: 404, error: "Order not found." };
   }
 
@@ -299,12 +327,25 @@ export async function updateOrderStatus(params: {
   const newPaymentStatus = paymentStatus || existing.paymentStatus;
   const updatedAt = new Date().toISOString();
 
+  let updatedNotes = existing.notes;
+  let resolvedCancelReason = existing.cancelReason;
+  if (newStatus === "CANCELLED" && cancelReason) {
+    resolvedCancelReason = cancelReason.trim();
+    const tag = `[Cancelled: ${resolvedCancelReason}]`;
+    if (!updatedNotes) {
+      updatedNotes = tag;
+    } else if (!updatedNotes.includes(tag)) {
+      updatedNotes = `${tag} ${updatedNotes}`;
+    }
+  }
+
   try {
     const updated = await prisma.order.update({
-      where: { id: orderId },
+      where: { id: existing.id },
       data: {
         ...(status ? { status: newStatus } : {}),
         ...(paymentStatus ? { paymentStatus: newPaymentStatus } : {}),
+        ...(updatedNotes !== existing.notes ? { notes: updatedNotes } : {}),
       },
     });
 
@@ -312,16 +353,21 @@ export async function updateOrderStatus(params: {
       ...existing,
       status: updated.status as OrderStatus,
       paymentStatus: updated.paymentStatus as PaymentStatus,
+      notes: updated.notes,
+      cancelReason: resolvedCancelReason || extractCancelReason(updated.notes),
       updatedAt: updated.updatedAt.toISOString(),
     };
   } catch (err) {
     console.warn("[Orders] Database status update failed, updated in memory:", err);
     existing.status = newStatus;
     existing.paymentStatus = newPaymentStatus;
+    existing.notes = updatedNotes;
+    existing.cancelReason = resolvedCancelReason;
     existing.updatedAt = updatedAt;
   }
 
-  memoryOrders.set(orderId, existing);
+  memoryOrders.set(existing.id, existing);
+  memoryOrders.set(existing.orderNumber, existing);
 
   return {
     success: true,
@@ -330,7 +376,7 @@ export async function updateOrderStatus(params: {
   };
 }
 
-export async function getRestaurantOrderStats(restaurantId: string): Promise<{
+export interface RestaurantOrderStats {
   activeOrdersCount: number;
   todayOrdersCount: number;
   todaySales: number;
@@ -338,8 +384,30 @@ export async function getRestaurantOrderStats(restaurantId: string): Promise<{
   preparingCount: number;
   servedCount: number;
   completedCount: number;
+  cancelledCount: number;
+  cancelledTodayCount: number;
   tablesActiveCount: number;
-}> {
+  dailyBreakdown: Array<{
+    day: string;
+    date: string;
+    totalOrders: number;
+    completedOrders: number;
+    cancelledOrders: number;
+    revenue: number;
+  }>;
+  recentCancelled: Array<{
+    id: string;
+    orderNumber: string;
+    tableNumber: string;
+    customerName: string | null;
+    customerPhone: string | null;
+    grandTotal: number;
+    cancelReason: string;
+    createdAt: string;
+  }>;
+}
+
+export async function getRestaurantOrderStats(restaurantId: string): Promise<RestaurantOrderStats> {
   const allOrders = await getRestaurantOrders({ restaurantId, limit: 300 });
 
   const todayStr = new Date().toDateString();
@@ -352,6 +420,8 @@ export async function getRestaurantOrderStats(restaurantId: string): Promise<{
   let preparingCount = 0;
   let servedCount = 0;
   let completedCount = 0;
+  let cancelledCount = 0;
+  let cancelledTodayCount = 0;
   const activeTables = new Set<string>();
 
   for (const o of allOrders) {
@@ -366,14 +436,70 @@ export async function getRestaurantOrderStats(restaurantId: string): Promise<{
       activeTables.add(o.tableNumber);
     } else if (o.status === "COMPLETED") {
       completedCount++;
+    } else if (o.status === "CANCELLED") {
+      cancelledCount++;
     }
   }
 
   for (const o of todayOrders) {
-    if (o.status !== "CANCELLED") {
+    if (o.status === "CANCELLED") {
+      cancelledTodayCount++;
+    } else {
       todaySales += o.grandTotal;
     }
   }
+
+  // 7-Day Daily Breakdown
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dailyBreakdown: RestaurantOrderStats["dailyBreakdown"] = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayName = dayNames[d.getDay()] || "Day";
+
+    const dayOrders = allOrders.filter(
+      (o) => o.createdAt.slice(0, 10) === dateStr
+    );
+
+    let completed = 0;
+    let cancelled = 0;
+    let revenue = 0;
+
+    for (const o of dayOrders) {
+      if (o.status === "COMPLETED" || o.status === "SERVED") {
+        completed++;
+        revenue += o.grandTotal;
+      } else if (o.status === "CANCELLED") {
+        cancelled++;
+      }
+    }
+
+    dailyBreakdown.push({
+      day: dayName,
+      date: dateStr,
+      totalOrders: dayOrders.length,
+      completedOrders: completed,
+      cancelledOrders: cancelled,
+      revenue,
+    });
+  }
+
+  // Last 15 cancelled orders with reason
+  const recentCancelled = allOrders
+    .filter((o) => o.status === "CANCELLED")
+    .map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      tableNumber: o.tableNumber,
+      customerName: o.customerName,
+      customerPhone: o.customerPhone,
+      grandTotal: o.grandTotal,
+      cancelReason: o.cancelReason || "Cancelled by restaurant / diner",
+      createdAt: o.createdAt,
+    }))
+    .slice(0, 15);
 
   return {
     activeOrdersCount: pendingCount + preparingCount + servedCount,
@@ -383,6 +509,10 @@ export async function getRestaurantOrderStats(restaurantId: string): Promise<{
     preparingCount,
     servedCount,
     completedCount,
+    cancelledCount,
+    cancelledTodayCount,
     tablesActiveCount: activeTables.size,
+    dailyBreakdown,
+    recentCancelled,
   };
 }

@@ -23,15 +23,64 @@ import {
   Mail,
   Users,
   Save,
+  CookingPot,
+  XCircle,
+  AlertCircle,
+  BarChart3,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { myMenuQuery, uploadImage, updateRestaurantHelper } from "@/lib/restaurant";
-import { slugify } from "@/lib/config";
+import { slugify, formatPrice } from "@/lib/config";
 import { cn } from "@/lib/utils";
-import { LiveOrdersManager } from "@/components/dashboard/LiveOrdersManager";
+
+interface OrderStatsData {
+  activeOrdersCount: number;
+  todayOrdersCount: number;
+  todaySales: number;
+  pendingCount: number;
+  preparingCount: number;
+  servedCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  cancelledTodayCount: number;
+  tablesActiveCount: number;
+  dailyBreakdown: Array<{
+    day: string;
+    date: string;
+    totalOrders: number;
+    completedOrders: number;
+    cancelledOrders: number;
+    revenue: number;
+  }>;
+  recentCancelled: Array<{
+    id: string;
+    orderNumber: string;
+    tableNumber: string;
+    customerName: string | null;
+    customerPhone: string | null;
+    grandTotal: number;
+    cancelReason: string;
+    createdAt: string;
+  }>;
+}
+
+async function fetchOrderStats(): Promise<OrderStatsData | null> {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem("menuly_token");
+  try {
+    const res = await fetch("/api/restaurant/orders/stats", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.success ? data.stats : null;
+  } catch {
+    return null;
+  }
+}
 
 function DashboardSkeleton() {
   return (
@@ -93,6 +142,12 @@ function Dashboard() {
     anyErr?.code === "ACCOUNT_BANNED" ||
     anyErr?.isBanned ||
     (typeof anyErr?.message === "string" && anyErr.message.toLowerCase().includes("suspended"));
+
+  const { data: orderStats } = useQuery({
+    queryKey: ["restaurant-order-stats"],
+    queryFn: fetchOrderStats,
+    refetchInterval: 10000,
+  });
 
   const analytics = data?.analytics ?? {
     totalScans: 0,
@@ -477,14 +532,202 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Live Table Orders & Kitchen POS Manager */}
-        {r && (
-          <LiveOrdersManager
-            restaurantId={r.id}
-            restaurantSlug={r.slug}
-            restaurantName={r.name}
-          />
-        )}
+        {/* ============================================================= */}
+        {/* DEDICATED ORDER ANALYTICS & INSIGHTS SECTION                  */}
+        {/* ============================================================= */}
+        <div className="space-y-4 rounded-3xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                  <CookingPot className="size-4" />
+                </div>
+                <div>
+                  <h2 className="font-serif font-black text-lg sm:text-xl text-foreground">
+                    Order Performance &amp; Cancellation Analytics
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Daily dine-in volume, order fulfillment rate, and cancellation reason reports.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              asChild
+              className="rounded-xl font-bold text-xs gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shadow-soft shrink-0"
+            >
+              <Link to="/orders">
+                <CookingPot className="size-4" />
+                <span>Open Live Kitchen POS ({orderStats?.activeOrdersCount ?? 0} Active)</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* 4 Performance Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>Today Orders</span>
+                <UtensilsCrossed className="size-3.5 text-primary" />
+              </span>
+              <p className="font-display text-2xl font-black text-foreground">
+                {orderStats?.todayOrdersCount ?? 0}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {formatPrice(orderStats?.todaySales ?? 0)} revenue today
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>Active Cooking</span>
+                <CookingPot className="size-3.5 text-blue-500" />
+              </span>
+              <p className="font-display text-2xl font-black text-blue-600 dark:text-blue-400">
+                {orderStats?.activeOrdersCount ?? 0}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {orderStats?.pendingCount ?? 0} pending • {orderStats?.preparingCount ?? 0} in kitchen
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>Completed Orders</span>
+                <CheckCircle2 className="size-3.5 text-emerald-500" />
+              </span>
+              <p className="font-display text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {orderStats?.completedCount ?? 0}
+              </p>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                Successfully served to tables
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>Cancelled Orders</span>
+                <XCircle className="size-3.5 text-destructive" />
+              </span>
+              <p className="font-display text-2xl font-black text-destructive">
+                {orderStats?.cancelledCount ?? 0}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {orderStats?.cancelledTodayCount ?? 0} cancelled today
+              </p>
+            </div>
+          </div>
+
+          {/* 2-Column: Daily Order Trends + Cancellation Log */}
+          <div className="grid gap-4 lg:grid-cols-2 pt-1">
+            {/* 7-Day Daily Order Chart */}
+            <div className="rounded-2xl border border-border/70 bg-secondary/20 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">7-Day Daily Order Volume</h3>
+                  <p className="text-[11px] text-muted-foreground">Completed vs Cancelled orders per day</p>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-bold">
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span className="size-2 rounded-full bg-emerald-500" /> Served
+                  </span>
+                  <span className="flex items-center gap-1 text-destructive">
+                    <span className="size-2 rounded-full bg-destructive" /> Cancelled
+                  </span>
+                </div>
+              </div>
+
+              {/* Stacked / Dual Bar Chart */}
+              <div className="h-36 flex items-end justify-between gap-2 pt-2 px-1">
+                {(orderStats?.dailyBreakdown || []).map((d) => {
+                  const maxDay = Math.max(1, ...((orderStats?.dailyBreakdown || []).map((x) => x.totalOrders)));
+                  const completedHeight = d.completedOrders > 0 ? Math.max(6, Math.round((d.completedOrders / maxDay) * 90)) : 0;
+                  const cancelledHeight = d.cancelledOrders > 0 ? Math.max(6, Math.round((d.cancelledOrders / maxDay) * 90)) : 0;
+
+                  return (
+                    <div key={d.date} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
+                      <span className="text-[10px] font-bold text-muted-foreground group-hover:text-foreground">
+                        {d.totalOrders}
+                      </span>
+                      <div className="w-full max-w-[28px] flex flex-col-reverse items-center gap-0.5 rounded-t-md overflow-hidden bg-muted/40 p-0.5">
+                        {completedHeight > 0 && (
+                          <div
+                            style={{ height: `${completedHeight}px` }}
+                            className="w-full rounded-xs bg-emerald-500/80 hover:bg-emerald-500 transition-all"
+                            title={`${d.completedOrders} served (${formatPrice(d.revenue)})`}
+                          />
+                        )}
+                        {cancelledHeight > 0 && (
+                          <div
+                            style={{ height: `${cancelledHeight}px` }}
+                            className="w-full rounded-xs bg-destructive/80 hover:bg-destructive transition-all"
+                            title={`${d.cancelledOrders} cancelled`}
+                          />
+                        )}
+                      </div>
+                      <span className="text-[11px] font-semibold text-foreground">{d.day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recent Cancelled Orders with Reason */}
+            <div className="rounded-2xl border border-border/70 bg-secondary/20 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                <div>
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <AlertCircle className="size-3.5 text-destructive" />
+                    Cancellation Reasons &amp; History
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Audit of why orders were cancelled</p>
+                </div>
+                <span className="text-[10px] font-bold font-mono rounded-full bg-destructive/10 text-destructive px-2 py-0.5">
+                  {orderStats?.cancelledCount ?? 0} Total
+                </span>
+              </div>
+
+              {(!orderStats?.recentCancelled || orderStats.recentCancelled.length === 0) ? (
+                <div className="py-8 text-center text-xs text-muted-foreground space-y-1">
+                  <CheckCircle2 className="size-7 mx-auto text-emerald-500/60" />
+                  <p className="font-bold text-foreground">Zero Cancellations</p>
+                  <p className="text-[11px]">All placed orders are being fulfilled cleanly.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar divide-y divide-border/40 text-xs">
+                  {orderStats.recentCancelled.map((c) => (
+                    <div key={c.id} className="pt-2 first:pt-0 flex items-start justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground">{c.orderNumber}</span>
+                          <span className="rounded bg-secondary px-1 text-[10px] font-bold">
+                            Table #{c.tableNumber}
+                          </span>
+                          {c.customerName && (
+                            <span className="text-muted-foreground text-[11px]">
+                              • {c.customerName}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-semibold text-destructive">
+                          Reason: <span className="underline decoration-destructive/40 font-bold">{c.cancelReason}</span>
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-black text-foreground">{formatPrice(c.grandTotal)}</span>
+                        <p className="text-[10px] text-muted-foreground">
+                          {new Date(c.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Clean 2-Column Section */}
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] lg:grid-cols-[minmax(0,1fr)_320px] min-w-0">

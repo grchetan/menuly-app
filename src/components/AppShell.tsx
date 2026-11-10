@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 const DASHBOARD_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
+  { to: "/orders", label: "Orders" },
   { to: "/my-menu", label: "My Menu" },
   { to: "/qr", label: "QR Studio" },
   { to: "/profile", label: "My Profile" },
