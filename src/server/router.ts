@@ -801,7 +801,11 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       // 1. GET /api/restaurant/my-menu
       if (pathname === "/api/restaurant/my-menu" && request.method === "GET") {
         const menu = await getOrCreateUserRestaurant(auth.userId, auth.email, auth.fullName, auth.role);
-        return json({ success: true, ...menu });
+        return json(
+          { success: true, ...menu },
+          200,
+          { "Cache-Control": "private, max-age=10, stale-while-revalidate=60" }
+        );
       }
 
       // 2. POST /api/restaurant/update

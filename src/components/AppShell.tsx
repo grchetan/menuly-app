@@ -145,6 +145,8 @@ export function AppShell({
       localStorage.removeItem("menuly_user");
       localStorage.removeItem("menuly_demo_mode");
       localStorage.removeItem("menuly_demo_menu");
+      localStorage.removeItem("menuly_cached_full_menu");
+      localStorage.removeItem("menuly_cached_full_menu_ts");
       sessionStorage.removeItem("menuly_admin_auth");
       document.cookie = "menuly_token=; path=/; max-age=0";
     }

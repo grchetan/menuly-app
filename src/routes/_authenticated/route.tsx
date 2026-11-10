@@ -74,8 +74,8 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const [accountStatus, setAccountStatus] = useState<"CHECKING" | "ACTIVE" | "DELETED" | "BANNED" | "UNAUTHENTICATED">(() => {
-    if (typeof window === "undefined") return "CHECKING";
-    return localStorage.getItem("menuly_token") ? "CHECKING" : "UNAUTHENTICATED";
+    if (typeof window === "undefined") return "ACTIVE";
+    return localStorage.getItem("menuly_token") ? "ACTIVE" : "UNAUTHENTICATED";
   });
   const [banReason, setBanReason] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -90,6 +90,7 @@ function AuthenticatedLayout() {
           const decoded = decodeURIComponent(match[1]);
           if (decoded && decoded !== "undefined" && decoded !== "null") {
             localStorage.setItem("menuly_token", decoded);
+            setAccountStatus("ACTIVE");
             verifyToken(decoded);
             return;
           }

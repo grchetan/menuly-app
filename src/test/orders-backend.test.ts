@@ -20,7 +20,6 @@ describe("Table-Wise Dine-In Order Engine & POS Suite", () => {
         data: {
           name: "Vitest Test Bistro",
           slug: "vitest-test-bistro-" + Date.now(),
-          ownerEmail: "test-orders@menuly.app",
         },
         select: { id: true, slug: true },
       });

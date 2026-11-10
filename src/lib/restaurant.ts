@@ -248,12 +248,21 @@ export async function loadMyMenu(): Promise<FullMenu> {
     throw err;
   }
 
-  return {
+  const fullMenu: FullMenu = {
     restaurant: data.restaurant,
     categories: data.categories,
     items: data.items,
     analytics: data.analytics,
   };
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("menuly_cached_full_menu", JSON.stringify(fullMenu));
+      localStorage.setItem("menuly_cached_full_menu_ts", String(Date.now()));
+    } catch {}
+  }
+
+  return fullMenu;
 }
 
 export async function updateRestaurantHelper(updates: {
@@ -309,7 +318,28 @@ export async function updateRestaurantHelper(updates: {
 export const myMenuQuery = queryOptions({
   queryKey: ["my-menu"],
   queryFn: loadMyMenu,
-  staleTime: 1000 * 60 * 5, // 5 minutes - Instant 0ms page transitions, eliminates DB roundtrips on tab switches
+  initialData: () => {
+    if (typeof window === "undefined") return undefined;
+    const token = localStorage.getItem("menuly_token");
+    if (!token) return undefined;
+    try {
+      const cached = localStorage.getItem("menuly_cached_full_menu");
+      if (cached) {
+        return JSON.parse(cached) as FullMenu;
+      }
+    } catch {}
+    return undefined;
+  },
+  initialDataUpdatedAt: () => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const ts = localStorage.getItem("menuly_cached_full_menu_ts");
+      return ts ? Number(ts) : 0;
+    } catch {
+      return 0;
+    }
+  },
+  staleTime: 1000 * 60 * 3, // 3 minutes - Instant 0ms page transitions, eliminates DB roundtrips on tab switches
   gcTime: 1000 * 60 * 30, // 30 minutes in memory
   refetchOnWindowFocus: false, // Prevents reloading the entire database every time user focuses window
   retry: (failureCount, error: any) => {

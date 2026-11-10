@@ -47,8 +47,31 @@ export async function getOrCreateUserRestaurant(
   userFullName?: string | null,
   role?: string
 ) {
-  // Check if owner user exists and is in good standing
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const now = Date.now();
+  const cached = userRestaurantCache.get(userId);
+  if (cached && now < cached.expiresAt) {
+    return cached.data;
+  }
+
+  // Run user verification and restaurant retrieval in parallel to minimize Supabase roundtrips
+  const [user, existingRestaurant] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, deletedAt: true, isBanned: true, banReason: true },
+    }),
+    prisma.restaurant.findFirst({
+      where: { ownerId: userId, deletedAt: null },
+      include: {
+        categories: {
+          orderBy: { position: "asc" },
+        },
+        menuItems: {
+          orderBy: { position: "asc" },
+        },
+      },
+    }),
+  ]);
+
   if (!user || user.deletedAt) {
     const err = new Error("Menuly Official: Your account has been deleted by administration.");
     (err as any).code = "ACCOUNT_DELETED";
@@ -62,23 +85,7 @@ export async function getOrCreateUserRestaurant(
     throw err;
   }
 
-  const now = Date.now();
-  const cached = userRestaurantCache.get(userId);
-  if (cached && now < cached.expiresAt) {
-    return cached.data;
-  }
-
-  let restaurant = await prisma.restaurant.findFirst({
-    where: { ownerId: userId, deletedAt: null },
-    include: {
-      categories: {
-        orderBy: { position: "asc" },
-      },
-      menuItems: {
-        orderBy: { position: "asc" },
-      },
-    },
-  });
+  let restaurant = existingRestaurant;
 
   if (!restaurant) {
     // Generate unique slug
@@ -249,7 +256,7 @@ export async function getOrCreateUserRestaurant(
     analytics,
   };
 
-  userRestaurantCache.set(userId, { data: result, expiresAt: Date.now() + 60 * 1000 });
+  userRestaurantCache.set(userId, { data: result, expiresAt: Date.now() + 120 * 1000 });
   return result;
 }
 
