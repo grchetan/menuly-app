@@ -258,6 +258,19 @@ header.fixed {
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
+
+  /* Suppress toasts, floating navigation, and dark modal backdrops in print */
+  [data-sonner-toaster],
+  [data-sonner-toast],
+  .sonner-toast {
+    display: none !important;
+  }
+
+  div[data-state="open"].bg-black\/80,
+  div[data-state="open"].bg-black\/50 {
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
 }
 
 /* =========================================================

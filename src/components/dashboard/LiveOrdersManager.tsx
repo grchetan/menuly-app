@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { formatPrice, whatsappLink } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { printReceipt } from "@/lib/receipt-printer";
 
 export type OrderStatus = "PENDING" | "PREPARING" | "SERVED" | "COMPLETED" | "CANCELLED";
 export type PaymentStatus = "UNPAID" | "PAID_AT_COUNTER" | "PAID_ONLINE";
@@ -280,10 +281,9 @@ export function LiveOrdersManager({
   }, [orders]);
 
   const handlePrintReceipt = (order: StoredOrder) => {
-    setViewingReceiptOrder(order);
-    setTimeout(() => {
-      window.print();
-    }, 400);
+    printReceipt(order, {
+      name: restaurantName || "Restaurant",
+    });
   };
 
   return (
@@ -830,10 +830,16 @@ export function LiveOrdersManager({
               <div className="pt-2 flex items-center gap-2 print:hidden">
                 <Button
                   type="button"
-                  onClick={() => window.print()}
-                  className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5"
+                  onClick={() => {
+                    if (viewingReceiptOrder) {
+                      printReceipt(viewingReceiptOrder, {
+                        name: restaurantName || "Restaurant",
+                      });
+                    }
+                  }}
+                  className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5 bg-primary text-primary-foreground hover:brightness-105"
                 >
-                  <Printer className="size-3.5" /> Print Receipt
+                  <Printer className="size-3.5" /> Print Thermal Slip (80mm / PDF)
                 </Button>
                 <Button
                   type="button"

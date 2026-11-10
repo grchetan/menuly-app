@@ -36,6 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getOptimizedBannerUrl } from "@/lib/banner-presets";
+import { printReceipt } from "@/lib/receipt-printer";
 
 export function VegMark({ veg: _veg, className: _className }: { veg?: boolean; className?: string }) {
   return null;
@@ -1445,10 +1446,18 @@ export function MenuView({
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
-                    onClick={() => window.print()}
-                    className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5"
+                    onClick={() => {
+                      printReceipt(activeOrder, {
+                        name: r.name,
+                        address: r.address,
+                        phone: r.phone,
+                        whatsapp: r.whatsapp,
+                        slug: r.slug,
+                      });
+                    }}
+                    className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5 bg-primary text-primary-foreground hover:brightness-105"
                   >
-                    <Printer className="size-3.5" /> Save / Print Receipt
+                    <Printer className="size-3.5" /> Save / Print Receipt (PDF)
                   </Button>
                   {r.whatsapp && (
                     <Button
