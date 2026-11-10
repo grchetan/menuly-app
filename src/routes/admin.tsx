@@ -608,11 +608,12 @@ function AdminPage() {
   }, []);
 
   // Fetch Live PostgreSQL Data when Admin is unlocked
-  useEffect(() => {
-    if (!isAdminAuth) return;
+  const refetchAdminData = useCallback(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token) {
       setDataLoading(false);
+      safeStorage.removeSessionItem("menuly_admin_auth");
+      setIsAdminAuth(false);
       return;
     }
 
@@ -654,6 +655,19 @@ function AdminPage() {
         .catch(() => ({ success: false })),
     ])
       .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData, trashData]) => {
+        // Auto-detect expired token or authorization error
+        const isAuthError =
+          Boolean(userData?.error && (userData.error.includes("Unauthorized") || userData.error.includes("Forbidden") || userData.error.includes("token"))) ||
+          Boolean(restData?.error && (restData.error.includes("Unauthorized") || restData.error.includes("Forbidden") || restData.error.includes("token")));
+
+        if (isAuthError) {
+          toast.error("Super Admin session expired. Please sign in again.");
+          safeStorage.removeSessionItem("menuly_admin_auth");
+          safeStorage.removeItem("menuly_token");
+          setIsAdminAuth(false);
+          return;
+        }
+
         if (trashData?.success && Array.isArray(trashData.trash)) {
           setTrashItems(trashData.trash);
         }
@@ -716,7 +730,13 @@ function AdminPage() {
       .finally(() => {
         setDataLoading(false);
       });
-  }, [isAdminAuth]);
+  }, [analyticsPeriod]);
+
+  useEffect(() => {
+    if (isAdminAuth) {
+      refetchAdminData();
+    }
+  }, [isAdminAuth, refetchAdminData]);
 
   const loadAnalyticsData = async (period = analyticsPeriod) => {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
@@ -1551,6 +1571,20 @@ function AdminPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchAdminData();
+                toast.success("Refreshing live admin data...");
+              }}
+              disabled={dataLoading}
+              className="gap-1.5 font-bold shadow-xs"
+            >
+              <RefreshCw className={cn("size-3.5", dataLoading && "animate-spin text-primary")} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+
             <Dialog open={createTicketOpen} onOpenChange={setCreateTicketOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="gap-1.5 font-bold shadow-sm">
