@@ -21,10 +21,11 @@ export interface ScannedMenuResult {
 }
 
 const CANDIDATE_MODELS = [
-  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.8-flash",
   "gemini-flash-latest",
-  "gemini-2.5-flash",
 ];
 
 /**
@@ -34,7 +35,8 @@ export async function extractMenuFromImage(
   imageBase64: string,
   mimeType: string = "image/jpeg"
 ): Promise<{ success: boolean; status: number; error?: string; data?: ScannedMenuResult }> {
-  const apiKey = process.env["GEMINI_API_KEY"];
+  const rawApiKey = process.env["GEMINI_API_KEY"];
+  const apiKey = rawApiKey ? rawApiKey.trim().replace(/^["']|["']$/g, "").trim() : "";
 
   if (!apiKey) {
     return {
@@ -99,7 +101,7 @@ RULES FOR EXTRACTION:
 
   for (const modelName of CANDIDATE_MODELS) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
