@@ -226,6 +226,11 @@ export function LiveOrdersManager({
   const prevServiceCallIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef(false);
 
+  // Tracks in-flight / optimistic status updates so background polling NEVER reverts UI
+  const optimisticUpdatesRef = useRef<
+    Map<string, { status: OrderStatus; timestamp: number; cancelReason?: string | undefined }>
+  >(new Map());
+
   // Tracks already announced order and service call IDs across session so they speak ONLY ONCE and NEVER repeat
   const announcedIdsRef = useRef<Set<string>>(new Set<string>());
   useEffect(() => {
@@ -255,7 +260,30 @@ export function LiveOrdersManager({
       });
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.orders)) {
-        const fetchedOrders: StoredOrder[] = data.orders;
+        const now = Date.now();
+        // Prune optimistic locks older than 15s
+        optimisticUpdatesRef.current.forEach((val, id) => {
+          if (now - val.timestamp > 15000) {
+            optimisticUpdatesRef.current.delete(id);
+          }
+        });
+
+        // Merge fetched orders with any active optimistic status updates
+        const mergedOrders: StoredOrder[] = data.orders.map((o: StoredOrder) => {
+          const optimistic =
+            optimisticUpdatesRef.current.get(o.id) ||
+            optimisticUpdatesRef.current.get(o.orderNumber);
+          if (optimistic) {
+            return {
+              ...o,
+              status: optimistic.status,
+              cancelReason: optimistic.cancelReason || o.cancelReason,
+            };
+          }
+          return o;
+        });
+
+        const fetchedOrders: StoredOrder[] = mergedOrders;
         setOrders(fetchedOrders);
 
         // Service bell / Waiter calls detection & voice alert
@@ -422,10 +450,16 @@ export function LiveOrdersManager({
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
-  // Update Status handler (Optimistic 0ms instant UI update)
+  // Update Status handler (Optimistic 0ms instant UI update with background lock)
   const handleUpdateStatus = async (orderId: string, status: OrderStatus, cancelReason?: string) => {
-    const prevOrders = orders;
-    // 0ms instant UI update
+    // 1. Lock optimistic status so background polling NEVER reverts it
+    optimisticUpdatesRef.current.set(orderId, {
+      status,
+      timestamp: Date.now(),
+      cancelReason: cancelReason || undefined,
+    });
+
+    // 2. 0ms instant UI update (immediately transitions card / removes completed)
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId || o.orderNumber === orderId
@@ -451,10 +485,16 @@ export function LiveOrdersManager({
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to update order");
       }
+      if (data.order?.id) {
+        optimisticUpdatesRef.current.set(data.order.id, {
+          status: data.order.status,
+          timestamp: Date.now(),
+          cancelReason: data.order.cancelReason,
+        });
+      }
     } catch (err: any) {
-      // Revert on network failure
-      setOrders(prevOrders);
-      toast.error(err.message || "Failed to update status");
+      optimisticUpdatesRef.current.delete(orderId);
+      toast.error(err.message || "Failed to update status on server");
     } finally {
       setUpdatingId(null);
     }
@@ -576,19 +616,20 @@ export function LiveOrdersManager({
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* LIVE TABLE SERVICE BELL / WAITER CALLS BANNER                */}
+      {/* LIVE TABLE SERVICE BELL / WAITER CALLS CARD                   */}
       {/* ------------------------------------------------------------- */}
       {serviceCalls.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-card p-3.5 sm:p-4 space-y-3 shadow-md animate-rise">
+        <div className="rounded-2xl border border-border/80 bg-card p-4 space-y-3 shadow-xs animate-rise">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="relative flex size-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full size-2.5 bg-amber-500"></span>
+              <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
+                <BellRing className="size-3.5" />
               </span>
-              <span className="font-bold text-xs uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                <BellRing className="size-4 text-amber-600 animate-bounce" />
-                Active Table Service Calls ({serviceCalls.length})
+              <span className="font-bold text-xs uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                Table Service Requests
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                {serviceCalls.length} active
               </span>
             </div>
             <span className="text-[11px] font-semibold text-muted-foreground hidden sm:inline">
@@ -596,18 +637,18 @@ export function LiveOrdersManager({
             </span>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {serviceCalls.map((call) => (
               <div
                 key={call.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-card border border-amber-500/30 shadow-xs gap-3"
+                className="flex items-center justify-between p-3 rounded-xl bg-secondary/35 border border-border/70 hover:border-border shadow-2xs gap-3 transition-colors"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-black text-sm text-foreground">
                       Table #{call.tableNumber}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold uppercase">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-secondary text-foreground px-2 py-0.5 text-[10px] font-bold uppercase border border-border/60">
                       {call.reason === "water" ? (
                         <>
                           <Droplets className="size-3 text-sky-600 dark:text-sky-400" /> Water
@@ -637,7 +678,7 @@ export function LiveOrdersManager({
                   size="sm"
                   onClick={() => handleResolveServiceCall(call.id)}
                   disabled={resolvingCallId === call.id}
-                  className="h-8 px-3 rounded-lg text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs shrink-0 cursor-pointer"
+                  className="h-8 px-3 rounded-lg text-xs font-bold gap-1 bg-amber-600 hover:bg-amber-700 text-white shadow-xs shrink-0 cursor-pointer active:scale-95 transition-all"
                 >
                   <Check className="size-3.5" />
                   <span>Attended</span>
@@ -940,9 +981,8 @@ export function LiveOrdersManager({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={isUpdating}
                         onClick={() => handleUpdateStatus(order.id, "PREPARING")}
-                        className="flex-1 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1 shadow-xs"
+                        className="flex-1 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs gap-1 shadow-xs transition-all cursor-pointer"
                       >
                         <CookingPot className="size-3.5" /> Start Cooking
                       </Button>
@@ -952,9 +992,8 @@ export function LiveOrdersManager({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={isUpdating}
                         onClick={() => handleUpdateStatus(order.id, "SERVED")}
-                        className="flex-1 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1 shadow-xs"
+                        className="flex-1 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs gap-1 shadow-xs transition-all cursor-pointer"
                       >
                         <Check className="size-3.5" /> Mark Served
                       </Button>
@@ -964,9 +1003,8 @@ export function LiveOrdersManager({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={isUpdating}
                         onClick={() => handleUpdateStatus(order.id, "COMPLETED")}
-                        className="flex-1 h-9 rounded-xl bg-foreground text-background font-bold text-xs gap-1 shadow-xs"
+                        className="flex-1 h-9 rounded-xl bg-foreground hover:bg-foreground/90 active:scale-[0.98] text-background font-bold text-xs gap-1 shadow-xs transition-all cursor-pointer"
                       >
                         <CheckCircle2 className="size-3.5" /> Complete & Settle
                       </Button>

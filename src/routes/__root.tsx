@@ -20,7 +20,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { MaintenanceScreen } from "@/components/MaintenanceScreen";
 import { AutoUpdateDetector } from "@/components/AutoUpdateDetector";
 import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
-import { CustomCursor } from "@/components/CustomCursor";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { VisitorTracker } from "@/components/VisitorTracker";
 
@@ -367,7 +366,6 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CustomCursor />
       <AutoUpdateDetector />
       <NetworkStatusIndicator />
       <VisitorTracker />

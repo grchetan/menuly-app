@@ -266,26 +266,30 @@ export async function getRestaurantOrders(params: {
     });
 
     if (dbOrders.length > 0) {
-      return dbOrders.map((o) => ({
-        id: o.id,
-        orderNumber: o.orderNumber,
-        restaurantId: o.restaurantId,
-        tableNumber: o.tableNumber,
-        customerName: o.customerName,
-        customerPhone: o.customerPhone,
-        notes: o.notes,
-        cancelReason: extractCancelReason(o.notes),
-        items: Array.isArray(o.items) ? (o.items as any) : [],
-        totalItems: o.totalItems,
-        subtotal: Number(o.subtotal),
-        tax: Number(o.tax),
-        grandTotal: Number(o.grandTotal),
-        status: o.status as OrderStatus,
-        paymentStatus: o.paymentStatus as PaymentStatus,
-        paymentMethod: o.paymentMethod,
-        createdAt: o.createdAt.toISOString(),
-        updatedAt: o.updatedAt.toISOString(),
-      }));
+      return dbOrders.map((o) => {
+        const mem = memoryOrders.get(o.id) || memoryOrders.get(o.orderNumber);
+        const memIsNewer = mem && new Date(mem.updatedAt).getTime() > o.updatedAt.getTime();
+        return {
+          id: o.id,
+          orderNumber: o.orderNumber,
+          restaurantId: o.restaurantId,
+          tableNumber: o.tableNumber,
+          customerName: o.customerName,
+          customerPhone: o.customerPhone,
+          notes: memIsNewer ? mem.notes : o.notes,
+          cancelReason: memIsNewer ? mem.cancelReason : extractCancelReason(o.notes),
+          items: Array.isArray(o.items) ? (o.items as any) : [],
+          totalItems: o.totalItems,
+          subtotal: Number(o.subtotal),
+          tax: Number(o.tax),
+          grandTotal: Number(o.grandTotal),
+          status: (memIsNewer ? mem.status : o.status) as OrderStatus,
+          paymentStatus: (memIsNewer ? mem.paymentStatus : o.paymentStatus) as PaymentStatus,
+          paymentMethod: o.paymentMethod,
+          createdAt: o.createdAt.toISOString(),
+          updatedAt: memIsNewer ? mem.updatedAt : o.updatedAt.toISOString(),
+        };
+      });
     }
   } catch (err) {
     console.warn("[Orders] Database list failed, falling back to memory:", err);
@@ -318,7 +322,8 @@ export async function updateOrderStatus(params: UpdateOrderStatusParams): Promis
 }> {
   const { orderId, restaurantId, status, paymentStatus, cancelReason } = params;
 
-  let existing = await getOrderById(orderId);
+  // 1. Fast-path: Check memory store first for 0ms lookup
+  let existing = memoryOrders.get(orderId) || (await getOrderById(orderId));
   if (!existing || (restaurantId && existing.restaurantId !== restaurantId)) {
     return { success: false, status: 404, error: "Order not found." };
   }
@@ -339,6 +344,19 @@ export async function updateOrderStatus(params: UpdateOrderStatusParams): Promis
     }
   }
 
+  // 2. Update memory store IMMEDIATELY (0ms instant response for all concurrent polls)
+  existing = {
+    ...existing,
+    status: newStatus,
+    paymentStatus: newPaymentStatus,
+    notes: updatedNotes,
+    cancelReason: resolvedCancelReason,
+    updatedAt,
+  };
+  memoryOrders.set(existing.id, existing);
+  memoryOrders.set(existing.orderNumber, existing);
+
+  // 3. Persist to Prisma Database asynchronously
   try {
     const updated = await prisma.order.update({
       where: { id: existing.id },
@@ -349,25 +367,15 @@ export async function updateOrderStatus(params: UpdateOrderStatusParams): Promis
       },
     });
 
-    existing = {
-      ...existing,
-      status: updated.status as OrderStatus,
-      paymentStatus: updated.paymentStatus as PaymentStatus,
-      notes: updated.notes,
-      cancelReason: resolvedCancelReason || extractCancelReason(updated.notes),
-      updatedAt: updated.updatedAt.toISOString(),
-    };
+    existing.status = updated.status as OrderStatus;
+    existing.paymentStatus = updated.paymentStatus as PaymentStatus;
+    existing.notes = updated.notes;
+    existing.updatedAt = updated.updatedAt.toISOString();
+    memoryOrders.set(existing.id, existing);
+    memoryOrders.set(existing.orderNumber, existing);
   } catch (err) {
     console.warn("[Orders] Database status update failed, updated in memory:", err);
-    existing.status = newStatus;
-    existing.paymentStatus = newPaymentStatus;
-    existing.notes = updatedNotes;
-    existing.cancelReason = resolvedCancelReason;
-    existing.updatedAt = updatedAt;
   }
-
-  memoryOrders.set(existing.id, existing);
-  memoryOrders.set(existing.orderNumber, existing);
 
   return {
     success: true,

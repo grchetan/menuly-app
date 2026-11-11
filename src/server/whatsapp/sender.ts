@@ -68,15 +68,13 @@ export async function sendWhatsAppOtp(
     };
   }
 
-  // 2. DEVELOPMENT & TESTING SAFETY GUARD
-  // If running in development OR if WHATSAPP_RESTRICT_TO_TEST is enabled,
-  // ONLY the authorized test number (9179878521) will receive real WhatsApp messages.
-  // Any other number is simulated in console so real people never receive accidental OTPs!
-  const isDev = process.env["NODE_ENV"] !== "production";
-  const restrictToTest = process.env["WHATSAPP_RESTRICT_TO_TEST"] !== "false";
+  // 2. OPTIONAL TEST SANDBOX RESTRICTION GUARD
+  // ONLY active when WHATSAPP_RESTRICT_TO_TEST="true" is explicitly configured in environment.
+  // By default in production/demo, all valid phone numbers receive real live WhatsApp OTPs.
+  const restrictToTest = process.env["WHATSAPP_RESTRICT_TO_TEST"] === "true";
   const isAuthorized = isAuthorizedTestPhone(formattedPhone);
 
-  if ((isDev || restrictToTest) && !isAuthorized) {
+  if (restrictToTest && !isAuthorized) {
     console.log("================================================================");
     console.log("📱 [MENULY WHATSAPP OTP — SAFETY GUARD ACTIVE]");
     console.log(`Recipient:   ${formattedPhone} (SIMULATED — Not in test whitelist)`);
@@ -86,7 +84,7 @@ export async function sendWhatsAppOtp(
     console.log("================================================================");
     return {
       success: true,
-      messageId: `dev-safety-guard-${Date.now()}`,
+      messageId: `sandbox-simulated-${Date.now()}`,
       phone: formattedPhone,
     };
   }

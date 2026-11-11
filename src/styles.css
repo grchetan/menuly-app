@@ -192,44 +192,6 @@ header.fixed {
   animation: auth-fade-slide 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Custom Cursor Desktop Click Ripple & Pointer Hiding */
-@keyframes cursor-ripple {
-  0% {
-    opacity: 0.95;
-    transform: translate(-50%, -50%) scale(0.3);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.6);
-  }
-}
-@utility animate-cursor-ripple {
-  animation: cursor-ripple 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@media (pointer: fine) and (hover: hover) and (min-width: 1025px) {
-  html.has-custom-cursor,
-  html.has-custom-cursor body,
-  html.has-custom-cursor a,
-  html.has-custom-cursor button,
-  html.has-custom-cursor [role="button"],
-  html.has-custom-cursor [type="button"],
-  html.has-custom-cursor [type="submit"],
-  html.has-custom-cursor label {
-    cursor: none !important;
-  }
-}
-
-/* Ensure Menuly Custom Cursor always floats on top of all modals, sheets, and toast notifications */
-.menuly-custom-cursor-layer {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 2147483647 !important;
-  pointer-events: none !important;
-  overflow: hidden !important;
-  user-select: none !important;
-}
-
 /* =========================================================
    ZERO-MARGIN BROWSER PRINT CONFIGURATION
    Forces browser print engine to zero margins so that Chrome/Edge
