@@ -136,38 +136,53 @@ export async function speakVoiceAnnouncement(hindiText: string, englishFallback?
     }
 
     const ttsUrl = `/api/voice/tts?text=${encodeURIComponent(hindiText)}`;
-    const audio = new Audio(ttsUrl);
+    const res = await fetch(ttsUrl, { signal: AbortSignal.timeout(3500) });
+    if (!res.ok) {
+      throw new Error(`TTS server responded with ${res.status}`);
+    }
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const audio = new Audio(blobUrl);
     activeAudioElement = audio;
     audio.volume = 1.0;
+    audio.onended = () => {
+      URL.revokeObjectURL(blobUrl);
+    };
 
     await audio.play();
     return;
   } catch {
-    // If audio element failed (e.g. offline), fall back to SpeechSynthesis
+    // If audio element failed (e.g. offline or upstream timeout), fall back to Web Speech
   }
 
-  // 2. Fallback to Web Speech API with Devanagari Hindi or English
+  // 2. Fallback to Web Speech API with Devanagari Hindi or Indian English
   try {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
 
     const voices = window.speechSynthesis.getVoices();
+    // Prioritize natural Indian Hindi or Indian English voice
     const hindiVoice = voices.find(
-      (v) => v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi")
+      (v) => (v.lang && (v.lang.startsWith("hi") || v.lang.includes("hi-IN"))) || v.name.toLowerCase().includes("hindi")
+    );
+    const indianEnglishVoice = voices.find(
+      (v) => v.lang && (v.lang.toLowerCase() === "en-in" || v.name.toLowerCase().includes("india"))
     );
 
-    const utterance = new SpeechSynthesisUtterance(
-      hindiVoice ? hindiText : (englishFallback || hindiText)
-    );
+    const speechText = hindiVoice ? hindiText : (englishFallback || hindiText);
+    const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.volume = 1.0;
-    utterance.rate = 0.9;
-    utterance.pitch = 1.05;
+    utterance.rate = 0.92;
+    utterance.pitch = 1.02;
 
     if (hindiVoice) {
       utterance.voice = hindiVoice;
-      utterance.lang = hindiVoice.lang;
-    } else {
+      utterance.lang = hindiVoice.lang || "hi-IN";
+    } else if (indianEnglishVoice) {
+      utterance.voice = indianEnglishVoice;
       utterance.lang = "en-IN";
+    } else {
+      utterance.lang = "en-US";
     }
 
     window.speechSynthesis.speak(utterance);
@@ -281,9 +296,9 @@ export function LiveOrdersManager({
 
                 playChimeSound();
                 let reasonHindi = "वेटर को बुलाया गया है";
-                let reasonEn = "Waiter requested";
+                let reasonEn = "Staff assistance requested";
                 if (firstCall.reason === "water") {
-                  reasonHindi = "पानी मंगाया गया है";
+                  reasonHindi = "पीने का पानी मंगाया गया है";
                   reasonEn = "Drinking water requested";
                 } else if (firstCall.reason === "bill") {
                   reasonHindi = "बिल मंगाया गया है";
@@ -293,11 +308,11 @@ export function LiveOrdersManager({
                   reasonEn = "Cutlery requested";
                 }
 
-                const speechHindi = `सावधान! टेबल नंबर ${firstCall.tableNumber} पर ${reasonHindi}!`;
-                const speechEnglish = `Attention! Table ${firstCall.tableNumber}: ${reasonEn}!`;
+                const speechHindi = `ध्यान दें! टेबल नंबर ${firstCall.tableNumber} पर ${reasonHindi}!`;
+                const speechEnglish = `Attention! Table number ${firstCall.tableNumber}: ${reasonEn}!`;
                 setTimeout(() => speakVoiceAnnouncement(speechHindi, speechEnglish), 350);
 
-                toast.warning(`🛎️ Table #${firstCall.tableNumber}: ${firstCall.reason.toUpperCase()} requested!`, {
+                toast.warning(`Table #${firstCall.tableNumber}: ${firstCall.reason.toUpperCase()} requested!`, {
                   duration: 8000,
                 });
               }
@@ -347,11 +362,11 @@ export function LiveOrdersManager({
 
               playChimeSound();
               const dishCount = first.totalItems || first.items.reduce((sum, it) => sum + it.quantity, 0) || 1;
-              const speechHindi = `टेबल नंबर ${first.tableNumber} से ${dishCount} डिश का नया आर्डर आया है!`;
-              const speechEnglish = `New order from Table ${first.tableNumber}! ${dishCount} dishes received.`;
+              const speechHindi = `ध्यान दें! टेबल नंबर ${first.tableNumber} से ${dishCount} डिश का नया आर्डर आया है!`;
+              const speechEnglish = `Attention kitchen! Table number ${first.tableNumber}: New order of ${dishCount} items received!`;
               setTimeout(() => speakVoiceAnnouncement(speechHindi, speechEnglish), 350);
 
-              toast.success(`🔔 New Order ${first.orderNumber} from Table #${first.tableNumber}!`, {
+              toast.success(`New Order ${first.orderNumber} from Table #${first.tableNumber}!`, {
                 duration: 6000,
               });
             }
@@ -373,7 +388,7 @@ export function LiveOrdersManager({
     const prevCalls = serviceCalls;
     // 0ms instant UI removal
     setServiceCalls((prev) => prev.filter((c) => c.id !== callId));
-    toast.success("✅ Table service marked as attended!");
+    toast.success("Table service marked as attended");
 
     setResolvingCallId(callId);
     try {
@@ -398,12 +413,12 @@ export function LiveOrdersManager({
     }
   };
 
-  // Initial load + periodic polling every 8 seconds
+  // Initial load + periodic polling every 2.5 seconds (Ultra-fast live response)
   useEffect(() => {
     fetchOrders(false);
     const interval = setInterval(() => {
       fetchOrders(true);
-    }, 8000);
+    }, 2500);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
@@ -713,7 +728,11 @@ export function LiveOrdersManager({
 
         {/* Live Indicator */}
         <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-          <Clock className="size-3" /> Auto-syncs every 8s
+          <span className="relative flex size-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
+          </span>
+          Live Sync (2.5s)
         </span>
       </div>
 

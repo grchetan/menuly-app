@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import {
   MapPin,
   Clock,
@@ -33,6 +33,7 @@ import {
   UserCheck,
   Droplets,
   ReceiptText,
+  History,
   MessageSquareQuote,
 } from "lucide-react";
 import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
@@ -197,14 +198,30 @@ export function MenuView({
   const [cookingNotes, setCookingNotes] = useState("");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  // Placed Order tracking
+  // Placed Order tracking & Table History (Retains all rounds placed by diner during this session)
+  const [orderHistory, setOrderHistory] = useState<any[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(`menuly_order_history_${r.slug}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (o) => Date.now() - new Date(o.createdAt).getTime() < 12 * 60 * 60 * 1000
+          );
+        }
+      }
+    } catch {}
+    return [];
+  });
+
   const [activeOrder, setActiveOrder] = useState<any>(() => {
     if (typeof window === "undefined") return null;
     try {
       const stored = localStorage.getItem(`menuly_active_order_${r.slug}`);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Date.now() - new Date(parsed.createdAt).getTime() < 4 * 60 * 60 * 1000) {
+        if (Date.now() - new Date(parsed.createdAt).getTime() < 8 * 60 * 60 * 1000) {
           return parsed;
         }
       }
@@ -212,11 +229,29 @@ export function MenuView({
     return null;
   });
 
-  const handleDismissOrder = () => {
-    setActiveOrder(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(`menuly_active_order_${r.slug}`);
-    }
+  const [isFloatingDismissed, setIsFloatingDismissed] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [viewingReceiptOrder, setViewingReceiptOrder] = useState<any | null>(null);
+
+  const syncOrderWithHistory = useCallback((updatedOrder: any) => {
+    if (!updatedOrder?.id) return;
+    setOrderHistory((prev) => {
+      const exists = prev.some((o) => o.id === updatedOrder.id);
+      const next = exists
+        ? prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
+        : [updatedOrder, ...prev];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`menuly_order_history_${r.slug}`, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  }, [r.slug]);
+
+  const handleDismissFloatingBar = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setIsFloatingDismissed(true);
   };
 
   // Real-time Order Tracking Polling (syncs live kitchen status e.g. PREPARING -> SERVED -> COMPLETED)
@@ -231,6 +266,7 @@ export function MenuView({
           const data = await res.json();
           if (data.success && data.order) {
             setActiveOrder(data.order);
+            syncOrderWithHistory(data.order);
             if (typeof window !== "undefined") {
               localStorage.setItem(`menuly_active_order_${r.slug}`, JSON.stringify(data.order));
             }
@@ -239,18 +275,18 @@ export function MenuView({
       } catch {
         // Silently ignore polling hiccups
       }
-    }, 6000);
+    }, 3500);
 
     return () => clearInterval(interval);
-  }, [activeOrder?.id, activeOrder?.status, r.slug]);
+  }, [activeOrder?.id, activeOrder?.status, r.slug, syncOrderWithHistory]);
 
-  // Auto-dismiss completed or cancelled order floating banner after 8 seconds
+  // Auto-dismiss floating banner 12s after completion/cancellation so it doesn't disturb menu browsing
   useEffect(() => {
     if (!activeOrder) return undefined;
     if (activeOrder.status === "COMPLETED" || activeOrder.status === "CANCELLED") {
       const timer = setTimeout(() => {
-        handleDismissOrder();
-      }, 8000);
+        setIsFloatingDismissed(true);
+      }, 12000);
       return () => clearTimeout(timer);
     }
     return undefined;
@@ -290,8 +326,8 @@ export function MenuView({
           : callReason === "cutlery"
           ? "Cutlery & Tissues"
           : "Staff / Waiter";
-      setWaiterCallSuccess(`✅ ${label} requested for Table #${targetTable}! Staff notified.`);
-      toast.success(`🛎️ Waiter alerted for Table #${targetTable}!`);
+      setWaiterCallSuccess(`${label} requested for Table #${targetTable}! Staff notified.`);
+      toast.success(`Waiter alerted for Table #${targetTable}!`);
       setTimeout(() => {
         setIsCallWaiterOpen(false);
         setWaiterCallSuccess(null);
@@ -358,13 +394,16 @@ export function MenuView({
 
       const order = data.order;
       setActiveOrder(order);
+      setIsFloatingDismissed(false);
+      syncOrderWithHistory(order);
       if (typeof window !== "undefined") {
         localStorage.setItem(`menuly_active_order_${r.slug}`, JSON.stringify(order));
       }
       setCart({});
       setIsOrderDrawerOpen(false);
+      setViewingReceiptOrder(order);
       setIsReceiptOpen(true);
-      toast.success(`🎉 Order ${order.orderNumber} sent to kitchen for Table #${finalTable}!`);
+      toast.success(`Order ${order.orderNumber} sent to kitchen for Table #${finalTable}!`);
     } catch (err: any) {
       toast.error(err.message || "Failed to place order. Please try again.");
     } finally {
@@ -626,7 +665,7 @@ export function MenuView({
             </div>
           </div>
 
-          {/* Right Action: Table # Badge + Dark Mode Theme Toggle */}
+          {/* Right Action: Table # Badge + Orders Badge + Call Waiter + Dark Mode Theme Toggle */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {(table || activeTableNumber) && (
               <button
@@ -642,6 +681,25 @@ export function MenuView({
                 title="Tap to change table"
               >
                 {compact ? `T#${activeTableNumber || table}` : `Table #${activeTableNumber || table}`}
+              </button>
+            )}
+
+            {/* Orders & History Drawer Button */}
+            {orderHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(true)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 font-bold text-emerald-700 dark:text-emerald-300 shrink-0 hover:bg-emerald-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
+                  compact ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+                )}
+                title="View active and previous orders placed at this table"
+              >
+                <ReceiptText className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{compact ? "Orders" : "Orders"}</span>
+                <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-black">
+                  {orderHistory.length}
+                </span>
               </button>
             )}
 
@@ -699,11 +757,11 @@ export function MenuView({
           {table && (
             <div
               className={cn(
-                "absolute bg-black/60 backdrop-blur-md border border-white/20 text-white font-bold rounded-full shadow-xs",
+                "absolute bg-black/60 backdrop-blur-md border border-white/20 text-white font-bold rounded-full shadow-xs flex items-center gap-1",
                 compact ? "top-2.5 right-2.5 text-[10px] px-2.5 py-0.5" : "top-3.5 right-3.5 text-xs px-3.5 py-1"
               )}
             >
-              🍽️ Table #{table}
+              <UtensilsCrossed className="size-3 text-orange-400" /> Table #{table}
             </div>
           )}
 
@@ -1362,22 +1420,34 @@ export function MenuView({
         </aside>
       )}
 
-      {/* FLOATING ACTIVE ORDER RECEIPT / REAL-TIME STATUS PILL */}
-      {!compact && totalItemsCount === 0 && activeOrder && (
+      {/* FLOATING ACTIVE ORDER REAL-TIME STATUS PILL */}
+      {!compact && totalItemsCount === 0 && activeOrder && !isFloatingDismissed && (
         <aside className="fixed inset-x-0 bottom-4 z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
           <div
-            onClick={() => setIsReceiptOpen(true)}
+            onClick={() => {
+              setViewingReceiptOrder(activeOrder);
+              setIsReceiptOpen(true);
+            }}
             className={cn(
-              "mx-auto max-w-lg text-white font-bold rounded-2xl shadow-xl flex items-center justify-between p-3 sm:p-3.5 transition-all duration-200 cursor-pointer pointer-events-auto border",
-              activeOrder.status === "PENDING" && "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-400/50 shadow-amber-500/20",
-              activeOrder.status === "PREPARING" && "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 border-blue-400/50 shadow-blue-500/20",
-              activeOrder.status === "SERVED" && "bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 border-emerald-400/50 shadow-emerald-500/20",
-              activeOrder.status === "COMPLETED" && "bg-gradient-to-r from-stone-700 to-stone-900 border-stone-500/50 shadow-stone-500/20",
-              activeOrder.status === "CANCELLED" && "bg-gradient-to-r from-rose-700 to-red-800 border-rose-500/50 shadow-rose-500/20"
+              "mx-auto max-w-lg rounded-2xl shadow-xl flex items-center justify-between p-3 sm:p-3.5 transition-all duration-200 cursor-pointer pointer-events-auto border backdrop-blur-md",
+              activeOrder.status === "PENDING" && "bg-card/95 border-amber-500/40 text-foreground shadow-amber-500/10",
+              activeOrder.status === "PREPARING" && "bg-card/95 border-blue-500/40 text-foreground shadow-blue-500/10",
+              activeOrder.status === "SERVED" && "bg-card/95 border-emerald-500/40 text-foreground shadow-emerald-500/10",
+              activeOrder.status === "COMPLETED" && "bg-card/95 border-stone-500/40 text-foreground shadow-stone-500/10",
+              activeOrder.status === "CANCELLED" && "bg-card/95 border-rose-500/40 text-foreground shadow-rose-500/10"
             )}
           >
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <span className="flex size-8 items-center justify-center rounded-xl bg-white/20 text-white shrink-0">
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-xl shrink-0 font-bold",
+                  activeOrder.status === "PENDING" && "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                  activeOrder.status === "PREPARING" && "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+                  activeOrder.status === "SERVED" && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+                  activeOrder.status === "COMPLETED" && "bg-stone-500/15 text-stone-600 dark:text-stone-400",
+                  activeOrder.status === "CANCELLED" && "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                )}
+              >
                 {activeOrder.status === "PENDING" && <Clock className="size-4 animate-pulse" />}
                 {activeOrder.status === "PREPARING" && <CookingPot className="size-4 animate-pulse" />}
                 {activeOrder.status === "SERVED" && <CheckCircle2 className="size-4" />}
@@ -1385,32 +1455,29 @@ export function MenuView({
                 {activeOrder.status === "CANCELLED" && <X className="size-4" />}
               </span>
               <div className="text-left leading-tight min-w-0 flex-1">
-                <span className="text-xs font-black block truncate">
+                <span className="text-xs font-black block truncate text-foreground">
                   Table #{activeOrder.tableNumber} • {activeOrder.orderNumber}
                 </span>
-                <span className="text-[10px] text-white/95 font-medium block truncate">
-                  {activeOrder.status === "PENDING" && "⏳ Order Placed • Sent to Kitchen"}
-                  {activeOrder.status === "PREPARING" && "🍳 Cooking in Kitchen • Chef is preparing food"}
-                  {activeOrder.status === "SERVED" && "🍽️ Served at Table • Enjoy your meal!"}
-                  {activeOrder.status === "COMPLETED" && "🎉 Order Completed • Thank you!"}
-                  {activeOrder.status === "CANCELLED" && "❌ Order Cancelled"}
+                <span className="text-[11px] text-muted-foreground font-medium block truncate">
+                  {activeOrder.status === "PENDING" && "Order Placed • Sent to Kitchen"}
+                  {activeOrder.status === "PREPARING" && "Cooking in Kitchen • Chef is preparing food"}
+                  {activeOrder.status === "SERVED" && "Served at Table • Enjoy your meal"}
+                  {activeOrder.status === "COMPLETED" && "Order Completed • Thank you"}
+                  {activeOrder.status === "CANCELLED" && "Order Cancelled"}
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-black bg-white/20 px-2.5 py-1 rounded-xl">
+              <span className="text-xs font-mono font-bold bg-secondary px-2.5 py-1 rounded-xl text-foreground">
                 {formatPrice(activeOrder.grandTotal)}
               </span>
-              {/* Dismiss Button */}
+              {/* Dismiss Button - Hides floating pill so it doesn't disturb browsing, order stays safely in Orders button */}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDismissOrder();
-                }}
-                className="size-7 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white/90 hover:text-white transition-all cursor-pointer"
-                title="Dismiss status pill"
+                onClick={handleDismissFloatingBar}
+                className="size-7 rounded-xl bg-secondary hover:bg-secondary/80 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                title="Dismiss status pill (You can re-open from top Orders button)"
               >
                 <X className="size-3.5" />
               </button>
@@ -1649,231 +1716,384 @@ export function MenuView({
       </Dialog>
 
       {/* DIGITAL ORDER RECEIPT & LIVE TRACKING MODAL */}
-      <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
+      <Dialog
+        open={isReceiptOpen}
+        onOpenChange={(open) => {
+          setIsReceiptOpen(open);
+          if (!open) setViewingReceiptOrder(null);
+        }}
+      >
         <DialogContent
           className={cn(
             "sm:max-w-md p-0 overflow-hidden rounded-3xl border-border bg-card",
             isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
           )}
         >
-          {activeOrder && (
-            <div className="p-5 sm:p-6 space-y-4 print:p-0">
-              {/* Receipt Header with animated badge */}
-              <div className="text-center space-y-1 border-b border-dashed border-border/80 pb-4">
-                <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center font-bold mb-2">
-                  <CheckCircle2 className="size-6" />
-                </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
-                  Order Placed Successfully
-                </span>
-                <h3 className="font-serif font-black text-xl text-foreground">
-                  {r.name}
-                </h3>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30 px-3 py-0.5 text-xs font-bold mt-1">
-                  Table #{activeOrder.tableNumber} • Dine-In
-                </div>
-                {activeOrder.customerName && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Guest: <span className="font-bold text-foreground">{activeOrder.customerName}</span>
-                    {activeOrder.customerPhone ? <span className="ml-1 text-[11px]">({activeOrder.customerPhone})</span> : null}
+          {(() => {
+            const receiptOrder = viewingReceiptOrder || activeOrder;
+            if (!receiptOrder) return null;
+            return (
+              <div className="p-5 sm:p-6 space-y-4 print:p-0">
+                {/* Receipt Header with animated badge */}
+                <div className="text-center space-y-1 border-b border-dashed border-border/80 pb-4">
+                  <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center font-bold mb-2">
+                    <CheckCircle2 className="size-6" />
                   </div>
-                )}
-                <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground font-mono mt-1">
-                  <span>{activeOrder.orderNumber}</span>
-                  <span>•</span>
-                  <span>{new Date(activeOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                    Order Placed Successfully
+                  </span>
+                  <h3 className="font-serif font-black text-xl text-foreground">
+                    {r.name}
+                  </h3>
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30 px-3 py-0.5 text-xs font-bold mt-1">
+                    Table #{receiptOrder.tableNumber} • Dine-In
+                  </div>
+                  {receiptOrder.customerName && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Guest: <span className="font-bold text-foreground">{receiptOrder.customerName}</span>
+                      {receiptOrder.customerPhone ? <span className="ml-1 text-[11px]">({receiptOrder.customerPhone})</span> : null}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground font-mono mt-1">
+                    <span>{receiptOrder.orderNumber}</span>
+                    <span>•</span>
+                    <span>{new Date(receiptOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                </div>
+
+                {/* Dynamic 4-Step Visual Order Progress Tracker */}
+                <div className="rounded-2xl border border-border/80 bg-secondary/30 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider">Kitchen Order Tracker</span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider border",
+                        receiptOrder.status === "PENDING" && "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+                        receiptOrder.status === "PREPARING" && "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 animate-pulse",
+                        receiptOrder.status === "SERVED" && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+                        receiptOrder.status === "COMPLETED" && "bg-stone-500/15 text-stone-700 dark:text-stone-300 border-stone-500/30",
+                        receiptOrder.status === "CANCELLED" && "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                      )}
+                    >
+                      {receiptOrder.status === "PENDING" && <Clock className="size-3 animate-spin duration-3000" />}
+                      {receiptOrder.status === "PREPARING" && <CookingPot className="size-3 animate-bounce" />}
+                      {receiptOrder.status === "SERVED" && <CheckCircle2 className="size-3" />}
+                      {receiptOrder.status === "COMPLETED" && <Check className="size-3" />}
+                      {receiptOrder.status === "CANCELLED" && <X className="size-3" />}
+
+                      {receiptOrder.status === "PENDING" && "Order Placed"}
+                      {receiptOrder.status === "PREPARING" && "Cooking in Kitchen"}
+                      {receiptOrder.status === "SERVED" && "Served at Table"}
+                      {receiptOrder.status === "COMPLETED" && "Order Completed"}
+                      {receiptOrder.status === "CANCELLED" && "Order Cancelled"}
+                    </span>
+                  </div>
+
+                  {/* Step Progress Line */}
+                  <div className="grid grid-cols-4 gap-1.5 pt-1">
+                    {/* Step 1: Placed */}
+                    <div className="text-center space-y-1">
+                      <div className="h-1.5 rounded-full bg-emerald-500" />
+                      <span className="text-[9px] font-bold block text-foreground">Placed</span>
+                    </div>
+                    {/* Step 2: Preparing */}
+                    <div className="text-center space-y-1">
+                      <div
+                        className={cn(
+                          "h-1.5 rounded-full transition-all",
+                          receiptOrder.status === "PENDING" ? "bg-muted" : "bg-blue-500 animate-pulse"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-[9px] font-bold block",
+                          receiptOrder.status === "PREPARING" ? "text-blue-600 dark:text-blue-400 font-black" : "text-muted-foreground"
+                        )}
+                      >
+                        Cooking
+                      </span>
+                    </div>
+                    {/* Step 3: Served */}
+                    <div className="text-center space-y-1">
+                      <div
+                        className={cn(
+                          "h-1.5 rounded-full transition-all",
+                          receiptOrder.status === "SERVED" || receiptOrder.status === "COMPLETED" ? "bg-emerald-500" : "bg-muted"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-[9px] font-bold block",
+                          receiptOrder.status === "SERVED" ? "text-emerald-600 dark:text-emerald-400 font-black" : "text-muted-foreground"
+                        )}
+                      >
+                        Served
+                      </span>
+                    </div>
+                    {/* Step 4: Done */}
+                    <div className="text-center space-y-1">
+                      <div
+                        className={cn(
+                          "h-1.5 rounded-full transition-all",
+                          receiptOrder.status === "COMPLETED" ? "bg-stone-800 dark:bg-stone-200" : "bg-muted"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-[9px] font-bold block",
+                          receiptOrder.status === "COMPLETED" ? "text-foreground font-black" : "text-muted-foreground"
+                        )}
+                      >
+                        Done
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-center text-muted-foreground pt-0.5">
+                    {receiptOrder.status === "PENDING" && "Your order is with the kitchen. Preparation will begin shortly."}
+                    {receiptOrder.status === "PREPARING" && "The chef is actively preparing your dishes. Sit tight!"}
+                    {receiptOrder.status === "SERVED" && "Dishes have been served at your table! Enjoy your meal."}
+                    {receiptOrder.status === "COMPLETED" && "This order has been completed and settled. Thank you for dining with us!"}
+                    {receiptOrder.status === "CANCELLED" && `This order was cancelled${receiptOrder.cancelReason ? `: ${receiptOrder.cancelReason}` : ""}.`}
+                  </p>
+                </div>
+
+                {/* Items List */}
+                <div className="space-y-2 py-1 text-xs max-h-48 overflow-y-auto no-scrollbar">
+                  <div className="flex justify-between text-muted-foreground font-semibold border-b border-border/50 pb-1">
+                    <span>Ordered Dishes</span>
+                    <span>Total</span>
+                  </div>
+                  {receiptOrder.items?.map((it: any, idx: number) => (
+                    <div key={it.id + idx} className="flex justify-between items-center text-foreground">
+                      <span>
+                        <strong className="font-bold mr-1">{it.quantity}x</strong> {it.name}
+                      </span>
+                      <span className="font-mono font-semibold">{formatPrice(it.total || it.price * it.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total & Payment mode */}
+                <div className="border-t border-dashed border-border/80 pt-3 space-y-1 text-xs">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Subtotal ({receiptOrder.totalItems || receiptOrder.items?.length} items)</span>
+                    <span>{formatPrice(receiptOrder.subtotal || receiptOrder.grandTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Taxes &amp; Service</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">Included</span>
+                  </div>
+                  <div className="flex justify-between items-center text-base font-black text-foreground pt-2 border-t border-border/50">
+                    <span>Grand Total</span>
+                    <span className="text-orange-600 dark:text-orange-400 font-mono">{formatPrice(receiptOrder.grandTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
+                    <span>Payment</span>
+                    <span className="font-bold">Pay at Counter / Server</span>
+                  </div>
+                </div>
+
+                {/* Receipt Action Buttons */}
+                <div className="pt-2 flex flex-col gap-2 print:hidden">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        printReceipt(receiptOrder, {
+                          name: r.name,
+                          address: r.address,
+                          phone: r.phone,
+                          whatsapp: r.whatsapp,
+                          slug: r.slug,
+                        });
+                      }}
+                      className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5 bg-primary text-primary-foreground hover:brightness-105"
+                    >
+                      <Printer className="size-3.5" /> Save / Print Receipt (PDF)
+                    </Button>
+                    {r.whatsapp && (
+                      <Button
+                        asChild
+                        variant="outline"
+                        className="rounded-xl h-10 font-bold text-xs gap-1.5 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
+                      >
+                        <a
+                          href={whatsappLink(
+                            r.whatsapp,
+                            `Hi ${r.name}! Here is my Order ${receiptOrder.orderNumber} for Table #${receiptOrder.tableNumber}:\n\n${receiptOrder.items
+                              ?.map((it: any) => `• ${it.quantity}x ${it.name}`)
+                              .join("\n")}\n\nTotal: ${formatPrice(receiptOrder.grandTotal)}`
+                          )}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <MessageCircle className="size-3.5" /> WhatsApp
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsFloatingDismissed(true);
+                        setIsReceiptOpen(false);
+                        setViewingReceiptOrder(null);
+                        toast.info("Status pill dismissed. Open anytime from top Orders button.");
+                      }}
+                      className="rounded-xl h-8 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-2"
+                    >
+                      <X className="size-3" /> Dismiss Floating Pill
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsReceiptOpen(false);
+                        setViewingReceiptOrder(null);
+                      }}
+                      className="rounded-xl h-8 text-xs text-foreground font-bold hover:bg-secondary px-3"
+                    >
+                      Order More / Close
+                    </Button>
+                  </div>
                 </div>
               </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
-              {/* Dynamic 4-Step Visual Order Progress Tracker */}
-              <div className="rounded-2xl border border-border/80 bg-secondary/30 p-3.5 space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-muted-foreground uppercase text-[10px] tracking-wider">Kitchen Order Tracker</span>
-                  <span
-                    className={cn(
-                      "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider",
-                      activeOrder.status === "PENDING" && "bg-amber-500/20 text-amber-700 dark:text-amber-300",
-                      activeOrder.status === "PREPARING" && "bg-blue-500/20 text-blue-700 dark:text-blue-300 animate-pulse",
-                      activeOrder.status === "SERVED" && "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
-                      activeOrder.status === "COMPLETED" && "bg-stone-500/20 text-stone-700 dark:text-stone-300",
-                      activeOrder.status === "CANCELLED" && "bg-rose-500/20 text-rose-700 dark:text-rose-300"
-                    )}
-                  >
-                    {activeOrder.status === "PENDING" && "⏳ Order Placed"}
-                    {activeOrder.status === "PREPARING" && "🍳 Cooking in Kitchen"}
-                    {activeOrder.status === "SERVED" && "🍽️ Served at Table"}
-                    {activeOrder.status === "COMPLETED" && "✅ Completed"}
-                    {activeOrder.status === "CANCELLED" && "❌ Cancelled"}
+      {/* MY TABLE ORDERS & SESSION HISTORY MODAL */}
+      <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+        <DialogContent
+          className={cn(
+            "sm:max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border-border bg-card p-5 sm:p-6 space-y-4",
+            isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
+          )}
+        >
+          <DialogHeader className="space-y-1.5 pb-2 border-b border-border/60">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <ReceiptText className="size-4" />
+                </span>
+                <DialogTitle className="font-serif font-black text-lg text-foreground">
+                  My Table Orders
+                </DialogTitle>
+              </div>
+              <span className="rounded-full bg-orange-500/10 border border-orange-500/30 font-black text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs">
+                Table #{activeTableNumber || table || "1"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Review live progress and previous rounds placed at your table.
+            </p>
+          </DialogHeader>
+
+          {orderHistory.length === 0 ? (
+            <div className="py-8 text-center space-y-2">
+              <div className="size-12 rounded-full bg-secondary flex items-center justify-center mx-auto text-muted-foreground">
+                <ReceiptText className="size-6 opacity-60" />
+              </div>
+              <p className="text-sm font-bold text-foreground">No orders placed yet</p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                Add dishes to your cart and place your table order.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Grand Session Total */}
+              <div className="rounded-2xl bg-secondary/50 border border-border/70 p-3.5 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-muted-foreground font-medium block">Dining Session Total</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {orderHistory.length} round{orderHistory.length > 1 ? "s" : ""} placed
                   </span>
                 </div>
-
-                {/* Step Progress Line */}
-                <div className="grid grid-cols-4 gap-1.5 pt-1">
-                  {/* Step 1: Placed */}
-                  <div className="text-center space-y-1">
-                    <div className="h-1.5 rounded-full bg-emerald-500" />
-                    <span className="text-[9px] font-bold block text-foreground">Placed</span>
-                  </div>
-                  {/* Step 2: Preparing */}
-                  <div className="text-center space-y-1">
-                    <div
-                      className={cn(
-                        "h-1.5 rounded-full transition-all",
-                        activeOrder.status === "PENDING" ? "bg-muted" : "bg-blue-500 animate-pulse"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "text-[9px] font-bold block",
-                        activeOrder.status === "PREPARING" ? "text-blue-600 dark:text-blue-400 font-black" : "text-muted-foreground"
-                      )}
-                    >
-                      Cooking
-                    </span>
-                  </div>
-                  {/* Step 3: Served */}
-                  <div className="text-center space-y-1">
-                    <div
-                      className={cn(
-                        "h-1.5 rounded-full transition-all",
-                        activeOrder.status === "SERVED" || activeOrder.status === "COMPLETED" ? "bg-emerald-500" : "bg-muted"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "text-[9px] font-bold block",
-                        activeOrder.status === "SERVED" ? "text-emerald-600 dark:text-emerald-400 font-black" : "text-muted-foreground"
-                      )}
-                    >
-                      Served
-                    </span>
-                  </div>
-                  {/* Step 4: Done */}
-                  <div className="text-center space-y-1">
-                    <div
-                      className={cn(
-                        "h-1.5 rounded-full transition-all",
-                        activeOrder.status === "COMPLETED" ? "bg-stone-800 dark:bg-stone-200" : "bg-muted"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "text-[9px] font-bold block",
-                        activeOrder.status === "COMPLETED" ? "text-foreground font-black" : "text-muted-foreground"
-                      )}
-                    >
-                      Done
-                    </span>
-                  </div>
+                <div className="text-right">
+                  <span className="text-base font-black font-mono text-primary">
+                    {formatPrice(
+                      orderHistory
+                        .filter((o) => o.status !== "CANCELLED")
+                        .reduce((sum, o) => sum + (o.grandTotal || 0), 0)
+                    )}
+                  </span>
                 </div>
-
-                <p className="text-[11px] text-center text-muted-foreground pt-0.5">
-                  {activeOrder.status === "PENDING" && "Your order is with the kitchen. Preparation will begin shortly."}
-                  {activeOrder.status === "PREPARING" && "The chef is actively preparing your dishes. Sit tight!"}
-                  {activeOrder.status === "SERVED" && "Dishes have been served at your table! Enjoy your meal."}
-                  {activeOrder.status === "COMPLETED" && "This order has been completed and settled. Thank you for dining with us!"}
-                  {activeOrder.status === "CANCELLED" && `This order was cancelled${activeOrder.cancelReason ? `: ${activeOrder.cancelReason}` : ""}.`}
-                </p>
               </div>
 
-              {/* Items List */}
-              <div className="space-y-2 py-1 text-xs max-h-48 overflow-y-auto no-scrollbar">
-                <div className="flex justify-between text-muted-foreground font-semibold border-b border-border/50 pb-1">
-                  <span>Ordered Dishes</span>
-                  <span>Total</span>
-                </div>
-                {activeOrder.items?.map((it: any, idx: number) => (
-                  <div key={it.id + idx} className="flex justify-between items-center text-foreground">
-                    <span>
-                      <strong className="font-bold mr-1">{it.quantity}x</strong> {it.name}
-                    </span>
-                    <span className="font-mono font-semibold">{formatPrice(it.total || it.price * it.quantity)}</span>
+              {/* Order Cards List */}
+              <div className="space-y-2.5 max-h-[50vh] overflow-y-auto no-scrollbar pr-0.5">
+                {orderHistory.map((order, idx) => (
+                  <div
+                    key={order.id || idx}
+                    onClick={() => {
+                      setViewingReceiptOrder(order);
+                      setIsReceiptOpen(true);
+                      setIsHistoryModalOpen(false);
+                    }}
+                    className="p-3.5 rounded-2xl border border-border/80 bg-card hover:bg-secondary/40 transition-all cursor-pointer space-y-2.5 shadow-2xs hover:shadow-xs group"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-foreground">
+                          {order.orderNumber}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(order.createdAt).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Clean Lucide Status Badge */}
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border",
+                          order.status === "PENDING" && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                          order.status === "PREPARING" && "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 animate-pulse",
+                          order.status === "SERVED" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+                          order.status === "COMPLETED" && "bg-stone-500/10 text-stone-600 dark:text-stone-400 border-stone-500/30",
+                          order.status === "CANCELLED" && "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                        )}
+                      >
+                        {order.status === "PENDING" && <Clock className="size-2.5" />}
+                        {order.status === "PREPARING" && <CookingPot className="size-2.5" />}
+                        {order.status === "SERVED" && <CheckCircle2 className="size-2.5" />}
+                        {order.status === "COMPLETED" && <Check className="size-2.5" />}
+                        {order.status === "CANCELLED" && <X className="size-2.5" />}
+
+                        {order.status === "PENDING" && "In Kitchen"}
+                        {order.status === "PREPARING" && "Cooking"}
+                        {order.status === "SERVED" && "Served"}
+                        {order.status === "COMPLETED" && "Completed"}
+                        {order.status === "CANCELLED" && "Cancelled"}
+                      </span>
+                    </div>
+
+                    {/* Ordered items preview */}
+                    <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      {order.items?.map((it: any) => `${it.quantity}x ${it.name}`).join(", ")}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50">
+                      <span className="text-[11px] text-muted-foreground">
+                        {order.totalItems || order.items?.length || 1} item
+                        {(order.totalItems || order.items?.length || 1) > 1 ? "s" : ""}
+                      </span>
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="font-mono text-foreground font-black">
+                          {formatPrice(order.grandTotal)}
+                        </span>
+                        <ChevronRight className="size-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    </div>
                   </div>
                 ))}
-              </div>
-
-              {/* Total & Payment mode */}
-              <div className="border-t border-dashed border-border/80 pt-3 space-y-1 text-xs">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal ({activeOrder.totalItems || activeOrder.items?.length} items)</span>
-                  <span>{formatPrice(activeOrder.subtotal || activeOrder.grandTotal)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Taxes &amp; Service</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">Included</span>
-                </div>
-                <div className="flex justify-between items-center text-base font-black text-foreground pt-2 border-t border-border/50">
-                  <span>Grand Total</span>
-                  <span className="text-orange-600 dark:text-orange-400 font-mono">{formatPrice(activeOrder.grandTotal)}</span>
-                </div>
-                <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
-                  <span>Payment</span>
-                  <span className="font-bold">Pay at Counter / Server</span>
-                </div>
-              </div>
-
-              {/* Receipt Action Buttons */}
-              <div className="pt-2 flex flex-col gap-2 print:hidden">
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      printReceipt(activeOrder, {
-                        name: r.name,
-                        address: r.address,
-                        phone: r.phone,
-                        whatsapp: r.whatsapp,
-                        slug: r.slug,
-                      });
-                    }}
-                    className="flex-1 rounded-xl h-10 font-bold text-xs gap-1.5 bg-primary text-primary-foreground hover:brightness-105"
-                  >
-                    <Printer className="size-3.5" /> Save / Print Receipt (PDF)
-                  </Button>
-                  {r.whatsapp && (
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="rounded-xl h-10 font-bold text-xs gap-1.5 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
-                    >
-                      <a
-                        href={whatsappLink(
-                          r.whatsapp,
-                          `Hi ${r.name}! I just placed Order ${activeOrder.orderNumber} from Table #${activeOrder.tableNumber}:\n\n${activeOrder.items
-                            ?.map((it: any) => `• ${it.quantity}x ${it.name}`)
-                            .join("\n")}\n\nTotal: ${formatPrice(activeOrder.grandTotal)}`
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <MessageCircle className="size-3.5" /> WhatsApp
-                      </a>
-                    </Button>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      handleDismissOrder();
-                      setIsReceiptOpen(false);
-                      toast.info("Order status dismissed from screen");
-                    }}
-                    className="rounded-xl h-8 text-[11px] text-muted-foreground hover:text-destructive gap-1 px-2"
-                  >
-                    <X className="size-3" /> Dismiss from Screen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setIsReceiptOpen(false)}
-                    className="rounded-xl h-8 text-xs text-foreground font-bold hover:bg-secondary px-3"
-                  >
-                    Order More / Close
-                  </Button>
-                </div>
               </div>
             </div>
           )}
@@ -2044,7 +2264,7 @@ export function MenuView({
           )}
         >
           <div className="size-12 rounded-full bg-orange-500/10 text-orange-600 mx-auto flex items-center justify-center font-bold">
-            🍽️
+            <UtensilsCrossed className="size-6 text-orange-600" />
           </div>
           <div>
             <h3 className="font-serif font-bold text-xl text-foreground">Table Order Slip</h3>
