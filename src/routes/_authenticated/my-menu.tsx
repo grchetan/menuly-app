@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -29,10 +29,14 @@ import {
   Coffee,
   Store,
   RefreshCw,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
   Image as ImageIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { MenuView } from "@/components/MenuView";
+import { AiMenuScannerModal } from "@/components/menu/AiMenuScannerModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -151,6 +155,7 @@ function MyMenu() {
   const [activeCatTab, setActiveCatTab] = useState<string>("all");
   const [filter, setFilter] = useState<"all" | "soldout">("all");
   const [showPresets, setShowPresets] = useState(Boolean(data?.items?.length === 0));
+  const [isAiScanOpen, setIsAiScanOpen] = useState(false);
 
   // Live Starter Packs Query (Reflects Admin customizations immediately, cached for 5 min to eliminate DB round-trips)
   const { data: starterPacksData } = useQuery<{ presets: PresetTemplate[]; defaultPresetId: string }>({
@@ -192,6 +197,37 @@ function MyMenu() {
   const [dishPhotoSummary, setDishPhotoSummary] = useState<string | null>(null);
   const [previewDark, setPreviewDark] = useState(false);
 
+  // Category Scroll Bar states & handlers
+  const catScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  };
+
+  useEffect(() => {
+    checkScroll();
+    const el = catScrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [data?.categories]);
+
+  const scrollCats = (direction: "left" | "right") => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    const distance = 240;
+    el.scrollBy({ left: direction === "left" ? -distance : distance, behavior: "smooth" });
+  };
+
   useEffect(() => {
     if (data?.items && data.items.length === 0) {
       setShowPresets(true);
@@ -206,6 +242,13 @@ function MyMenu() {
       }
     }
   }, [data?.categories, quickCatId]);
+
+  // Safe fallback if active category is deleted or no longer present
+  useEffect(() => {
+    if (activeCatTab !== "all" && data?.categories && !data.categories.some((c) => c.id === activeCatTab)) {
+      setActiveCatTab("all");
+    }
+  }, [data?.categories, activeCatTab]);
 
   if (isLoading && !data) {
     return <MyMenuSkeleton />;
@@ -227,11 +270,32 @@ function MyMenu() {
   const rid = data.restaurant.id;
 
   const soldOut = data.items.filter((i) => !i.available).length;
+  const normalizedQ = q.trim().toLowerCase();
 
   const match = (i: MenuItem) =>
-    i.name.toLowerCase().includes(q.toLowerCase()) &&
+    (!normalizedQ || i.name.toLowerCase().includes(normalizedQ)) &&
     (filter === "all" || (filter === "soldout" && !i.available)) &&
     (activeCatTab === "all" || i.category_id === activeCatTab);
+
+  // Dynamic counts for accurate UI numbers
+  const matchingItemsCount = data.items.filter((i) => {
+    const matchesSearch = !normalizedQ || i.name.toLowerCase().includes(normalizedQ);
+    const matchesStock = filter === "all" || (filter === "soldout" && !i.available);
+    return matchesSearch && matchesStock;
+  }).length;
+
+  const getCategoryMatchingCount = (catId: string) => {
+    return data.items.filter((i) => {
+      if (i.category_id !== catId) return false;
+      const matchesSearch = !normalizedQ || i.name.toLowerCase().includes(normalizedQ);
+      const matchesStock = filter === "all" || (filter === "soldout" && !i.available);
+      return matchesSearch && matchesStock;
+    }).length;
+  };
+
+  const getCategoryTotalCount = (catId: string) => {
+    return data.items.filter((i) => i.category_id === catId).length;
+  };
 
   // Quick Add inline handler
   const handleQuickAdd = async (e: React.FormEvent) => {
@@ -721,6 +785,15 @@ function MyMenu() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setIsAiScanOpen(true)}
+            className="gap-1.5 text-xs font-bold border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 shadow-xs"
+          >
+            <Sparkles className="size-3.5 text-orange-500" />
+            AI Menu Scanner
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowPresets(!showPresets)}
             className="gap-1.5 text-xs font-semibold"
           >
@@ -771,6 +844,36 @@ function MyMenu() {
               </Link>
             </div>
           </div>
+        </div>
+
+        {/* AI Menu Photo Scanner Hero Banner */}
+        <div className="rounded-3xl border border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="size-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Camera className="size-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-serif font-black text-base text-foreground">
+                  AI Menu Photo Digitizer
+                </h3>
+                <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold">
+                  100% Free • Powered by Gemini AI
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Upload or capture any physical menu card, pamphlet, or rate board. Gemini extracts categories, dishes &amp; prices in 2 seconds.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={() => setIsAiScanOpen(true)}
+            className="rounded-xl font-bold text-xs gap-1.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-soft shrink-0 w-full sm:w-auto"
+          >
+            <Sparkles className="size-3.5" />
+            <span>Scan Menu Photo</span>
+          </Button>
         </div>
 
         {/* 1-Click Starter Menu Presets (Modern Executive Cuisine Packs) */}
@@ -968,6 +1071,7 @@ function MyMenu() {
           {showAddCat && (
             <form onSubmit={handleAddCat} className="mt-4 flex flex-col sm:flex-row gap-2.5 pt-3 border-t border-border/60 animate-rise">
               <Input
+                id="new-category-input"
                 placeholder="New Category Name (e.g. Desserts, Beverages)"
                 value={newCat}
                 onChange={(e) => setNewCat(e.target.value)}
@@ -1005,40 +1109,40 @@ function MyMenu() {
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
-                  className="pl-10 h-11 bg-card rounded-xl text-sm border-border"
+                  className="pl-10 pr-9 h-11 bg-card rounded-xl text-sm border-border"
                   placeholder="Search dishes by name…"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                 />
+                {q && (
+                  <button
+                    type="button"
+                    onClick={() => setQ("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 size-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
               </div>
 
-              {/* Status Filters: All vs Sold Out */}
+              {/* Status Filter: Sold Out Toggle & Restock Button */}
               <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setFilter("all")}
-                  className={cn(
-                    "rounded-xl px-3 py-2 text-xs font-bold transition-all border cursor-pointer",
-                    filter === "all"
-                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                      : "bg-card border-border/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  )}
-                >
-                  All ({data.items.length})
-                </button>
                 <button
                   type="button"
                   onClick={() => setFilter(filter === "soldout" ? "all" : "soldout")}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all border cursor-pointer",
+                    "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all border cursor-pointer select-none",
                     filter === "soldout"
                       ? "bg-rose-600 text-white border-rose-600 shadow-xs"
                       : soldOut > 0
                       ? "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20"
                       : "bg-card border-border/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
                   )}
+                  title={filter === "soldout" ? "Showing only sold out. Click to show all." : "Filter by sold-out dishes"}
                 >
-                  <span>Sold Out</span>
+                  <AlertTriangle className={cn("size-3.5", filter === "soldout" ? "text-white" : soldOut > 0 ? "text-rose-500" : "text-muted-foreground")} />
+                  <span>{filter === "soldout" ? "Showing Sold Out" : "Sold Out"}</span>
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.2 text-[10px] font-extrabold",
@@ -1061,52 +1165,132 @@ function MyMenu() {
                     className="flex items-center gap-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 transition-all shadow-2xs cursor-pointer"
                   >
                     <RefreshCw className="size-3" />
-                    <span>Restock All ({soldOut})</span>
+                    <span className="hidden sm:inline">Restock All</span>
+                    <span>({soldOut})</span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* DEDICATED HORIZONTAL CATEGORY TABS (Clean, Responsive, No Awkward Stacking) */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">
-              <button
-                onClick={() => setActiveCatTab("all")}
-                className={cn(
-                  "shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer",
-                  activeCatTab === "all"
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "bg-card border border-border/80 text-foreground hover:bg-secondary"
-                )}
+            {/* DEDICATED HORIZONTAL CATEGORY TABS (Clean, Responsive, Horizontal Scroll with Arrows) */}
+            <div className="relative group">
+              {/* Left Scroll Button (Desktop) */}
+              {canScrollLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollCats("left")}
+                  className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 size-8 rounded-full bg-background/95 border border-border shadow-md items-center justify-center text-foreground hover:bg-secondary cursor-pointer transition-all"
+                  aria-label="Scroll categories left"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+              )}
+
+              {/* Left Fade Gradient for Mobile */}
+              {canScrollLeft && (
+                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent z-5" />
+              )}
+
+              {/* Category Tabs Scroll Container */}
+              <div
+                ref={catScrollRef}
+                className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1 px-0.5"
               >
-                All ({data.items.length})
-              </button>
-              {data.categories.map((c) => {
-                const count = data.items.filter((i) => i.category_id === c.id).length;
-                const isActive = activeCatTab === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setActiveCatTab(c.id)}
+                {/* All Dishes Tab */}
+                <button
+                  type="button"
+                  onClick={() => setActiveCatTab("all")}
+                  className={cn(
+                    "shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5",
+                    activeCatTab === "all"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-card border border-border/80 text-foreground hover:bg-secondary"
+                  )}
+                >
+                  <span>All Dishes</span>
+                  <span
                     className={cn(
-                      "shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer",
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "bg-card border border-border/80 text-foreground hover:bg-secondary"
+                      "rounded-full px-1.5 py-0.2 text-[10px] font-extrabold",
+                      activeCatTab === "all"
+                        ? "bg-white/20 text-white"
+                        : "bg-muted text-muted-foreground"
                     )}
                   >
-                    {c.name} ({count})
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setShowAddCat(true)}
-                className="shrink-0 whitespace-nowrap rounded-xl border border-dashed border-primary/50 bg-primary/5 px-3.5 py-2 text-xs font-bold text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-              >
-                + Add Category
-              </button>
+                    {matchingItemsCount}
+                  </span>
+                </button>
+
+                {/* Individual Category Tabs */}
+                {data.categories.map((c) => {
+                  const catMatching = getCategoryMatchingCount(c.id);
+                  const catTotal = getCategoryTotalCount(c.id);
+                  const isActive = activeCatTab === c.id;
+                  const isFiltered = Boolean(normalizedQ || filter === "soldout");
+
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setActiveCatTab(c.id)}
+                      className={cn(
+                        "shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5",
+                        isActive
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "bg-card border border-border/80 text-foreground hover:bg-secondary",
+                        isFiltered && catMatching === 0 && !isActive && "opacity-50"
+                      )}
+                    >
+                      <span>{c.name}</span>
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.2 text-[10px] font-extrabold",
+                          isActive
+                            ? "bg-white/20 text-white"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {isFiltered ? catMatching : catTotal}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* + Add Category Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddCat(true);
+                    setTimeout(() => {
+                      const el = document.getElementById("new-category-input");
+                      if (el) el.focus();
+                    }, 50);
+                  }}
+                  className="shrink-0 whitespace-nowrap rounded-xl border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10 transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Add Category</span>
+                </button>
+              </div>
+
+              {/* Right Fade Gradient for Mobile */}
+              {canScrollRight && (
+                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent z-5" />
+              )}
+
+              {/* Right Scroll Button (Desktop) */}
+              {canScrollRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollCats("right")}
+                  className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 size-8 rounded-full bg-background/95 border border-border shadow-md items-center justify-center text-foreground hover:bg-secondary cursor-pointer transition-all"
+                  aria-label="Scroll categories right"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              )}
             </div>
 
-            {/* Empty State */}
+            {/* Empty State when no categories exist */}
             {data.categories.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
                 <ChefHat className="mx-auto size-10 text-muted-foreground opacity-50" />
@@ -1120,11 +1304,39 @@ function MyMenu() {
               </div>
             )}
 
+            {/* Empty Search / Filter State (when dishes exist but none match filter) */}
+            {data.categories.length > 0 && matchingItemsCount === 0 && (
+              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center animate-rise">
+                <Search className="mx-auto size-8 text-muted-foreground opacity-40 mb-2" />
+                <h4 className="text-sm font-bold text-foreground">No matching dishes found</h4>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                  {normalizedQ
+                    ? `No dishes match "${q}". Try checking spelling or search a different name.`
+                    : "No sold-out dishes found. All items in your menu are currently in stock!"}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setQ("");
+                    setFilter("all");
+                    setActiveCatTab("all");
+                  }}
+                  className="mt-3 text-xs font-bold"
+                >
+                  Clear Filters & Show All
+                </Button>
+              </div>
+            )}
+
             {/* Category Sections */}
             {data.categories
               .filter((c) => activeCatTab === "all" || c.id === activeCatTab)
               .map((c) => {
                 const categoryItems = data.items.filter((i) => i.category_id === c.id && match(i));
+                const totalInCat = getCategoryTotalCount(c.id);
+                const isFiltered = Boolean(normalizedQ || filter === "soldout");
+
                 return (
                   <section key={c.id} className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden">
                     {/* Category Header with Clean Padding & Responsive Layout */}
@@ -1134,8 +1346,13 @@ function MyMenu() {
                         <span className="text-sm sm:text-base font-bold text-foreground truncate">
                           {c.name}
                         </span>
-                        <span className="shrink-0 rounded-full bg-secondary/80 border border-border/60 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                          {data.items.filter((i) => i.category_id === c.id).length} items
+                        <span className="shrink-0 rounded-full bg-secondary/80 border border-border/60 px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                          {categoryItems.length} {categoryItems.length === 1 ? "dish" : "dishes"}
+                          {isFiltered && categoryItems.length !== totalInCat && (
+                            <span className="opacity-70 font-medium ml-1">
+                              (of {totalInCat})
+                            </span>
+                          )}
                         </span>
                       </div>
 
@@ -1176,8 +1393,34 @@ function MyMenu() {
 
                     {/* Dish Items List with Clean Responsive Margins */}
                     {categoryItems.length === 0 ? (
-                      <div className="p-5 text-center text-xs text-muted-foreground">
-                        No dishes in this category. Click "+ Add Dish" or use Quick Add above.
+                      <div className="p-6 text-center text-xs text-muted-foreground">
+                        {normalizedQ ? (
+                          <div className="space-y-2">
+                            <p>No dishes match "{q}" in <span className="font-semibold text-foreground">{c.name}</span>.</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs font-semibold"
+                              onClick={() => setQ("")}
+                            >
+                              Clear Search
+                            </Button>
+                          </div>
+                        ) : filter === "soldout" ? (
+                          <p>No sold-out dishes in <span className="font-semibold text-foreground">{c.name}</span>. All dishes are available!</p>
+                        ) : (
+                          <div className="space-y-2">
+                            <p>No dishes in this category yet.</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs font-semibold gap-1"
+                              onClick={() => openNew(c.id)}
+                            >
+                              <Plus className="size-3" /> Add First Dish
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <ul className="divide-y divide-border/60">
@@ -1888,6 +2131,14 @@ function MyMenu() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Menu Photo Scanner Modal */}
+      <AiMenuScannerModal
+        open={isAiScanOpen}
+        onOpenChange={setIsAiScanOpen}
+        restaurantId={rid}
+        restaurantName={data.restaurant.name}
+      />
     </AppShell>
   );
 }

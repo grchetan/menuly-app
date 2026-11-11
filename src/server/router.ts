@@ -58,6 +58,10 @@ import {
   getRestaurantOrderStats,
 } from "./orders/service";
 import {
+  extractMenuFromImage,
+  applyScannedMenuToRestaurant,
+} from "./ai/menu-scanner";
+import {
   sanitizeObject,
   sanitizeText,
   sanitizePrice,
@@ -1006,6 +1010,38 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         }
         const stats = await getRestaurantOrderStats(restaurantId);
         return json({ success: true, stats });
+      }
+
+      // 18. POST /api/restaurant/ai-menu/scan (AI Vision Menu Digitizer)
+      if (pathname === "/api/restaurant/ai-menu/scan" && request.method === "POST") {
+        const rate = checkRateLimit(`ai_scan:${auth.userId}`, { windowMs: 60 * 1000, max: 20 });
+        if (!rate.allowed) {
+          return json({ error: `Too many AI scan requests. Please wait ${rate.resetInSeconds}s.` }, 429);
+        }
+        const rawBody = await request.json().catch(() => ({}));
+        if (!rawBody.imageBase64) {
+          return json({ error: "Image file or base64 data required" }, 400);
+        }
+        const res = await extractMenuFromImage(rawBody.imageBase64, rawBody.mimeType);
+        return json(res, res.status);
+      }
+
+      // 19. POST /api/restaurant/ai-menu/apply (Save Extracted Menu into Database)
+      if (pathname === "/api/restaurant/ai-menu/apply" && request.method === "POST") {
+        const userRest = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        const restaurantId = (userRest as any)?.restaurant?.id || (userRest as any)?.id;
+        if (!restaurantId) {
+          return json({ error: "No restaurant found for this account" }, 404);
+        }
+        const rawBody = await request.json().catch(() => ({}));
+        const mode = rawBody.mode === "replace" ? "replace" : "append";
+        const res = await applyScannedMenuToRestaurant({
+          userId: auth.userId,
+          restaurantId,
+          mode,
+          categories: rawBody.categories || [],
+        });
+        return json(res, res.status);
       }
     }
 
