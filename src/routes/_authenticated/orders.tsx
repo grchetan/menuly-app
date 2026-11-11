@@ -1,10 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  CookingPot,
   ExternalLink,
   BarChart3,
-  UtensilsCrossed,
+  Printer,
   ArrowRight,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -59,63 +58,46 @@ function OrdersPage() {
     <AppShell
       title="Kitchen POS & Live Orders"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <Button
             asChild
             variant="outline"
             size="sm"
-            className="rounded-full text-xs font-bold gap-1.5 border-border/80"
+            className="rounded-full text-xs font-bold gap-1.5 border-border/80 h-8 sm:h-9"
           >
             <Link to="/dashboard">
               <BarChart3 className="size-3.5 text-primary" />
-              <span>Order Analytics</span>
+              <span className="hidden sm:inline">Order Analytics</span>
             </Link>
           </Button>
           <Button
             asChild
             variant="outline"
             size="sm"
-            className="rounded-full text-xs font-bold gap-1.5 border-border/80"
+            className="rounded-full text-xs font-bold gap-1.5 border-border/80 h-8 sm:h-9"
           >
             <a href={`/menu/${r.slug}`} target="_blank" rel="noreferrer">
-              <span>Customer Menu</span>
+              <span className="hidden sm:inline">Customer Menu</span>
+              <span className="sm:hidden">Menu</span>
               <ExternalLink className="size-3 text-muted-foreground" />
             </a>
+          </Button>
+          <Button
+            asChild
+            size="sm"
+            className="rounded-full font-bold text-xs gap-1.5 bg-primary text-primary-foreground shadow-xs h-8 sm:h-9"
+          >
+            <Link to="/qr">
+              <Printer className="size-3.5" />
+              <span>Print Table QRs</span>
+              <ArrowRight className="size-3 hidden sm:inline" />
+            </Link>
           </Button>
         </div>
       }
     >
-      <div className="max-w-7xl mx-auto space-y-6 py-2">
-        {/* Quick Header Banner */}
-        <div className="rounded-3xl border border-border/70 bg-gradient-to-r from-card via-card to-orange-500/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
-              <h2 className="font-serif font-black text-lg sm:text-xl text-foreground flex items-center gap-2">
-                <CookingPot className="size-5 text-orange-500" />
-                Live Kitchen Dispatch &amp; POS
-              </h2>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Direct table-wise orders from QR scans at <strong className="text-foreground">{r.name}</strong>. Auto-refreshes with chime alerts.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              asChild
-              size="sm"
-              className="rounded-xl font-bold text-xs gap-1 bg-primary text-primary-foreground shadow-xs"
-            >
-              <Link to="/qr">
-                <span>Print Table QRs</span>
-                <ArrowRight className="size-3" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* Live POS Orders Engine */}
+      <div className="max-w-7xl mx-auto space-y-4 py-1 sm:py-2">
+        {/* Live POS Orders Engine (Directly visible without duplicate outer banners) */}
         <LiveOrdersManager
           restaurantId={r.id}
           restaurantSlug={r.slug}

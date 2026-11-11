@@ -562,18 +562,18 @@ export function LiveOrdersManager({
   };
 
   return (
-    <section className="space-y-4 rounded-3xl border border-border/80 bg-card p-4 sm:p-6 shadow-xs">
+    <section className="space-y-4 rounded-3xl border border-border/80 bg-card p-3 sm:p-6 shadow-xs">
       {/* ------------------------------------------------------------- */}
       {/* 1. SECTION HEADER WITH LIVE METRICS & AUDIO TOGGLE           */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3 sm:pb-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex size-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h2 className="font-display text-lg sm:text-xl font-black text-foreground">
+            <span className="flex size-2 sm:size-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h2 className="font-display text-base sm:text-xl font-black text-foreground">
               Live Table Orders & Kitchen POS
             </h2>
-            <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2.5 py-0.5 text-xs font-bold">
+            <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] sm:text-xs font-bold">
               Table-Wise Live
             </span>
           </div>
@@ -583,7 +583,7 @@ export function LiveOrdersManager({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           {/* Sound & Natural Voice Alert Toggle */}
           <Button
             type="button"
@@ -597,7 +597,7 @@ export function LiveOrdersManager({
             title="Toggle Hindi/Hinglish speech and chime alerts"
           >
             {soundEnabled ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5 text-muted-foreground" />}
-            <span className="hidden sm:inline">{soundEnabled ? "Voice On" : "Voice Off"}</span>
+            <span className="text-xs">{soundEnabled ? "Voice On" : "Voice Off"}</span>
           </Button>
 
           {/* Refresh Button */}
@@ -692,39 +692,39 @@ export function LiveOrdersManager({
       {/* ------------------------------------------------------------- */}
       {/* 2. SUMMARY COUNTERS                                           */}
       {/* ------------------------------------------------------------- */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
-          <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-2.5 sm:p-3">
+          <span className="text-[10px] sm:text-[11px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">
             New Pending
           </span>
-          <span className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
+          <span className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1 block">
             {pendingCount}
           </span>
         </div>
 
-        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3">
-          <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider block">
+        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-2.5 sm:p-3">
+          <span className="text-[10px] sm:text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider block">
             In Kitchen
           </span>
-          <span className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
+          <span className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5 sm:mt-1 block">
             {preparingCount}
           </span>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 sm:p-3">
+          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
             Served
           </span>
-          <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+          <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-1 block">
             {servedCount}
           </span>
         </div>
 
-        <div className="rounded-2xl border border-border/80 bg-secondary/30 p-3">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+        <div className="rounded-2xl border border-border/80 bg-secondary/30 p-2.5 sm:p-3">
+          <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
             Today Sales
           </span>
-          <span className="text-xl sm:text-2xl font-black text-foreground mt-1 block truncate">
+          <span className="text-base sm:text-2xl font-black text-foreground mt-0.5 sm:mt-1 block truncate">
             {formatPrice(todayTotalRevenue)}
           </span>
         </div>

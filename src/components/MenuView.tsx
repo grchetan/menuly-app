@@ -615,25 +615,25 @@ export function MenuView({
         className={cn(
           "sticky top-0 z-30 backdrop-blur-md border-b transition-colors",
           isDark ? "bg-[#0d0f12]/95 border-[#232834]" : "bg-background/95 border-border/40",
-          compact ? "py-2 px-3" : "py-2.5 px-4"
+          compact ? "py-1.5 px-2.5" : "py-1.5 px-2.5 sm:py-2.5 sm:px-4"
         )}
       >
-        <div className="mx-auto max-w-2xl flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <div className="mx-auto max-w-2xl flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
             {r.logo_url ? (
               <img
                 src={r.logo_url}
                 alt={r.name}
                 className={cn(
                   "rounded-full object-cover border-2 border-orange-500/30 shadow-xs shrink-0",
-                  compact ? "size-8" : "size-10 sm:size-11"
+                  compact ? "size-7" : "size-8 sm:size-10"
                 )}
               />
             ) : (
               <div
                 className={cn(
                   "rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0",
-                  compact ? "size-8 text-xs" : "size-10 sm:size-11 text-base"
+                  compact ? "size-7 text-xs" : "size-8 sm:size-10 text-xs sm:text-base"
                 )}
               >
                 {r.name.slice(0, 1)}
@@ -643,7 +643,7 @@ export function MenuView({
               <h1
                 className={cn(
                   "font-serif font-bold text-foreground tracking-tight truncate leading-tight",
-                  compact ? "text-xs sm:text-sm" : "text-base sm:text-lg"
+                  compact ? "text-xs sm:text-sm" : "text-sm sm:text-base md:text-lg"
                 )}
                 title={r.name}
               >
@@ -651,14 +651,14 @@ export function MenuView({
               </h1>
               <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mt-0.5">
                 <span className="relative flex size-2 items-center justify-center shrink-0">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
                 </span>
-                <span className="font-bold text-amber-600 dark:text-amber-400 shrink-0">Live · Open now</span>
-                {!compact && (
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Live · Open</span>
+                {!compact && r.hours && (
                   <>
-                    <span className="text-muted-foreground/60">•</span>
-                    <span className="truncate">{r.hours ? r.hours.replace(/Mon–Sun,\s*/i, "") : "11:00–23:00"}</span>
+                    <span className="text-muted-foreground/60 hidden md:inline">•</span>
+                    <span className="truncate hidden md:inline">{r.hours.replace(/Mon–Sun,\s*/i, "")}</span>
                   </>
                 )}
               </div>
@@ -666,7 +666,7 @@ export function MenuView({
           </div>
 
           {/* Right Action: Table # Badge + Orders Badge + Call Waiter + Dark Mode Theme Toggle */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {(table || activeTableNumber) && (
               <button
                 type="button"
@@ -676,11 +676,12 @@ export function MenuView({
                 }}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 active:scale-95 transition-all cursor-pointer",
-                  compact ? "px-1.5 py-0.5 text-[9px]" : "px-2.5 py-0.5 text-[11px]"
+                  compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
                 )}
                 title="Tap to change table"
               >
-                {compact ? `T#${activeTableNumber || table}` : `Table #${activeTableNumber || table}`}
+                <span className="sm:hidden">T#{activeTableNumber || table}</span>
+                <span className="hidden sm:inline">Table #{activeTableNumber || table}</span>
               </button>
             )}
 
@@ -691,13 +692,13 @@ export function MenuView({
                 onClick={() => setIsHistoryModalOpen(true)}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 font-bold text-emerald-700 dark:text-emerald-300 shrink-0 hover:bg-emerald-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
-                  compact ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+                  compact ? "px-1.5 py-0.5 text-[9px]" : "px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
                 )}
                 title="View active and previous orders placed at this table"
               >
                 <ReceiptText className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>{compact ? "Orders" : "Orders"}</span>
-                <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-black">
+                <span className="hidden sm:inline">Orders</span>
+                <span className="flex items-center justify-center min-w-3.5 h-3.5 sm:min-w-4 sm:h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-black">
                   {orderHistory.length}
                 </span>
               </button>
@@ -709,13 +710,16 @@ export function MenuView({
               onClick={() => setIsCallWaiterOpen(true)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 font-bold text-amber-700 dark:text-amber-300 shrink-0 hover:bg-amber-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
-                compact ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+                compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
               )}
               title="Call waiter or request water / bill"
             >
               <BellRing className="size-3 text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
-              <span>{compact ? "Call" : "Call Waiter"}</span>
+              <span className="sm:hidden">Call</span>
+              <span className="hidden sm:inline">Call Waiter</span>
             </button>
+
+            {/* Theme Toggle Button */}
             <button
               type="button"
               onClick={toggleDark}
@@ -725,13 +729,13 @@ export function MenuView({
                 isDark
                   ? "bg-[#15181e] text-amber-400 hover:bg-[#1a1e26] border-[#232834]"
                   : "bg-card text-foreground hover:bg-secondary border-border/80",
-                compact ? "size-7" : "size-9"
+                compact ? "size-6.5" : "size-7 sm:size-8.5"
               )}
             >
               {isDark ? (
-                <Sun className={compact ? "size-3.5 text-amber-400" : "size-4 text-amber-400"} />
+                <Sun className={compact ? "size-3 text-amber-400" : "size-3.5 sm:size-4 text-amber-400"} />
               ) : (
-                <Moon className={compact ? "size-3.5 text-foreground/80" : "size-4 text-foreground/80"} />
+                <Moon className={compact ? "size-3 text-foreground/80" : "size-3.5 sm:size-4 text-foreground/80"} />
               )}
             </button>
           </div>
@@ -932,9 +936,9 @@ export function MenuView({
       {/* SEARCH BAR & CATEGORY PILLS (STICKY SUB-HEADER) */}
       <div
         className={cn(
-          "sticky z-20 backdrop-blur-md pt-2.5 pb-2 border-b transition-colors mt-3.5",
-          compact ? "top-[48px]" : "top-[58px]",
-          isDark ? "bg-[#0d0f12]/95 border-[#232834]" : "bg-background/95 border-border/60"
+          "sticky z-20 backdrop-blur-md pt-2 pb-2 border-b transition-colors mt-3",
+          compact ? "top-[44px]" : "top-[48px] sm:top-[58px]",
+          isDark ? "bg-[#0d0f12]/98 border-[#232834]" : "bg-background/98 border-border/60"
         )}
       >
         {/* Search Bar Input */}
@@ -989,7 +993,7 @@ export function MenuView({
                 onClick={(e) => scrollToCat("all", e)}
                 className={cn(
                   "shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-full font-bold transition-all duration-200 select-none cursor-pointer",
-                  compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-xs sm:text-sm",
+                  compact ? "px-2.5 py-0.5 text-xs" : "px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm",
                   selectedCategory === "all"
                     ? "bg-orange-500 text-white shadow-xs ring-1 ring-orange-500/40"
                     : isDark
@@ -1011,7 +1015,7 @@ export function MenuView({
                     onClick={(e) => scrollToCat(c.id, e)}
                     className={cn(
                       "shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-full font-bold transition-all duration-200 select-none cursor-pointer",
-                      compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-xs sm:text-sm",
+                      compact ? "px-2.5 py-0.5 text-xs" : "px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm",
                       isCatActive
                         ? "bg-orange-500 text-white shadow-xs ring-1 ring-orange-500/40"
                         : isDark
