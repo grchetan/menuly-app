@@ -621,6 +621,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         phone: body.phone,
         whatsapp: body.whatsapp,
         logoUrl: body.logoUrl,
+        coverUrl: body.coverUrl,
+        address: body.address,
+        description: body.description,
+        hours: body.hours,
       });
       return json(res, res.status);
     }

@@ -79,6 +79,7 @@ class OrdersSyncManager {
     string,
     { status: OrderStatus; timestamp: number; cancelReason?: string | undefined }
   >();
+  private optimisticResolvedCalls = new Map<string, number>();
   private pollIntervalId: any = null;
   private isPolling = false;
   private activeSubscriptions = 0;
@@ -94,6 +95,16 @@ class OrdersSyncManager {
           }
         }
       } catch {}
+
+      try {
+        const resolved = sessionStorage.getItem("menuly_resolved_service_calls");
+        if (resolved) {
+          const parsed = JSON.parse(resolved);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((id: string) => this.optimisticResolvedCalls.set(id, Date.now()));
+          }
+        }
+      } catch {}
     }
   }
 
@@ -103,6 +114,13 @@ class OrdersSyncManager {
       sessionStorage.setItem(
         "menuly_announced_voice_ids",
         JSON.stringify(Array.from(this.announcedIds).slice(-250))
+      );
+    } catch {}
+
+    try {
+      sessionStorage.setItem(
+        "menuly_resolved_service_calls",
+        JSON.stringify(Array.from(this.optimisticResolvedCalls.keys()).slice(-100))
       );
     } catch {}
   }
@@ -215,9 +233,20 @@ class OrdersSyncManager {
           return o;
         });
 
-        const fetchedCalls: ServiceCallItem[] = Array.isArray(data.serviceCalls)
+        // Prune optimistic service call resolution locks older than 60s
+        this.optimisticResolvedCalls.forEach((ts, id) => {
+          if (now - ts > 60000) {
+            this.optimisticResolvedCalls.delete(id);
+          }
+        });
+
+        const rawCalls: ServiceCallItem[] = Array.isArray(data.serviceCalls)
           ? data.serviceCalls
           : [];
+        // Strictly filter out any calls that have been marked attended (prevents flickering back)
+        const fetchedCalls: ServiceCallItem[] = rawCalls.filter(
+          (c) => !this.optimisticResolvedCalls.has(c.id)
+        );
 
         // -------------------------------------------------------------
         // VOICE & NOTIFICATION TRIGGER LOGIC
@@ -453,10 +482,16 @@ class OrdersSyncManager {
   }
 
   /**
-   * 0ms Instant Optimistic Service Call Resolution
+   * 0ms Instant Optimistic Service Call Resolution (with anti-flicker lock)
    */
   public async resolveServiceCall(callId: string): Promise<boolean> {
     const prevCalls = this.state.serviceCalls;
+    // 1. Lock optimistic resolution for 60s so background polling never flickers it back
+    this.optimisticResolvedCalls.set(callId, Date.now());
+    this.announcedIds.add(callId);
+    this.persistAnnouncedIds();
+
+    // 2. 0ms instant UI removal
     this.state = {
       ...this.state,
       serviceCalls: this.state.serviceCalls.filter((c) => c.id !== callId),
@@ -478,6 +513,7 @@ class OrdersSyncManager {
       }
       return true;
     } catch (err) {
+      this.optimisticResolvedCalls.delete(callId);
       this.state = { ...this.state, serviceCalls: prevCalls };
       this.notify();
       throw err;

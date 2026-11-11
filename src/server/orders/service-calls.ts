@@ -20,6 +20,8 @@ export interface ServiceCall {
 
 // In-memory registry of active service calls keyed by restaurant ID
 const serviceCallsRegistry = new Map<string, ServiceCall[]>();
+// Set of call IDs permanently resolved/attended across recent requests
+const resolvedCallIds = new Set<string>();
 
 /**
  * Creates a new waiter / service call for a restaurant table.
@@ -42,6 +44,7 @@ export function requestServiceCall(params: {
     (c) =>
       c.tableNumber.toLowerCase() === tableNumber.toLowerCase() &&
       c.status === "PENDING" &&
+      !resolvedCallIds.has(c.id) &&
       c.reason === reason &&
       Date.now() - new Date(c.createdAt).getTime() < 60 * 1000
   );
@@ -76,22 +79,27 @@ export function requestServiceCall(params: {
 export function getPendingServiceCalls(restaurantId: string): ServiceCall[] {
   const calls = serviceCallsRegistry.get(restaurantId) || [];
   const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
-  return calls.filter((c) => c.status === "PENDING" && new Date(c.createdAt).getTime() > twoHoursAgo);
+  return calls.filter(
+    (c) =>
+      c.status === "PENDING" &&
+      !resolvedCallIds.has(c.id) &&
+      new Date(c.createdAt).getTime() > twoHoursAgo
+  );
 }
 
 /**
  * Marks a service call as ATTENDED.
  */
 export function resolveServiceCall(restaurantId: string, callId: string): boolean {
+  resolvedCallIds.add(callId);
   const calls = serviceCallsRegistry.get(restaurantId);
-  if (!calls) return false;
+  if (!calls) return true;
 
   const target = calls.find((c) => c.id === callId);
   if (target) {
     target.status = "ATTENDED";
     target.attendedAt = new Date().toISOString();
-    return true;
   }
 
-  return false;
+  return true;
 }

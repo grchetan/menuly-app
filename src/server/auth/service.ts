@@ -1024,8 +1024,24 @@ export async function updateUserProfile(params: {
   phone?: string;
   whatsapp?: string;
   logoUrl?: string | null;
+  coverUrl?: string | null;
+  address?: string | null;
+  description?: string | null;
+  hours?: string | null;
 }): Promise<ServiceResult<{ user: TokenPayload; token: string }>> {
-  const { userId, fullName, email, restaurantName, phone, whatsapp, logoUrl } = params;
+  const {
+    userId,
+    fullName,
+    email,
+    restaurantName,
+    phone,
+    whatsapp,
+    logoUrl,
+    coverUrl,
+    address,
+    description,
+    hours,
+  } = params;
 
   const user = await userStore.findById(userId);
   if (!user) {
@@ -1062,6 +1078,10 @@ export async function updateUserProfile(params: {
             ...(phone !== undefined ? { phone: phone.trim() } : {}),
             ...(whatsapp !== undefined ? { whatsapp: whatsapp.trim() } : {}),
             ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
+            ...(coverUrl !== undefined ? { coverUrl: coverUrl || null } : {}),
+            ...(address !== undefined ? { address: address ? address.trim() : null } : {}),
+            ...(description !== undefined ? { description: description ? description.trim() : null } : {}),
+            ...(hours !== undefined ? { hours: hours ? hours.trim() : null } : {}),
           },
         });
       }
