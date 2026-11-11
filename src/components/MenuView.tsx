@@ -126,8 +126,32 @@ export function MenuView({
     });
   };
 
-  // Live Order Cart State ("View order" feature)
-  const [cart, setCart] = useState<Record<string, OrderItem>>({});
+  // Live Order Cart State ("View order" feature) — Cached in localStorage for zero loss on refresh
+  const [cart, setCart] = useState<Record<string, OrderItem>>(() => {
+    if (typeof window !== "undefined" && r?.slug) {
+      try {
+        const stored = localStorage.getItem(`menuly_cart_${r.slug}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === "object") return parsed;
+        }
+      } catch {}
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && r?.slug) {
+      try {
+        if (Object.keys(cart).length > 0) {
+          localStorage.setItem(`menuly_cart_${r.slug}`, JSON.stringify(cart));
+        } else {
+          localStorage.removeItem(`menuly_cart_${r.slug}`);
+        }
+      } catch {}
+    }
+  }, [cart, r?.slug]);
+
   const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
   const [isShowSlipModalOpen, setIsShowSlipModalOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);

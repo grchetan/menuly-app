@@ -659,7 +659,11 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       if (!menu) {
         return json({ error: "Restaurant menu not found or currently paused." }, 404);
       }
-      return json({ success: true, ...menu });
+      return json(
+        { success: true, ...menu },
+        200,
+        { "Cache-Control": "public, max-age=15, stale-while-revalidate=60" }
+      );
     }
 
     // --------------------------------------------------------------------------

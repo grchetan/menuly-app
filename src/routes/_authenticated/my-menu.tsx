@@ -45,6 +45,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { GeminiIcon } from "@/components/icons/GeminiIcon";
+import { getSmartDishImageUrl } from "@/lib/dish-images";
 import {
   myMenuQuery,
   uploadImage,
@@ -336,13 +337,16 @@ function MyMenu() {
         }
       }
 
+      const targetCategoryName = data?.categories.find((c: Category) => c.id === targetCatId)?.name || "General Menu";
+      const autoPhoto = getSmartDishImageUrl(quickName.trim(), targetCategoryName, true);
+
       const newItem = await addDishHelper({
         restaurant_id: rid,
         category_id: targetCatId,
         name: quickName.trim(),
         price: priceNum,
         description: quickDesc.trim() || "",
-        image_url: null,
+        image_url: autoPhoto,
       });
 
       // Optimistic cache update for instantaneous 0ms feedback!
@@ -710,6 +714,7 @@ function MyMenu() {
     }
 
     const currentDraft = draft;
+    const finalImageUrl = currentDraft.image_url?.trim() || getSmartDishImageUrl(currentDraft.name.trim(), undefined, currentDraft.is_veg);
     setIsSavingItem(true);
     try {
       if (currentDraft.id) {
@@ -726,7 +731,7 @@ function MyMenu() {
                     description: currentDraft.description.trim() || "",
                     price,
                     category_id: currentDraft.category_id,
-                    image_url: currentDraft.image_url,
+                    image_url: finalImageUrl,
                     available: currentDraft.available,
                     is_veg: currentDraft.is_veg,
                   }
@@ -742,7 +747,7 @@ function MyMenu() {
           description: currentDraft.description.trim() || null,
           price,
           category_id: currentDraft.category_id,
-          image_url: currentDraft.image_url,
+          image_url: finalImageUrl,
           available: currentDraft.available,
           is_veg: currentDraft.is_veg,
         });
@@ -753,13 +758,13 @@ function MyMenu() {
           name: currentDraft.name.trim(),
           description: currentDraft.description.trim() || undefined,
           price,
-          image_url: currentDraft.image_url,
+          image_url: finalImageUrl,
         });
         qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
           if (!old) return old;
           return {
             ...old,
-            items: [...old.items.filter((it) => it.id !== addedItem.id), addedItem],
+            items: [...old.items.filter((it) => it.id !== addedItem.id), { ...addedItem, image_url: finalImageUrl }],
           };
         });
         setDraft(null);
@@ -1440,18 +1445,20 @@ function MyMenu() {
                             )}
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              {/* Thumbnail */}
-                              {i.image_url ? (
-                                <img
-                                  src={i.image_url}
-                                  alt={i.name}
-                                  className="size-14 rounded-xl object-cover flex-none border border-border/50 shadow-xs"
-                                />
-                              ) : (
-                                <div className="size-14 rounded-xl bg-secondary flex-none flex items-center justify-center text-lg border border-border/40">
-                                  🍲
-                                </div>
-                              )}
+                              {/* Thumbnail with Smart Auto-Photo fallback */}
+                              {(() => {
+                                const dishPhoto = i.image_url || getSmartDishImageUrl(i.name, c.name, i.is_veg);
+                                return (
+                                  <img
+                                    src={dishPhoto}
+                                    alt={i.name}
+                                    className="size-14 rounded-xl object-cover flex-none border border-border/50 shadow-xs"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(i.name, c.name, i.is_veg);
+                                    }}
+                                  />
+                                );
+                              })()}
 
                               {/* Details */}
                               <div className="min-w-0 flex-1">
@@ -1791,17 +1798,19 @@ function MyMenu() {
                 </Label>
                 <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 flex flex-col sm:flex-row sm:items-center gap-3.5">
                   <div className="relative shrink-0">
-                    {draft.image_url ? (
-                      <img
-                        src={draft.image_url}
-                        alt="Dish preview"
-                        className="size-20 rounded-xl object-cover border border-border/80 shadow-xs"
-                      />
-                    ) : (
-                      <div className="size-20 rounded-xl bg-secondary/80 flex items-center justify-center text-3xl border border-border/60">
-                        🍲
-                      </div>
-                    )}
+                    {(() => {
+                      const photo = draft.image_url || getSmartDishImageUrl(draft.name, null, draft.is_veg);
+                      return (
+                        <img
+                          src={photo}
+                          alt="Dish preview"
+                          className="size-20 rounded-xl object-cover border border-border/80 shadow-xs"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(draft.name, null, draft.is_veg);
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
 
                   <div className="flex-1 space-y-1.5">
@@ -1826,9 +1835,23 @@ function MyMenu() {
                         />
                         <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3.5 text-xs font-semibold hover:bg-secondary transition-colors shadow-xs">
                           <Upload className="size-3.5 text-primary" />
-                          {draft.image_url ? "Change Photo" : "Upload Manual Image"}
+                          {draft.image_url ? "Change Photo" : "Upload Image"}
                         </span>
                       </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const autoUrl = getSmartDishImageUrl(draft.name, null, draft.is_veg);
+                          setDraft({ ...draft, image_url: autoUrl });
+                          setDishPhotoSummary("AI Auto Match");
+                          toast.success("Auto food photo applied!");
+                        }}
+                        className="h-9 px-3 rounded-xl text-xs font-semibold gap-1.5"
+                      >
+                        <GeminiIcon size={12} /> Auto Photo
+                      </Button>
                       {draft.image_url && (
                         <button
                           type="button"
