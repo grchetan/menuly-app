@@ -1616,7 +1616,7 @@ function MyMenu() {
               {/* Realistic Smartphone Device Chassis */}
               <div
                 className={cn(
-                  "relative mx-auto h-[min(650px,calc(100vh-120px))] w-full max-w-[340px] xl:max-w-[360px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden transition-colors duration-200",
+                  "relative mx-auto h-[min(670px,calc(100vh-120px))] w-full max-w-[355px] xl:max-w-[375px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden transition-colors duration-200",
                   previewDark && "dark menuly-menu-dark bg-[#0d0f12]"
                 )}
               >

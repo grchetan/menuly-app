@@ -639,17 +639,17 @@ export function MenuView({
                 {r.name.slice(0, 1)}
               </div>
             )}
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 overflow-hidden">
               <h1
                 className={cn(
                   "font-serif font-bold text-foreground tracking-tight truncate leading-tight",
-                  compact ? "text-xs sm:text-sm" : "text-sm sm:text-base md:text-lg"
+                  compact ? "text-[13px]" : "text-sm sm:text-base md:text-lg"
                 )}
                 title={r.name}
               >
                 {r.name}
               </h1>
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                 <span className="relative flex size-2 items-center justify-center shrink-0">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
@@ -666,7 +666,7 @@ export function MenuView({
           </div>
 
           {/* Right Action: Table # Badge + Orders Badge + Call Waiter + Dark Mode Theme Toggle */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <div className={cn("flex items-center shrink-0", compact ? "gap-1" : "gap-1 sm:gap-1.5")}>
             {(table || activeTableNumber) && (
               <button
                 type="button"
@@ -675,13 +675,19 @@ export function MenuView({
                   setIsOrderDrawerOpen(true);
                 }}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 active:scale-95 transition-all cursor-pointer",
+                  "inline-flex items-center gap-0.5 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 active:scale-95 transition-all cursor-pointer",
                   compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
                 )}
                 title="Tap to change table"
               >
-                <span className="sm:hidden">T#{activeTableNumber || table}</span>
-                <span className="hidden sm:inline">Table #{activeTableNumber || table}</span>
+                {compact ? (
+                  <span>T#{activeTableNumber || table}</span>
+                ) : (
+                  <>
+                    <span className="sm:hidden">T#{activeTableNumber || table}</span>
+                    <span className="hidden sm:inline">Table #{activeTableNumber || table}</span>
+                  </>
+                )}
               </button>
             )}
 
@@ -696,9 +702,12 @@ export function MenuView({
                 )}
                 title="View active and previous orders placed at this table"
               >
-                <ReceiptText className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="hidden sm:inline">Orders</span>
-                <span className="flex items-center justify-center min-w-3.5 h-3.5 sm:min-w-4 sm:h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-black">
+                <ReceiptText className={cn("text-emerald-600 dark:text-emerald-400 shrink-0", compact ? "size-2.5" : "size-3")} />
+                {!compact && <span className="hidden sm:inline">Orders</span>}
+                <span className={cn(
+                  "flex items-center justify-center rounded-full bg-emerald-600 text-white font-black",
+                  compact ? "min-w-3.5 h-3.5 px-0.5 text-[8.5px]" : "min-w-3.5 h-3.5 sm:min-w-4 sm:h-4 px-1 text-[9px]"
+                )}>
                   {orderHistory.length}
                 </span>
               </button>
@@ -714,9 +723,15 @@ export function MenuView({
               )}
               title="Call waiter or request water / bill"
             >
-              <BellRing className="size-3 text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
-              <span className="sm:hidden">Call</span>
-              <span className="hidden sm:inline">Call Waiter</span>
+              <BellRing className={cn("text-amber-600 dark:text-amber-400 shrink-0 animate-pulse", compact ? "size-2.5" : "size-3")} />
+              {compact ? (
+                <span>Call</span>
+              ) : (
+                <>
+                  <span className="sm:hidden">Call</span>
+                  <span className="hidden sm:inline">Call Waiter</span>
+                </>
+              )}
             </button>
 
             {/* Theme Toggle Button */}
@@ -729,7 +744,7 @@ export function MenuView({
                 isDark
                   ? "bg-[#15181e] text-amber-400 hover:bg-[#1a1e26] border-[#232834]"
                   : "bg-card text-foreground hover:bg-secondary border-border/80",
-                compact ? "size-6.5" : "size-7 sm:size-8.5"
+                compact ? "size-6" : "size-7 sm:size-8.5"
               )}
             >
               {isDark ? (
