@@ -768,6 +768,44 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // LOUD STUDIO HD VOICE TTS (Google Assistant Neural Hindi Voice Stream): GET /api/voice/tts
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/voice/tts" && request.method === "GET") {
+      const text = url.searchParams.get("text") || "";
+      if (!text || text.length > 250) {
+        return json({ error: "Missing or invalid text parameter (max 250 chars)" }, 400);
+      }
+
+      try {
+        const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodeURIComponent(text)}`;
+        const ttsRes = await fetch(googleTtsUrl, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            Referer: "https://translate.google.com/",
+          },
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (!ttsRes.ok) {
+          return json({ error: "Upstream TTS service error" }, 502);
+        }
+
+        const audioBuffer = await ttsRes.arrayBuffer();
+        return new Response(audioBuffer, {
+          status: 200,
+          headers: {
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+            "Content-Length": String(audioBuffer.byteLength),
+          },
+        });
+      } catch (err: any) {
+        return json({ error: "Failed to generate voice audio: " + (err?.message || String(err)) }, 500);
+      }
+    }
+
+    // --------------------------------------------------------------------------
     // USER STATUS / VERIFICATION: GET /api/user/status & GET /api/auth/me
     // --------------------------------------------------------------------------
     if ((pathname === "/api/user/status" || pathname === "/api/auth/me") && request.method === "GET") {

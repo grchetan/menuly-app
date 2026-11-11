@@ -22,6 +22,7 @@ import {
   User,
   Bell,
   BellRing,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,47 +83,93 @@ function playChimeSound() {
   if (typeof window === "undefined") return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.6);
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+    const now = ctx.currentTime;
+
+    // Tone 1: Energetic Bell Chime (880 Hz / A5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(880, now);
+    gain1.gain.setValueAtTime(0.4, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    // Tone 2: Crisp Accent Bell (1318.5 Hz / E6)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(1318.51, now + 0.12);
+    gain2.gain.setValueAtTime(0.45, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.6);
   } catch {
     // Ignore audio autoplay restrictions
   }
 }
 
+let activeAudioElement: HTMLAudioElement | null = null;
+
 /**
- * Natural voice announcement in Hindi/Hinglish via Web Speech API
+ * Loud, studio-grade Hindi voice announcement (Google Assistant Neural Studio Voice).
+ * Automatically streams high-bitrate MP3 via /api/voice/tts, with fallback to Web Speech API.
  */
-export function speakVoiceAnnouncement(text: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+export async function speakVoiceAnnouncement(hindiText: string, englishFallback?: string) {
+  if (typeof window === "undefined") return;
+
+  // 1. Try Google Assistant Neural Studio Audio (Real MP3 - Crisp, Loud & Powerful)
   try {
+    if (activeAudioElement) {
+      activeAudioElement.pause();
+      activeAudioElement.currentTime = 0;
+    }
+
+    const ttsUrl = `/api/voice/tts?text=${encodeURIComponent(hindiText)}`;
+    const audio = new Audio(ttsUrl);
+    activeAudioElement = audio;
+    audio.volume = 1.0;
+
+    await audio.play();
+    return;
+  } catch {
+    // If audio element failed (e.g. offline), fall back to SpeechSynthesis
+  }
+
+  // 2. Fallback to Web Speech API with Devanagari Hindi or English
+  try {
+    if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
-    const voice =
-      voices.find((v) => v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi")) ||
-      voices.find((v) => v.lang === "en-IN" || v.name.toLowerCase().includes("india")) ||
-      voices.find((v) => v.lang.startsWith("en"));
+    const hindiVoice = voices.find(
+      (v) => v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi")
+    );
 
-    if (voice) {
-      utterance.voice = voice;
+    const utterance = new SpeechSynthesisUtterance(
+      hindiVoice ? hindiText : (englishFallback || hindiText)
+    );
+    utterance.volume = 1.0;
+    utterance.rate = 0.9;
+    utterance.pitch = 1.05;
+
+    if (hindiVoice) {
+      utterance.voice = hindiVoice;
+      utterance.lang = hindiVoice.lang;
+    } else {
+      utterance.lang = "en-IN";
     }
-    utterance.lang = voice?.lang || "hi-IN";
+
     window.speechSynthesis.speak(utterance);
   } catch (err) {
-    console.warn("Speech synthesis error:", err);
+    console.warn("Speech synthesis fallback failed:", err);
   }
 }
 
@@ -189,13 +236,22 @@ export function LiveOrdersManager({
               playChimeSound();
               const firstCall = newCalls[0];
               if (firstCall) {
-                let reasonHindi = "waiter ko bula rahe hain";
-                if (firstCall.reason === "water") reasonHindi = "paani mangaaya hai";
-                else if (firstCall.reason === "bill") reasonHindi = "bill mangaaya hai";
-                else if (firstCall.reason === "cutlery") reasonHindi = "cutlery mangaayi hai";
+                let reasonHindi = "वेटर को बुलाया गया है";
+                let reasonEn = "Waiter requested";
+                if (firstCall.reason === "water") {
+                  reasonHindi = "पानी मंगाया गया है";
+                  reasonEn = "Drinking water requested";
+                } else if (firstCall.reason === "bill") {
+                  reasonHindi = "बिल मंगाया गया है";
+                  reasonEn = "Bill requested";
+                } else if (firstCall.reason === "cutlery") {
+                  reasonHindi = "कटलरी मंगाई गई है";
+                  reasonEn = "Cutlery requested";
+                }
 
-                const speechText = `Attention: Table number ${firstCall.tableNumber} se ${reasonHindi}!`;
-                setTimeout(() => speakVoiceAnnouncement(speechText), 350);
+                const speechHindi = `सावधान! टेबल नंबर ${firstCall.tableNumber} पर ${reasonHindi}!`;
+                const speechEnglish = `Attention! Table ${firstCall.tableNumber}: ${reasonEn}!`;
+                setTimeout(() => speakVoiceAnnouncement(speechHindi, speechEnglish), 350);
 
                 toast.warning(`🛎️ Table #${firstCall.tableNumber}: ${firstCall.reason.toUpperCase()} requested!`, {
                   duration: 8000,
@@ -220,9 +276,9 @@ export function LiveOrdersManager({
             const first = newOrders[0];
             if (first) {
               const dishCount = first.totalItems || first.items.reduce((sum, it) => sum + it.quantity, 0) || 1;
-              const dishWord = dishCount === 1 ? "1 dish" : `${dishCount} dish`;
-              const speechText = `Table number ${first.tableNumber} se ${dishWord} ka naya order aaya hai.`;
-              setTimeout(() => speakVoiceAnnouncement(speechText), 350);
+              const speechHindi = `टेबल नंबर ${first.tableNumber} से ${dishCount} डिश का नया आर्डर आया है!`;
+              const speechEnglish = `New order from Table ${first.tableNumber}! ${dishCount} dishes received.`;
+              setTimeout(() => speakVoiceAnnouncement(speechHindi, speechEnglish), 350);
 
               toast.success(`🔔 New Order ${first.orderNumber} from Table #${first.tableNumber}!`, {
                 duration: 6000,
@@ -265,13 +321,6 @@ export function LiveOrdersManager({
     }
   };
 
-  // Test Voice Announcement helper
-  const handleTestVoice = () => {
-    playChimeSound();
-    speakVoiceAnnouncement("Testing Menuly Voice Alert: Table number 1 se 4 dish ka order aaya hai.");
-    toast.success("🔊 Testing voice: Table 1 se 4 dish ka order aaya hai");
-  };
-
   // Initial load + periodic polling every 8 seconds
   useEffect(() => {
     fetchOrders(false);
@@ -310,38 +359,6 @@ export function LiveOrdersManager({
       toast.error(err.message || "Failed to update status");
     } finally {
       setUpdatingId(null);
-    }
-  };
-
-  // Simulate sample order for quick testing
-  const handleSimulateOrder = async () => {
-    try {
-      const tablesList = ["1", "2", "3", "4", "5", "Outdoor-A"];
-      const randomTable = tablesList[Math.floor(Math.random() * tablesList.length)];
-      const res = await fetch("/api/orders/place", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId,
-          slug: restaurantSlug,
-          tableNumber: randomTable,
-          customerName: "Demo Diner",
-          customerPhone: "+91 9179878521",
-          notes: "Extra napkins, keep it spicy!",
-          items: [
-            { id: "sample-1", name: "Paneer Tikka Masala", price: 280, quantity: 1, isVeg: true },
-            { id: "sample-2", name: "Butter Garlic Naan", price: 60, quantity: 3, isVeg: true },
-            { id: "sample-3", name: "Fresh Mint Chaas", price: 50, quantity: 2, isVeg: true },
-          ],
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success(`Demo order ${data.order.orderNumber} placed for Table #${randomTable}!`);
-        fetchOrders(false);
-      }
-    } catch {
-      toast.error("Failed to simulate order");
     }
   };
 
@@ -445,19 +462,6 @@ export function LiveOrdersManager({
             <span className="hidden sm:inline">{soundEnabled ? "Voice On" : "Voice Off"}</span>
           </Button>
 
-          {/* Test Voice Speech Button */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleTestVoice}
-            className="h-8 text-xs font-semibold gap-1.5 border-border hover:bg-secondary cursor-pointer"
-            title="Listen to sample Hindi speech announcement"
-          >
-            <Sparkles className="size-3 text-orange-500" />
-            <span className="hidden sm:inline">Test Voice</span>
-          </Button>
-
           {/* Refresh Button */}
           <Button
             type="button"
@@ -469,18 +473,6 @@ export function LiveOrdersManager({
           >
             <RefreshCw className={cn("size-3.5", loading && "animate-spin text-primary")} />
             <span className="hidden sm:inline">Refresh</span>
-          </Button>
-
-          {/* Simulate Demo Order (for testing) */}
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={handleSimulateOrder}
-            className="h-8 text-xs font-bold gap-1"
-          >
-            <CookingPot className="size-3.5 text-amber-500" />
-            <span>Test Order</span>
           </Button>
         </div>
       </div>
@@ -709,14 +701,16 @@ export function LiveOrdersManager({
                 When diners scan table QR codes and place orders, they will appear here in real-time with sound chime alerts.
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSimulateOrder}
-              className="gap-1.5 text-xs font-bold rounded-xl"
-            >
-              <Sparkles className="size-3 text-amber-500" /> Send Test Order to Table
-            </Button>
+            <div className="pt-1">
+              <a
+                href={`/menu/${restaurantSlug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3.5 py-2 border border-border bg-card hover:bg-secondary text-foreground transition-all shadow-xs"
+              >
+                <ExternalLink className="size-3.5 text-primary" /> Open Customer Menu
+              </a>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
