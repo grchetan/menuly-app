@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { myMenuQuery } from "@/lib/restaurant";
 import { getSmartDishImageUrl } from "@/lib/dish-images";
+import { GeminiIcon } from "@/components/icons/GeminiIcon";
 
 export interface ScannedMenuItem {
   name: string;
@@ -360,16 +361,21 @@ export function AiMenuScannerModal({
         {/* Modal Header */}
         <DialogHeader className="p-5 border-b border-border/60 pb-3 shrink-0">
           <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="size-8 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold">
-                <Sparkles className="size-4" />
+            <div className="flex items-center gap-2.5">
+              <div className="size-9 rounded-xl border border-border/80 bg-secondary/50 shadow-2xs flex items-center justify-center shrink-0">
+                <GeminiIcon size={18} />
               </div>
               <div>
-                <h3 className="font-serif font-black text-lg text-foreground">
-                  AI Smart Menu Scanner
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif font-black text-base sm:text-lg text-foreground tracking-tight">
+                    Smart Menu Digitizer
+                  </h3>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-secondary/70 px-2 py-0.5 text-[10px] font-semibold text-foreground/80">
+                    <GeminiIcon size={10} /> Gemini Vision
+                  </span>
+                </div>
                 <p className="text-[11px] text-muted-foreground font-normal">
-                  Upload any physical menu photo or pamphlet to create a digital menu instantly.
+                  Convert physical menu cards, rate boards &amp; pamphlets into a live digital menu
                 </p>
               </div>
             </div>
@@ -410,7 +416,7 @@ export function AiMenuScannerModal({
               }}
             />
 
-            {/* Dropzone Card */}
+            {/* Dropzone Card (Clean, Modern, Slate/Neutral) */}
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
@@ -419,74 +425,116 @@ export function AiMenuScannerModal({
                 const f = e.dataTransfer.files?.[0];
                 if (f) handleFileSelect(f);
               }}
-              className="border-2 border-dashed border-orange-500/40 hover:border-orange-500 bg-orange-500/5 hover:bg-orange-500/10 rounded-3xl p-8 text-center space-y-3 cursor-pointer transition-all duration-200 group"
+              className="border border-dashed border-border/90 hover:border-foreground/40 bg-secondary/20 hover:bg-secondary/40 rounded-2xl p-7 text-center space-y-3 cursor-pointer transition-all duration-200 group shadow-2xs"
             >
-              <div className="size-14 rounded-2xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                <Upload className="size-7" />
+              <div className="size-12 rounded-xl bg-background border border-border/80 text-muted-foreground group-hover:text-foreground flex items-center justify-center mx-auto shadow-2xs group-hover:scale-105 transition-all">
+                <Upload className="size-5" />
               </div>
               <div className="space-y-1">
-                <p className="font-bold text-sm text-foreground">
-                  Click to Upload Menu Photo or Drag &amp; Drop
+                <p className="font-semibold text-sm text-foreground">
+                  Click to upload menu photo or drag &amp; drop
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Works with laminated menu cards, pamphlets, printed sheets, or rate boards
                 </p>
               </div>
-              <p className="text-[10px] text-muted-foreground font-mono">
-                Supports JPG, PNG, WebP (up to 20MB)
-              </p>
+              <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground font-medium pt-1">
+                <span className="px-1.5 py-0.5 rounded bg-background border border-border/60">JPG</span>
+                <span className="px-1.5 py-0.5 rounded bg-background border border-border/60">PNG</span>
+                <span className="px-1.5 py-0.5 rounded bg-background border border-border/60">WebP</span>
+                <span>• Up to 20MB</span>
+              </div>
             </div>
 
             {/* Camera Option Button */}
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => cameraInputRef.current?.click()}
-                className="flex-1 rounded-2xl h-11 text-xs font-bold gap-2 border-border/80"
-              >
-                <Camera className="size-4 text-primary" /> Take Photo with Phone Camera
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => cameraInputRef.current?.click()}
+              className="w-full h-10 rounded-xl text-xs font-semibold gap-2 border-border/80 hover:bg-secondary/50 cursor-pointer"
+            >
+              <Camera className="size-4 text-muted-foreground" /> Take Photo with Phone Camera
+            </Button>
 
-            {/* Helpful Tips Box */}
-            <div className="rounded-2xl bg-secondary/40 p-3.5 border border-border/60 text-xs space-y-1.5">
-              <div className="flex items-center gap-1.5 font-bold text-foreground">
-                <HelpCircle className="size-3.5 text-primary" />
-                <span>Tips for 100% Accurate AI Scanning:</span>
+            {/* Helpful Clean Minimal Tips Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-secondary/20 px-3 py-2">
+                <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate font-medium">Flat &amp; well-lit</span>
               </div>
-              <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-0.5">
-                <li>Make sure dish names and price numbers are clearly visible in good lighting.</li>
-                <li>Avoid strong glare, dark shadows, or angled perspectives.</li>
-                <li>You can review, edit prices, or remove any dish before saving.</li>
-              </ul>
+              <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-secondary/20 px-3 py-2">
+                <span className="size-1.5 rounded-full bg-sky-500 shrink-0" />
+                <span className="truncate font-medium">Readable prices</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-secondary/20 px-3 py-2">
+                <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="truncate font-medium">Editable before save</span>
+              </div>
             </div>
           </div>
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* STEP 2: SCANNING IN PROGRESS                                  */}
+        {/* STEP 2: SCANNING IN PROGRESS (Optical Scanner with Laser Beam)*/}
         {/* ------------------------------------------------------------- */}
         {step === "scanning" && (
-          <div className="p-10 text-center space-y-6">
-            <div className="relative size-20 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-orange-500/20 border-t-orange-500 animate-spin" />
-              <div className="absolute inset-2 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-600">
-                <Sparkles className="size-7 animate-pulse" />
+          <div className="p-6 sm:p-8 space-y-5">
+            {/* Visual Document Scan Preview with Animated Laser Line */}
+            <div className="relative mx-auto w-full max-w-sm rounded-2xl overflow-hidden border border-border/80 bg-background shadow-lift">
+              {previewUrl ? (
+                <div className="relative h-52 w-full overflow-hidden bg-muted">
+                  <img
+                    src={previewUrl}
+                    alt="Menu Scan"
+                    className="size-full object-cover filter brightness-95"
+                  />
+                  {/* Glowing Laser Scan Beam */}
+                  <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-sky-400 to-transparent shadow-[0_0_14px_#38bdf8] animate-scan z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
+                </div>
+              ) : (
+                <div className="h-44 w-full flex items-center justify-center bg-secondary/30 relative overflow-hidden">
+                  <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-sky-400 to-transparent shadow-[0_0_14px_#38bdf8] animate-scan z-10" />
+                  <FileText className="size-12 text-muted-foreground/40 animate-pulse" />
+                </div>
+              )}
+
+              {/* Status Header over preview */}
+              <div className="p-3.5 border-t border-border/60 bg-card/95 backdrop-blur-sm flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="size-6 rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                    <RefreshCw className="size-3.5 animate-spin" />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground">
+                    Analyzing Document...
+                  </span>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/80 px-2 py-0.5 text-[10px] font-semibold text-foreground/80">
+                  <GeminiIcon size={10} /> Gemini Vision
+                </span>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="font-bold text-base text-foreground">
-                Digitizing Menu with Gemini Vision AI
-              </h4>
-              <p className="text-xs text-muted-foreground font-medium animate-pulse">
-                {scanStatus}
-              </p>
-            </div>
-
-            <div className="max-w-xs mx-auto p-3 rounded-2xl bg-secondary/50 border border-border/60 text-[11px] text-muted-foreground">
-              ⚡ Powered by Google Gemini 2026 Multimodal Engine. Reading food categories, prices &amp; descriptions...
+            {/* Stepped Progress Checklist */}
+            <div className="max-w-sm mx-auto space-y-2 text-xs">
+              <div className="flex items-center gap-2.5 text-muted-foreground">
+                <span className="size-5 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  <Check className="size-3 stroke-[2.5]" />
+                </span>
+                <span className="text-foreground font-medium">Image resolution &amp; layout mapped</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-foreground font-medium">
+                <span className="size-5 rounded-full bg-sky-500/15 text-sky-600 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  <RefreshCw className="size-3 animate-spin" />
+                </span>
+                <span>{scanStatus || "Extracting dishes, categories &amp; prices..."}</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-muted-foreground/60">
+                <span className="size-5 rounded-full bg-secondary border border-border flex items-center justify-center text-[10px] font-bold shrink-0">
+                  3
+                </span>
+                <span>Building digital menu review</span>
+              </div>
             </div>
           </div>
         )}
@@ -720,7 +768,7 @@ export function AiMenuScannerModal({
                   size="sm"
                   disabled={isApplying || totalSelectedDishes === 0}
                   onClick={handleApplyToMenu}
-                  className="rounded-xl font-bold text-xs gap-1.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-soft flex-1 sm:flex-initial"
+                  className="h-10 px-5 rounded-xl font-semibold text-xs gap-2 bg-foreground text-background hover:bg-foreground/90 transition-all shadow-xs flex-1 sm:flex-initial cursor-pointer"
                 >
                   {isApplying ? (
                     <>
@@ -728,7 +776,7 @@ export function AiMenuScannerModal({
                     </>
                   ) : (
                     <>
-                      <Sparkles className="size-3.5" /> Import {totalSelectedDishes} Dishes to Digital Menu
+                      <GeminiIcon size={14} /> Import {totalSelectedDishes} Dishes to Digital Menu
                     </>
                   )}
                 </Button>
@@ -744,7 +792,7 @@ export function AiMenuScannerModal({
       <DialogContent className="sm:max-w-md rounded-2xl p-5 space-y-4">
         <DialogHeader className="text-left">
           <DialogTitle className="text-base font-bold flex items-center gap-2">
-            <ImageIcon className="size-4 text-orange-500" />
+            <GeminiIcon size={16} />
             Dish Photo — {editingImageItem?.dishName}
           </DialogTitle>
         </DialogHeader>
@@ -789,7 +837,7 @@ export function AiMenuScannerModal({
                 }}
                 className="text-xs rounded-xl"
               >
-                <Sparkles className="size-3 mr-1 text-orange-500" /> Reset to AI Photo
+                <GeminiIcon size={12} className="mr-1.5" /> Auto Food Photo
               </Button>
               <Button
                 type="button"
@@ -799,7 +847,7 @@ export function AiMenuScannerModal({
                   setEditingImageItem(null);
                   toast.success("Dish photo updated!");
                 }}
-                className="flex-1 text-xs font-bold rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
+                className="flex-1 text-xs font-semibold rounded-xl bg-foreground text-background hover:bg-foreground/90 cursor-pointer"
               >
                 Save Photo
               </Button>
