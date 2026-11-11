@@ -167,12 +167,12 @@ export function AppShell({
         className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/70 bg-background/95 backdrop-blur-md shadow-xs"
         style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50 }}
       >
-        <div className="px-3 sm:px-6 py-3">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+        <div className="px-3 sm:px-6 py-2.5 sm:py-3">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-3">
             {/* Logo */}
             <Link
               to="/"
-              className="group flex items-center gap-2 rounded-2xl px-2 py-1.5 transition-all"
+              className="group flex items-center gap-2 rounded-2xl px-2 py-1.5 transition-all shrink-0"
             >
               <span className="relative size-9 overflow-hidden rounded-xl transition-transform duration-500 group-hover:scale-110">
                 <AnimatedQR className="!rounded-xl !p-1 !shadow-none" />
@@ -180,16 +180,16 @@ export function AppShell({
               <span className="font-display text-xl font-semibold">{APP_NAME}</span>
             </Link>
 
-            {/* Pill Navigation (Exact match to Home) */}
+            {/* Pill Navigation (Responsive, No Word-Wrapping, Clean Fluid Pill) */}
             <nav
               ref={navRef}
               onMouseLeave={resetBlob}
-              className="relative hidden items-center rounded-full bg-foreground p-1.5 shadow-lift md:flex"
+              className="relative hidden items-center rounded-full bg-foreground p-1 sm:p-1.5 shadow-lift lg:flex shrink-0"
             >
               <span
                 aria-hidden
                 className={cn(
-                  "absolute top-1.5 bottom-1.5 rounded-full bg-accent pointer-events-none",
+                  "absolute top-1 bottom-1 sm:top-1.5 sm:bottom-1.5 rounded-full bg-accent pointer-events-none",
                   isAnimated
                     ? "transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]"
                     : "transition-none"
@@ -206,7 +206,7 @@ export function AppShell({
                     onMouseEnter={(e) => moveTo(e.currentTarget)}
                     onClick={(e) => moveTo(e.currentTarget)}
                     className={cn(
-                      "relative z-10 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors duration-200",
+                      "relative z-10 flex items-center gap-1 xl:gap-1.5 rounded-full px-2.5 py-1.5 text-xs xl:px-4 xl:py-2 xl:text-sm font-bold whitespace-nowrap shrink-0 transition-colors duration-200 select-none",
                       hot === l.to && blob.show
                         ? "text-accent-foreground font-extrabold"
                         : isActive
@@ -226,11 +226,11 @@ export function AppShell({
             </nav>
 
             {/* Right Action Buttons */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {isSuperAdmin && (
                 <Link
                   to="/admin"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 shadow-xs transition-all hover:bg-amber-500/25"
+                  className="hidden xl:inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 shadow-xs transition-all hover:bg-amber-500/25 whitespace-nowrap shrink-0"
                 >
                   <Shield className="size-3.5" />
                   <span className="hidden xs:inline">Admin</span> Console
@@ -241,16 +241,16 @@ export function AppShell({
                   href={liveMenuUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="hidden items-center gap-1.5 text-xs font-bold text-foreground hover:text-primary transition-colors sm:flex px-3 py-2 rounded-full border border-border/80 bg-background/80 hover:bg-secondary"
+                  className="hidden items-center gap-1.5 text-xs font-bold text-foreground hover:text-primary transition-colors sm:flex px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full border border-border/80 bg-background/80 hover:bg-secondary whitespace-nowrap shrink-0"
                 >
                   <Eye className="size-3.5 text-primary" />
-                  Live menu
+                  <span className="hidden xl:inline">Live menu</span>
                 </a>
               )}
 
               <Link
                 to="/qr"
-                className="group relative flex items-center gap-1.5 sm:gap-2 overflow-hidden rounded-full border-2 border-foreground bg-background py-1 sm:py-1.5 pl-1 sm:pl-1.5 pr-3 sm:pr-4 text-xs sm:text-sm font-bold shadow-[2px_2px_0_var(--foreground)] sm:shadow-[3px_3px_0_var(--foreground)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none"
+                className="group relative flex items-center gap-1.5 sm:gap-2 overflow-hidden rounded-full border-2 border-foreground bg-background py-1 sm:py-1.5 pl-1 sm:pl-1.5 pr-2.5 sm:pr-3.5 text-xs sm:text-sm font-bold shadow-[2px_2px_0_var(--foreground)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none whitespace-nowrap shrink-0"
               >
                 <span className="relative flex size-6 sm:size-7 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground">
                   <QrCode className="size-3.5 sm:size-4" />
@@ -262,7 +262,7 @@ export function AppShell({
               <Link
                 to="/profile"
                 title="My Profile"
-                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors shrink-0"
               >
                 <User className="size-4" />
               </Link>
@@ -270,7 +270,7 @@ export function AppShell({
               <button
                 onClick={signOut}
                 title="Sign out"
-                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                className="hidden sm:flex size-9 items-center justify-center rounded-full border border-foreground/20 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer shrink-0"
               >
                 <LogOut className="size-4" />
               </button>
@@ -279,7 +279,7 @@ export function AppShell({
               <button
                 aria-label="Menu"
                 onClick={() => setOpen(!open)}
-                className="flex size-9 sm:size-10 flex-col items-center justify-center gap-1.5 rounded-full bg-foreground md:hidden"
+                className="flex size-9 sm:size-10 flex-col items-center justify-center gap-1.5 rounded-full bg-foreground lg:hidden cursor-pointer shrink-0"
               >
                 <span
                   className={cn(
@@ -300,7 +300,7 @@ export function AppShell({
 
         {/* Mobile Dropdown (Identical to SiteHeader) */}
         {open && (
-          <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift md:hidden">
+          <nav className="animate-nav-drop mx-3 mt-2 overflow-hidden rounded-3xl bg-foreground p-3 text-background shadow-lift lg:hidden">
             {/* Admin Console link — only in mobile menu for super admins */}
             {isSuperAdmin && (
               <Link

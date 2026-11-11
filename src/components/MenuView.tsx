@@ -1492,14 +1492,14 @@ export function MenuView({
             isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
           )}
         >
-          <DialogHeader className="p-4 sm:p-5 border-b border-border/60 pb-3">
-            <DialogTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="size-5 text-orange-500" />
-                <span className="font-serif font-bold text-lg text-foreground">Your Order Summary</span>
+          <DialogHeader className="p-4 sm:p-5 border-b border-border/60 pb-3 pr-14">
+            <DialogTitle className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShoppingBag className="size-5 text-orange-500 shrink-0" />
+                <span className="font-serif font-bold text-base sm:text-lg text-foreground truncate">Your Order Summary</span>
               </div>
               {table && (
-                <span className="rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs font-bold">
+                <span className="shrink-0 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs font-bold">
                   Table #{table}
                 </span>
               )}
@@ -1973,17 +1973,17 @@ export function MenuView({
             isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
           )}
         >
-          <DialogHeader className="space-y-1.5 pb-2 border-b border-border/60">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <DialogHeader className="space-y-1.5 pb-2 border-b border-border/60 pr-14">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                   <ReceiptText className="size-4" />
                 </span>
-                <DialogTitle className="font-serif font-black text-lg text-foreground">
+                <DialogTitle className="font-serif font-black text-base sm:text-lg text-foreground truncate">
                   My Table Orders
                 </DialogTitle>
               </div>
-              <span className="rounded-full bg-orange-500/10 border border-orange-500/30 font-black text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs">
+              <span className="shrink-0 rounded-full bg-orange-500/10 border border-orange-500/30 font-black text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs">
                 Table #{activeTableNumber || table || "1"}
               </span>
             </div>
@@ -2106,17 +2106,17 @@ export function MenuView({
             isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
           )}
         >
-          <DialogHeader className="text-left space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex size-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 items-center justify-center font-bold">
+          <DialogHeader className="text-left space-y-1 pr-14">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex size-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 items-center justify-center font-bold shrink-0">
                   <BellRing className="size-4 animate-bounce" />
                 </span>
-                <DialogTitle className="font-serif font-black text-lg text-foreground">
+                <DialogTitle className="font-serif font-black text-base sm:text-lg text-foreground truncate">
                   Call Waiter & Service Bell
                 </DialogTitle>
               </div>
-              <span className="rounded-full bg-orange-500/10 border border-orange-500/30 font-black text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs">
+              <span className="shrink-0 rounded-full bg-orange-500/10 border border-orange-500/30 font-black text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs">
                 Table #{activeTableNumber || "1"}
               </span>
             </div>
