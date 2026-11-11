@@ -208,6 +208,21 @@ export function LiveOrdersManager({
   const prevServiceCallIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef(false);
 
+  // Tracks already announced order and service call IDs across session so they speak ONLY ONCE and NEVER repeat
+  const announcedIdsRef = useRef<Set<string>>(new Set<string>());
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = sessionStorage.getItem("menuly_announced_voice_ids");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((id: string) => announcedIdsRef.current.add(id));
+        }
+      }
+    } catch {}
+  }, []);
+
   const getAuthHeader = () => {
     if (typeof window === "undefined") return {};
     const token = localStorage.getItem("menuly_token");
@@ -230,12 +245,38 @@ export function LiveOrdersManager({
           const fetchedCalls: ServiceCallItem[] = data.serviceCalls;
           setServiceCalls(fetchedCalls);
 
-          if (initialFetchDoneRef.current && soundEnabled) {
-            const newCalls = fetchedCalls.filter((c) => !prevServiceCallIdsRef.current.has(c.id));
+          // On first load: seed all existing calls into announcedIds so they NEVER speak (prevents old orders from shouting)
+          if (!initialFetchDoneRef.current) {
+            fetchedCalls.forEach((c) => announcedIdsRef.current.add(c.id));
+          } else if (soundEnabled) {
+            // Find truly new calls that:
+            // a) Have NEVER been announced before in this session
+            // b) Were created in the last 90 seconds (not old/beeta hua calls)
+            const now = Date.now();
+            const newCalls = fetchedCalls.filter((c) => {
+              if (announcedIdsRef.current.has(c.id)) return false;
+              const callAgeMs = now - new Date(c.createdAt).getTime();
+              if (callAgeMs > 90 * 1000) {
+                // Older than 90s: mark announced silently without speaking
+                announcedIdsRef.current.add(c.id);
+                return false;
+              }
+              return true;
+            });
+
             if (newCalls.length > 0) {
-              playChimeSound();
               const firstCall = newCalls[0];
               if (firstCall) {
+                // Mark announced immediately so it NEVER repeats
+                newCalls.forEach((c) => announcedIdsRef.current.add(c.id));
+                try {
+                  sessionStorage.setItem(
+                    "menuly_announced_voice_ids",
+                    JSON.stringify(Array.from(announcedIdsRef.current).slice(-200))
+                  );
+                } catch {}
+
+                playChimeSound();
                 let reasonHindi = "वेटर को बुलाया गया है";
                 let reasonEn = "Waiter requested";
                 if (firstCall.reason === "water") {
@@ -267,14 +308,41 @@ export function LiveOrdersManager({
           fetchedOrders.filter((o) => o.status === "PENDING").map((o) => o.id)
         );
 
-        if (initialFetchDoneRef.current && soundEnabled) {
-          const newOrders = fetchedOrders.filter(
-            (o) => o.status === "PENDING" && !prevPendingIdsRef.current.has(o.id)
-          );
+        // On first load: seed all existing pending orders into announcedIds so they NEVER speak
+        if (!initialFetchDoneRef.current) {
+          fetchedOrders
+            .filter((o) => o.status === "PENDING")
+            .forEach((o) => announcedIdsRef.current.add(o.id));
+        } else if (soundEnabled) {
+          // Find truly new orders that:
+          // a) Have NEVER been announced before in this session
+          // b) Were created in the last 90 seconds (not old/beeta hua orders)
+          const now = Date.now();
+          const newOrders = fetchedOrders.filter((o) => {
+            if (o.status !== "PENDING") return false;
+            if (announcedIdsRef.current.has(o.id)) return false;
+            const orderAgeMs = now - new Date(o.createdAt).getTime();
+            if (orderAgeMs > 90 * 1000) {
+              // Older than 90s: mark announced silently without speaking
+              announcedIdsRef.current.add(o.id);
+              return false;
+            }
+            return true;
+          });
+
           if (newOrders.length > 0) {
-            playChimeSound();
             const first = newOrders[0];
             if (first) {
+              // Mark announced immediately so it NEVER repeats
+              newOrders.forEach((o) => announcedIdsRef.current.add(o.id));
+              try {
+                sessionStorage.setItem(
+                  "menuly_announced_voice_ids",
+                  JSON.stringify(Array.from(announcedIdsRef.current).slice(-200))
+                );
+              } catch {}
+
+              playChimeSound();
               const dishCount = first.totalItems || first.items.reduce((sum, it) => sum + it.quantity, 0) || 1;
               const speechHindi = `टेबल नंबर ${first.tableNumber} से ${dishCount} डिश का नया आर्डर आया है!`;
               const speechEnglish = `New order from Table ${first.tableNumber}! ${dishCount} dishes received.`;
