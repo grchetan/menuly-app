@@ -23,6 +23,9 @@ import {
   Bell,
   BellRing,
   ExternalLink,
+  UserCheck,
+  Droplets,
+  ReceiptText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -365,8 +368,13 @@ export function LiveOrdersManager({
     }
   }, [soundEnabled]);
 
-  // Handle Mark Service Call as Attended
+  // Handle Mark Service Call as Attended (Optimistic 0ms instant update)
   const handleResolveServiceCall = async (callId: string) => {
+    const prevCalls = serviceCalls;
+    // 0ms instant UI removal
+    setServiceCalls((prev) => prev.filter((c) => c.id !== callId));
+    toast.success("✅ Table service marked as attended!");
+
     setResolvingCallId(callId);
     try {
       const res = await fetch("/api/restaurant/service-calls/resolve", {
@@ -378,11 +386,12 @@ export function LiveOrdersManager({
         body: JSON.stringify({ callId }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        setServiceCalls((prev) => prev.filter((c) => c.id !== callId));
-        toast.success("✅ Table service marked as attended!");
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update service status");
       }
     } catch {
+      // Revert if network failed
+      setServiceCalls(prevCalls);
       toast.error("Failed to update service status");
     } finally {
       setResolvingCallId(null);
@@ -398,8 +407,24 @@ export function LiveOrdersManager({
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
-  // Update Status handler
+  // Update Status handler (Optimistic 0ms instant UI update)
   const handleUpdateStatus = async (orderId: string, status: OrderStatus, cancelReason?: string) => {
+    const prevOrders = orders;
+    // 0ms instant UI update
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId || o.orderNumber === orderId
+          ? { ...o, status, cancelReason: cancelReason || o.cancelReason, updatedAt: new Date().toISOString() }
+          : o
+      )
+    );
+
+    toast.success(
+      status === "CANCELLED"
+        ? `Order cancelled (${cancelReason || "Cancelled"})`
+        : `Order marked as ${status.toLowerCase()}`
+    );
+
     setUpdatingId(orderId);
     try {
       const res = await fetch("/api/restaurant/orders/update-status", {
@@ -411,19 +436,9 @@ export function LiveOrdersManager({
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to update order");
       }
-      toast.success(
-        status === "CANCELLED"
-          ? `Order cancelled (${cancelReason || "Cancelled"})`
-          : `Order marked as ${status.toLowerCase()}`
-      );
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId || o.orderNumber === orderId
-            ? { ...o, status, cancelReason: cancelReason || o.cancelReason, updatedAt: new Date().toISOString() }
-            : o
-        )
-      );
     } catch (err: any) {
+      // Revert on network failure
+      setOrders(prevOrders);
       toast.error(err.message || "Failed to update status");
     } finally {
       setUpdatingId(null);
@@ -577,14 +592,24 @@ export function LiveOrdersManager({
                     <span className="font-black text-sm text-foreground">
                       Table #{call.tableNumber}
                     </span>
-                    <span className="rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold uppercase">
-                      {call.reason === "water"
-                        ? "💧 Water"
-                        : call.reason === "bill"
-                        ? "🧾 Bill"
-                        : call.reason === "cutlery"
-                        ? "🥄 Cutlery"
-                        : "🙋‍♂️ Waiter"}
+                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold uppercase">
+                      {call.reason === "water" ? (
+                        <>
+                          <Droplets className="size-3 text-sky-600 dark:text-sky-400" /> Water
+                        </>
+                      ) : call.reason === "bill" ? (
+                        <>
+                          <ReceiptText className="size-3 text-emerald-600 dark:text-emerald-400" /> Bill
+                        </>
+                      ) : call.reason === "cutlery" ? (
+                        <>
+                          <UtensilsCrossed className="size-3 text-purple-600 dark:text-purple-400" /> Cutlery
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="size-3 text-amber-600 dark:text-amber-400" /> Waiter
+                        </>
+                      )}
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5 truncate">

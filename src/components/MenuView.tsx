@@ -30,12 +30,17 @@ import {
   User,
   Bell,
   BellRing,
+  UserCheck,
+  Droplets,
+  ReceiptText,
+  MessageSquareQuote,
 } from "lucide-react";
 import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
 import { formatPrice, whatsappLink, APP_NAME } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getSmartDishImageUrl } from "@/lib/dish-images";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getOptimizedBannerUrl } from "@/lib/banner-presets";
@@ -708,25 +713,22 @@ export function MenuView({
                 compact ? "p-2.5 gap-2.5 rounded-xl" : "p-3.5 gap-3.5 rounded-2xl"
               )}
             >
-              {todayBestSeller.image_url ? (
-                <img
-                  src={todayBestSeller.image_url}
-                  alt={todayBestSeller.name}
-                  className={cn(
-                    "object-cover shrink-0 border border-border/70 group-hover:scale-105 transition-transform",
-                    compact ? "size-12 rounded-lg" : "size-16 sm:size-20 rounded-xl"
-                  )}
-                />
-              ) : (
-                <div
-                  className={cn(
-                    "bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0",
-                    compact ? "size-12 rounded-lg text-xl" : "size-16 sm:size-20 rounded-xl text-2xl"
-                  )}
-                >
-                  🍲
-                </div>
-              )}
+              {(() => {
+                const img = todayBestSeller.image_url || getSmartDishImageUrl(todayBestSeller.name, null, todayBestSeller.is_veg);
+                return (
+                  <img
+                    src={img}
+                    alt={todayBestSeller.name}
+                    className={cn(
+                      "object-cover shrink-0 border border-border/70 group-hover:scale-105 transition-transform",
+                      compact ? "size-12 rounded-lg" : "size-16 sm:size-20 rounded-xl"
+                    )}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(todayBestSeller.name, null, todayBestSeller.is_veg);
+                    }}
+                  />
+                );
+              })()}
               <div className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400 mb-0.5">
                   <Flame className={cn("fill-orange-500 text-orange-500 shrink-0", compact ? "size-3" : "size-3.5")} />
@@ -781,25 +783,22 @@ export function MenuView({
                 compact ? "p-2.5 gap-2.5 rounded-xl" : "p-3.5 gap-3.5 rounded-2xl"
               )}
             >
-              {monthBestSeller.image_url ? (
-                <img
-                  src={monthBestSeller.image_url}
-                  alt={monthBestSeller.name}
-                  className={cn(
-                    "object-cover shrink-0 border border-border/70 group-hover:scale-105 transition-transform",
-                    compact ? "size-12 rounded-lg" : "size-16 sm:size-20 rounded-xl"
-                  )}
-                />
-              ) : (
-                <div
-                  className={cn(
-                    "bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0",
-                    compact ? "size-12 rounded-lg text-xl" : "size-16 sm:size-20 rounded-xl text-2xl"
-                  )}
-                >
-                  🍲
-                </div>
-              )}
+              {(() => {
+                const img = monthBestSeller.image_url || getSmartDishImageUrl(monthBestSeller.name, null, monthBestSeller.is_veg);
+                return (
+                  <img
+                    src={img}
+                    alt={monthBestSeller.name}
+                    className={cn(
+                      "object-cover shrink-0 border border-border/70 group-hover:scale-105 transition-transform",
+                      compact ? "size-12 rounded-lg" : "size-16 sm:size-20 rounded-xl"
+                    )}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(monthBestSeller.name, null, monthBestSeller.is_veg);
+                    }}
+                  />
+                );
+              })()}
               <div className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400 mb-0.5">
                   <TrendingUp className={cn("text-orange-500 shrink-0", compact ? "size-3" : "size-3.5")} />
@@ -1034,30 +1033,27 @@ export function MenuView({
 
                       {/* Right: Dish Photo & Add Button */}
                       <div className="flex flex-col items-center gap-2 shrink-0">
-                        {i.image_url ? (
-                          <div
-                            className={cn(
-                              "rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-xs",
-                              compact ? "size-16 rounded-xl" : "size-20 sm:size-24"
-                            )}
-                          >
-                            <img
-                              src={i.image_url}
-                              alt={i.name}
-                              loading="lazy"
-                              className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              "rounded-2xl bg-secondary border border-border/60 flex items-center justify-center",
-                              compact ? "size-16 rounded-xl text-2xl" : "size-20 sm:size-24 text-3xl"
-                            )}
-                          >
-                            🍲
-                          </div>
-                        )}
+                        {(() => {
+                          const dishImg = i.image_url || getSmartDishImageUrl(i.name, c.name, i.is_veg);
+                          return (
+                            <div
+                              className={cn(
+                                "rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-xs",
+                                compact ? "size-16 rounded-xl" : "size-20 sm:size-24"
+                              )}
+                            >
+                              <img
+                                src={dishImg}
+                                alt={i.name}
+                                loading="lazy"
+                                className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(i.name, c.name, i.is_veg);
+                                }}
+                              />
+                            </div>
+                          );
+                        })()}
 
                         {/* Quantity in Cart or Add Button */}
                         {i.available && (
@@ -1143,15 +1139,19 @@ export function MenuView({
                         compact ? "h-24 rounded-lg" : "h-28"
                       )}
                     >
-                      {dish.image_url ? (
-                        <img
-                          src={dish.image_url}
-                          alt={dish.name}
-                          className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="size-full flex items-center justify-center text-3xl">🍲</div>
-                      )}
+                      {(() => {
+                        const dishImg = dish.image_url || getSmartDishImageUrl(dish.name, null, dish.is_veg);
+                        return (
+                          <img
+                            src={dishImg}
+                            alt={dish.name}
+                            className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(dish.name, null, dish.is_veg);
+                            }}
+                          />
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-1.5 mt-2">
                       <VegMark veg={dish.is_veg} className="size-3" />
@@ -1218,17 +1218,19 @@ export function MenuView({
             <div className="flex flex-col h-full overflow-y-auto no-scrollbar">
               {/* Dish Photo Header with Top-Right Close Button */}
               <div className="relative h-60 sm:h-64 w-full bg-muted shrink-0">
-                {selectedDish.image_url ? (
-                  <img
-                    src={selectedDish.image_url}
-                    alt={selectedDish.name}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="size-full flex items-center justify-center text-6xl bg-secondary">
-                    🍲
-                  </div>
-                )}
+                {(() => {
+                  const dishImg = selectedDish.image_url || getSmartDishImageUrl(selectedDish.name, null, selectedDish.is_veg);
+                  return (
+                    <img
+                      src={dishImg}
+                      alt={selectedDish.name}
+                      className="size-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(selectedDish.name, null, selectedDish.is_veg);
+                      }}
+                    />
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => setSelectedDish(null)}
@@ -1882,8 +1884,10 @@ export function MenuView({
           </DialogHeader>
 
           {waiterCallSuccess ? (
-            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center space-y-2 animate-rise">
-              <span className="text-3xl">🛎️</span>
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center space-y-3 animate-rise">
+              <div className="size-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-6 animate-pulse" />
+              </div>
               <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
                 Staff Notified!
               </p>
@@ -1893,30 +1897,68 @@ export function MenuView({
             </div>
           ) : (
             <div className="space-y-4 pt-1">
-              {/* Quick Service Category Tiles */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Quick Service Category Tiles with Modern Vector Icons */}
+              <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { id: "waiter", label: "Call Waiter", icon: "🙋‍♂️", desc: "Staff to table" },
-                  { id: "water", label: "Drinking Water", icon: "💧", desc: "Water bottle / refill" },
-                  { id: "bill", label: "Get Bill", icon: "🧾", desc: "Final check & pay" },
-                  { id: "cutlery", label: "Cutlery & Tissues", icon: "🥄", desc: "Spoons, plates, napkins" },
+                  {
+                    id: "waiter",
+                    label: "Call Waiter",
+                    icon: UserCheck,
+                    color: "text-amber-600 dark:text-amber-400 bg-amber-500/15 border-amber-500/30",
+                    activeBg: "border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/25",
+                    desc: "Staff to table",
+                  },
+                  {
+                    id: "water",
+                    label: "Drinking Water",
+                    icon: Droplets,
+                    color: "text-sky-600 dark:text-sky-400 bg-sky-500/15 border-sky-500/30",
+                    activeBg: "border-sky-500 bg-sky-500/10 ring-2 ring-sky-500/25",
+                    desc: "Water bottle / refill",
+                  },
+                  {
+                    id: "bill",
+                    label: "Get Bill",
+                    icon: ReceiptText,
+                    color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
+                    activeBg: "border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/25",
+                    desc: "Final check & pay",
+                  },
+                  {
+                    id: "cutlery",
+                    label: "Cutlery & Tissues",
+                    icon: UtensilsCrossed,
+                    color: "text-purple-600 dark:text-purple-400 bg-purple-500/15 border-purple-500/30",
+                    activeBg: "border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/25",
+                    desc: "Spoons, plates, napkins",
+                  },
                 ].map((item) => {
                   const isSelected = callReason === item.id;
+                  const Icon = item.icon;
                   return (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => setCallReason(item.id as any)}
                       className={cn(
-                        "flex flex-col items-start p-3 rounded-2xl border text-left transition-all cursor-pointer",
+                        "relative flex flex-col items-start p-3 sm:p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer shadow-2xs group",
                         isSelected
-                          ? "border-amber-500 bg-amber-500/15 shadow-xs"
-                          : "border-border/80 bg-secondary/30 hover:bg-secondary/60"
+                          ? item.activeBg
+                          : "border-border/80 bg-card hover:bg-secondary/40 hover:border-border"
                       )}
                     >
-                      <span className="text-xl mb-1">{item.icon}</span>
-                      <span className="font-bold text-xs text-foreground">{item.label}</span>
-                      <span className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</span>
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <span className={cn("size-8 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105", item.color)}>
+                          <Icon className="size-4" />
+                        </span>
+                        {isSelected && (
+                          <span className="size-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-xs">
+                            <Check className="size-2.5 stroke-[3]" />
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-xs sm:text-sm text-foreground">{item.label}</span>
+                      <span className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{item.desc}</span>
                     </button>
                   );
                 })}
@@ -1924,7 +1966,8 @@ export function MenuView({
 
               {/* Optional Custom Note Input */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <MessageSquareQuote className="size-3 text-amber-500" />
                   Specific Request (Optional)
                 </label>
                 <Input
@@ -1958,7 +2001,7 @@ export function MenuView({
                     </>
                   ) : (
                     <>
-                      <BellRing className="size-3.5" /> Ring Staff Bell
+                      <BellRing className="size-3.5 animate-pulse" /> Ring Staff Bell
                     </>
                   )}
                 </Button>

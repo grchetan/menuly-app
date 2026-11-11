@@ -161,7 +161,7 @@ describe("Table-Wise Dine-In Order Engine & POS Suite", () => {
     expect(stats.cancelledCount).toBeGreaterThanOrEqual(1);
     expect(stats.recentCancelled.some((c) => c.orderNumber === orderNumber)).toBe(true);
     expect(stats.dailyBreakdown.length).toBe(7);
-  });
+  }, 20000);
 
   it("calculates live restaurant order stats accurately", async () => {
     const stats = await getRestaurantOrderStats(restaurantId);

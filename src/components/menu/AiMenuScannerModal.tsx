@@ -15,6 +15,8 @@ import {
   HelpCircle,
   FileText,
   SlidersHorizontal,
+  Image as ImageIcon,
+  Link as LinkIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,12 +27,14 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { myMenuQuery } from "@/lib/restaurant";
+import { getSmartDishImageUrl } from "@/lib/dish-images";
 
 export interface ScannedMenuItem {
   name: string;
   description?: string | null;
   price: number;
   isVeg: boolean;
+  imageUrl?: string | null;
   selected?: boolean;
 }
 
@@ -65,6 +69,12 @@ export function AiMenuScannerModal({
   const [detectedRestaurantName, setDetectedRestaurantName] = useState<string | null>(null);
   const [categories, setCategories] = useState<ScannedCategory[]>([]);
   const [importMode, setImportMode] = useState<"append" | "replace">("append");
+  const [editingImageItem, setEditingImageItem] = useState<{
+    catIdx: number;
+    itemIdx: number;
+    dishName: string;
+    url: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +93,7 @@ export function AiMenuScannerModal({
     setCategories([]);
     setDetectedRestaurantName(null);
     setIsApplying(false);
+    setEditingImageItem(null);
   };
 
   const handleFileSelect = async (file: File) => {
@@ -147,13 +158,14 @@ export function AiMenuScannerModal({
         throw new Error("No readable dishes found in this photo. Please upload a clear photo of the menu card.");
       }
 
-      // Mark all items and categories selected by default
+      // Mark all items and categories selected by default with smart culinary image
       const initializedCategories: ScannedCategory[] = result.categories.map((c: any) => ({
         ...c,
         selected: true,
         items: (c.items || []).map((it: any) => ({
           ...it,
           selected: true,
+          imageUrl: it.imageUrl || getSmartDishImageUrl(it.name, c.name, it.isVeg),
         })),
       }));
 
@@ -230,6 +242,18 @@ export function AiMenuScannerModal({
     });
   };
 
+  const handleItemImageUrlChange = (catIdx: number, itemIdx: number, newUrl: string) => {
+    setCategories((prev) => {
+      const copy = [...prev];
+      const targetCat = copy[catIdx];
+      if (!targetCat) return prev;
+      const targetItem = targetCat.items[itemIdx];
+      if (!targetItem) return prev;
+      targetCat.items[itemIdx] = { ...targetItem, imageUrl: newUrl };
+      return copy;
+    });
+  };
+
   const handleDeleteItem = (catIdx: number, itemIdx: number) => {
     setCategories((prev) => {
       const copy = [...prev];
@@ -250,6 +274,7 @@ export function AiMenuScannerModal({
         price: 150,
         isVeg: true,
         selected: true,
+        imageUrl: getSmartDishImageUrl("New Dish", targetCat.name, true),
       });
       return copy;
     });
@@ -280,6 +305,7 @@ export function AiMenuScannerModal({
               description: it.description || null,
               price: it.price,
               isVeg: it.isVeg !== false,
+              imageUrl: it.imageUrl || getSmartDishImageUrl(it.name, cat.name, it.isVeg),
             })),
         }))
         .filter((cat) => cat.items.length > 0);
@@ -323,7 +349,8 @@ export function AiMenuScannerModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !isApplying && onOpenChange(v)}>
+    <>
+      <Dialog open={open} onOpenChange={(v) => !isApplying && onOpenChange(v)}>
       <DialogContent
         className={cn(
           "p-0 overflow-hidden border-border bg-card shadow-2xl transition-all duration-200",
@@ -599,6 +626,33 @@ export function AiMenuScannerModal({
                               />
                             </button>
 
+                            {/* Dish Photo Thumbnail & Link Edit Button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEditingImageItem({
+                                  catIdx,
+                                  itemIdx,
+                                  dishName: it.name,
+                                  url: it.imageUrl || getSmartDishImageUrl(it.name, cat.name, it.isVeg),
+                                })
+                              }
+                              className="size-8 rounded-lg overflow-hidden border border-border/80 bg-muted shrink-0 relative group cursor-pointer hover:border-primary transition-colors shadow-2xs"
+                              title="Click to change dish photo or paste image link"
+                            >
+                              <img
+                                src={it.imageUrl || getSmartDishImageUrl(it.name, cat.name, it.isVeg)}
+                                alt={it.name}
+                                className="size-full object-cover group-hover:scale-105 transition-transform"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(it.name, cat.name, it.isVeg);
+                                }}
+                              />
+                              <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                <LinkIcon className="size-3" />
+                              </span>
+                            </button>
+
                             {/* Dish Name Input */}
                             <Input
                               type="text"
@@ -684,5 +738,76 @@ export function AiMenuScannerModal({
         )}
       </DialogContent>
     </Dialog>
+
+    {/* DISH PHOTO LINK EDITOR DIALOG */}
+    <Dialog open={Boolean(editingImageItem)} onOpenChange={(open) => !open && setEditingImageItem(null)}>
+      <DialogContent className="sm:max-w-md rounded-2xl p-5 space-y-4">
+        <DialogHeader className="text-left">
+          <DialogTitle className="text-base font-bold flex items-center gap-2">
+            <ImageIcon className="size-4 text-orange-500" />
+            Dish Photo — {editingImageItem?.dishName}
+          </DialogTitle>
+        </DialogHeader>
+
+        {editingImageItem && (
+          <div className="space-y-3.5">
+            <div className="h-40 w-full rounded-xl overflow-hidden border border-border bg-muted flex items-center justify-center relative">
+              <img
+                src={editingImageItem.url || getSmartDishImageUrl(editingImageItem.dishName, null, true)}
+                alt={editingImageItem.dishName}
+                className="size-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = getSmartDishImageUrl(editingImageItem.dishName, null, true);
+                }}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <LinkIcon className="size-3 text-orange-500" /> Image Web Link (URL)
+              </label>
+              <Input
+                value={editingImageItem.url}
+                onChange={(e) => setEditingImageItem({ ...editingImageItem, url: e.target.value.trim() })}
+                placeholder="https://images.unsplash.com/... or any photo link"
+                className="h-9 text-xs rounded-xl"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Paste any image URL link, or click "Reset to AI Photo" to let Menuly choose an appetizing photo.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const autoUrl = getSmartDishImageUrl(editingImageItem.dishName, null, true);
+                  setEditingImageItem({ ...editingImageItem, url: autoUrl });
+                  toast.success("Reset to AI food photo!");
+                }}
+                className="text-xs rounded-xl"
+              >
+                <Sparkles className="size-3 mr-1 text-orange-500" /> Reset to AI Photo
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  handleItemImageUrlChange(editingImageItem.catIdx, editingImageItem.itemIdx, editingImageItem.url);
+                  setEditingImageItem(null);
+                  toast.success("Dish photo updated!");
+                }}
+                className="flex-1 text-xs font-bold rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                Save Photo
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

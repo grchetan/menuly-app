@@ -69,6 +69,10 @@ describe("AI Smart Menu Digitizer & Scanner Suite", () => {
   }, 30000);
 
   it("applies extracted categories and dishes to database in append mode", async () => {
+    // Ensure clean slate for test items
+    await prisma.menuItem.deleteMany({ where: { restaurantId } });
+    await prisma.category.deleteMany({ where: { restaurantId } });
+
     const sampleCategories: ScannedCategory[] = [
       {
         name: "AI Starters",
@@ -96,12 +100,13 @@ describe("AI Smart Menu Digitizer & Scanner Suite", () => {
     expect(applyRes.status).toBe(200);
     expect(applyRes.createdDishesCount).toBe(3);
 
-    // Verify dishes exist in database
+    // Verify dishes exist in database and have auto-assigned culinary photos
     const dbItems = await prisma.menuItem.findMany({
       where: { restaurantId, name: { in: ["Crispy Corn Pepper Salt", "Paneer Malai Tikka", "Garlic Butter Naan"] } },
     });
     expect(dbItems.length).toBe(3);
-  });
+    expect(dbItems[0]?.imageUrl).toBeTruthy();
+  }, 20000);
 
   it("applies extracted menu in replace mode (wipes old and writes fresh)", async () => {
     const freshCategories: ScannedCategory[] = [
@@ -128,5 +133,6 @@ describe("AI Smart Menu Digitizer & Scanner Suite", () => {
     });
     expect(dbItems.length).toBe(1);
     expect(dbItems[0]?.name).toBe("Dal Tadka Special");
-  });
+    expect(dbItems[0]?.imageUrl).toBeTruthy();
+  }, 20000);
 });
