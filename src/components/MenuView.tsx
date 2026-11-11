@@ -41,8 +41,27 @@ import { Input } from "@/components/ui/input";
 import { getOptimizedBannerUrl } from "@/lib/banner-presets";
 import { printReceipt } from "@/lib/receipt-printer";
 
-export function VegMark({ veg: _veg, className: _className }: { veg?: boolean; className?: string }) {
-  return null;
+export function VegMark({ veg = true, className }: { veg?: boolean; className?: string }) {
+  const isVeg = veg !== false;
+  return (
+    <span
+      className={cn(
+        "size-3.5 rounded-xs border-2 shrink-0 inline-flex items-center justify-center p-0.5",
+        isVeg
+          ? "border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30"
+          : "border-rose-600 bg-rose-50/50 dark:bg-rose-950/30",
+        className
+      )}
+      title={isVeg ? "Pure Vegetarian" : "Non-Vegetarian"}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full shrink-0",
+          isVeg ? "bg-emerald-600" : "bg-rose-600"
+        )}
+      />
+    </span>
+  );
 }
 
 export interface OrderItem {
@@ -163,6 +182,50 @@ export function MenuView({
     } catch {}
     return null;
   });
+
+  const handleDismissOrder = () => {
+    setActiveOrder(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(`menuly_active_order_${r.slug}`);
+    }
+  };
+
+  // Real-time Order Tracking Polling (syncs live kitchen status e.g. PREPARING -> SERVED -> COMPLETED)
+  useEffect(() => {
+    if (!activeOrder?.id) return;
+    if (activeOrder.status === "COMPLETED" || activeOrder.status === "CANCELLED") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/orders/track?orderId=${encodeURIComponent(activeOrder.id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.order) {
+            setActiveOrder(data.order);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(`menuly_active_order_${r.slug}`, JSON.stringify(data.order));
+            }
+          }
+        }
+      } catch {
+        // Silently ignore polling hiccups
+      }
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [activeOrder?.id, activeOrder?.status, r.slug]);
+
+  // Auto-dismiss completed or cancelled order floating banner after 8 seconds
+  useEffect(() => {
+    if (!activeOrder) return undefined;
+    if (activeOrder.status === "COMPLETED" || activeOrder.status === "CANCELLED") {
+      const timer = setTimeout(() => {
+        handleDismissOrder();
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [activeOrder?.status]);
 
   // Service & Waiter Call States
   const [isCallWaiterOpen, setIsCallWaiterOpen] = useState(false);
@@ -495,14 +558,14 @@ export function MenuView({
                 alt={r.name}
                 className={cn(
                   "rounded-full object-cover border-2 border-orange-500/30 shadow-xs shrink-0",
-                  compact ? "size-9" : "size-10 sm:size-11"
+                  compact ? "size-8" : "size-10 sm:size-11"
                 )}
               />
             ) : (
               <div
                 className={cn(
                   "rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0",
-                  compact ? "size-9 text-sm" : "size-10 sm:size-11 text-base"
+                  compact ? "size-8 text-xs" : "size-10 sm:size-11 text-base"
                 )}
               >
                 {r.name.slice(0, 1)}
@@ -512,12 +575,13 @@ export function MenuView({
               <h1
                 className={cn(
                   "font-serif font-bold text-foreground tracking-tight truncate leading-tight",
-                  compact ? "text-sm max-w-[155px]" : "text-base sm:text-lg"
+                  compact ? "text-xs sm:text-sm" : "text-base sm:text-lg"
                 )}
+                title={r.name}
               >
                 {r.name}
               </h1>
-              <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mt-0.5">
                 <span className="relative flex size-2 items-center justify-center shrink-0">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
@@ -534,7 +598,7 @@ export function MenuView({
           </div>
 
           {/* Right Action: Table # Badge + Dark Mode Theme Toggle */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {(table || activeTableNumber) && (
               <button
                 type="button"
@@ -544,11 +608,11 @@ export function MenuView({
                 }}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 active:scale-95 transition-all cursor-pointer",
-                  compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-0.5 text-[11px]"
+                  compact ? "px-1.5 py-0.5 text-[9px]" : "px-2.5 py-0.5 text-[11px]"
                 )}
                 title="Tap to change table"
               >
-                Table #{activeTableNumber || table}
+                {compact ? `T#${activeTableNumber || table}` : `Table #${activeTableNumber || table}`}
               </button>
             )}
 
@@ -558,12 +622,12 @@ export function MenuView({
               onClick={() => setIsCallWaiterOpen(true)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 font-bold text-amber-700 dark:text-amber-300 shrink-0 hover:bg-amber-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
-                compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+                compact ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
               )}
               title="Call waiter or request water / bill"
             >
-              <BellRing className="size-3 text-amber-600 dark:text-amber-400 animate-pulse" />
-              <span>Call Waiter</span>
+              <BellRing className="size-3 text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
+              <span>{compact ? "Call" : "Call Waiter"}</span>
             </button>
             <button
               type="button"
@@ -574,7 +638,7 @@ export function MenuView({
                 isDark
                   ? "bg-[#15181e] text-amber-400 hover:bg-[#1a1e26] border-[#232834]"
                   : "bg-card text-foreground hover:bg-secondary border-border/80",
-                compact ? "size-8" : "size-9"
+                compact ? "size-7" : "size-9"
               )}
             >
               {isDark ? (
@@ -950,9 +1014,12 @@ export function MenuView({
                           </span>
                         )}
 
-                        <h3 className="font-bold text-sm sm:text-base text-foreground leading-snug group-hover:text-orange-600 transition-colors">
-                          {i.name}
-                        </h3>
+                        <div className="flex items-center gap-1.5">
+                          <VegMark veg={i.is_veg} />
+                          <h3 className="font-bold text-sm sm:text-base text-foreground leading-snug group-hover:text-orange-600 transition-colors truncate">
+                            {i.name}
+                          </h3>
+                        </div>
 
                         <p className="font-extrabold text-sm sm:text-base text-orange-600 dark:text-orange-400">
                           {formatPrice(i.price)}
@@ -1086,9 +1153,12 @@ export function MenuView({
                         <div className="size-full flex items-center justify-center text-3xl">🍲</div>
                       )}
                     </div>
-                    <h4 className="font-bold text-xs sm:text-sm text-foreground mt-2 truncate group-hover:text-orange-600 transition-colors">
-                      {dish.name}
-                    </h4>
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <VegMark veg={dish.is_veg} className="size-3" />
+                      <h4 className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-orange-600 transition-colors">
+                        {dish.name}
+                      </h4>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-border/40">
                     <span className="font-extrabold text-xs sm:text-sm text-orange-600 dark:text-orange-400">
@@ -1171,9 +1241,12 @@ export function MenuView({
               {/* Content Body */}
               <div className="p-5 sm:p-6 space-y-3.5 flex-1">
                 <div>
-                  <h3 className="font-serif font-bold text-2xl text-foreground tracking-tight leading-snug">
-                    {selectedDish.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <VegMark veg={selectedDish.is_veg} className="size-4" />
+                    <h3 className="font-serif font-bold text-2xl text-foreground tracking-tight leading-snug">
+                      {selectedDish.name}
+                    </h3>
+                  </div>
                   <p className="font-extrabold text-xl text-orange-600 dark:text-orange-400 mt-1">
                     {formatPrice(selectedDish.price)}
                   </p>
@@ -1263,25 +1336,59 @@ export function MenuView({
         </aside>
       )}
 
-      {/* FLOATING ACTIVE ORDER RECEIPT / STATUS PILL (WHEN CART IS EMPTY BUT AN ORDER IS PLACED) */}
+      {/* FLOATING ACTIVE ORDER RECEIPT / REAL-TIME STATUS PILL */}
       {!compact && totalItemsCount === 0 && activeOrder && (
         <aside className="fixed inset-x-0 bottom-4 z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
           <div
             onClick={() => setIsReceiptOpen(true)}
-            className="mx-auto max-w-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white font-bold rounded-2xl shadow-xl flex items-center justify-between p-3 sm:p-3.5 transition-all duration-200 cursor-pointer pointer-events-auto border border-emerald-400/40"
+            className={cn(
+              "mx-auto max-w-lg text-white font-bold rounded-2xl shadow-xl flex items-center justify-between p-3 sm:p-3.5 transition-all duration-200 cursor-pointer pointer-events-auto border",
+              activeOrder.status === "PENDING" && "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-400/50 shadow-amber-500/20",
+              activeOrder.status === "PREPARING" && "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 border-blue-400/50 shadow-blue-500/20",
+              activeOrder.status === "SERVED" && "bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 border-emerald-400/50 shadow-emerald-500/20",
+              activeOrder.status === "COMPLETED" && "bg-gradient-to-r from-stone-700 to-stone-900 border-stone-500/50 shadow-stone-500/20",
+              activeOrder.status === "CANCELLED" && "bg-gradient-to-r from-rose-700 to-red-800 border-rose-500/50 shadow-rose-500/20"
+            )}
           >
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-xl bg-white/20 text-white">
-                <CookingPot className="size-4 animate-pulse" />
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <span className="flex size-8 items-center justify-center rounded-xl bg-white/20 text-white shrink-0">
+                {activeOrder.status === "PENDING" && <Clock className="size-4 animate-pulse" />}
+                {activeOrder.status === "PREPARING" && <CookingPot className="size-4 animate-pulse" />}
+                {activeOrder.status === "SERVED" && <CheckCircle2 className="size-4" />}
+                {activeOrder.status === "COMPLETED" && <Check className="size-4" />}
+                {activeOrder.status === "CANCELLED" && <X className="size-4" />}
               </span>
-              <div className="text-left leading-tight">
-                <span className="text-xs font-black block">Table #{activeOrder.tableNumber} • {activeOrder.orderNumber}</span>
-                <span className="text-[10px] text-emerald-100 font-medium">Order In Kitchen • View Receipt &amp; Status</span>
+              <div className="text-left leading-tight min-w-0 flex-1">
+                <span className="text-xs font-black block truncate">
+                  Table #{activeOrder.tableNumber} • {activeOrder.orderNumber}
+                </span>
+                <span className="text-[10px] text-white/95 font-medium block truncate">
+                  {activeOrder.status === "PENDING" && "⏳ Order Placed • Sent to Kitchen"}
+                  {activeOrder.status === "PREPARING" && "🍳 Cooking in Kitchen • Chef is preparing food"}
+                  {activeOrder.status === "SERVED" && "🍽️ Served at Table • Enjoy your meal!"}
+                  {activeOrder.status === "COMPLETED" && "🎉 Order Completed • Thank you!"}
+                  {activeOrder.status === "CANCELLED" && "❌ Order Cancelled"}
+                </span>
               </div>
             </div>
-            <span className="text-xs font-black bg-white/20 px-2.5 py-1 rounded-xl">
-              {formatPrice(activeOrder.grandTotal)}
-            </span>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-black bg-white/20 px-2.5 py-1 rounded-xl">
+                {formatPrice(activeOrder.grandTotal)}
+              </span>
+              {/* Dismiss Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDismissOrder();
+                }}
+                className="size-7 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white/90 hover:text-white transition-all cursor-pointer"
+                title="Dismiss status pill"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
           </div>
         </aside>
       )}
@@ -1552,16 +1659,94 @@ export function MenuView({
                 </div>
               </div>
 
-              {/* Live Kitchen Status Banner */}
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-center space-y-1">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
-                    Sent to Kitchen — Being Prepared
+              {/* Dynamic 4-Step Visual Order Progress Tracker */}
+              <div className="rounded-2xl border border-border/80 bg-secondary/30 p-3.5 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-muted-foreground uppercase text-[10px] tracking-wider">Kitchen Order Tracker</span>
+                  <span
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider",
+                      activeOrder.status === "PENDING" && "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+                      activeOrder.status === "PREPARING" && "bg-blue-500/20 text-blue-700 dark:text-blue-300 animate-pulse",
+                      activeOrder.status === "SERVED" && "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+                      activeOrder.status === "COMPLETED" && "bg-stone-500/20 text-stone-700 dark:text-stone-300",
+                      activeOrder.status === "CANCELLED" && "bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                    )}
+                  >
+                    {activeOrder.status === "PENDING" && "⏳ Order Placed"}
+                    {activeOrder.status === "PREPARING" && "🍳 Cooking in Kitchen"}
+                    {activeOrder.status === "SERVED" && "🍽️ Served at Table"}
+                    {activeOrder.status === "COMPLETED" && "✅ Completed"}
+                    {activeOrder.status === "CANCELLED" && "❌ Cancelled"}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Your server will bring dishes directly to Table #{activeOrder.tableNumber}
+
+                {/* Step Progress Line */}
+                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                  {/* Step 1: Placed */}
+                  <div className="text-center space-y-1">
+                    <div className="h-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-[9px] font-bold block text-foreground">Placed</span>
+                  </div>
+                  {/* Step 2: Preparing */}
+                  <div className="text-center space-y-1">
+                    <div
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        activeOrder.status === "PENDING" ? "bg-muted" : "bg-blue-500 animate-pulse"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[9px] font-bold block",
+                        activeOrder.status === "PREPARING" ? "text-blue-600 dark:text-blue-400 font-black" : "text-muted-foreground"
+                      )}
+                    >
+                      Cooking
+                    </span>
+                  </div>
+                  {/* Step 3: Served */}
+                  <div className="text-center space-y-1">
+                    <div
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        activeOrder.status === "SERVED" || activeOrder.status === "COMPLETED" ? "bg-emerald-500" : "bg-muted"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[9px] font-bold block",
+                        activeOrder.status === "SERVED" ? "text-emerald-600 dark:text-emerald-400 font-black" : "text-muted-foreground"
+                      )}
+                    >
+                      Served
+                    </span>
+                  </div>
+                  {/* Step 4: Done */}
+                  <div className="text-center space-y-1">
+                    <div
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        activeOrder.status === "COMPLETED" ? "bg-stone-800 dark:bg-stone-200" : "bg-muted"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[9px] font-bold block",
+                        activeOrder.status === "COMPLETED" ? "text-foreground font-black" : "text-muted-foreground"
+                      )}
+                    >
+                      Done
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-center text-muted-foreground pt-0.5">
+                  {activeOrder.status === "PENDING" && "Your order is with the kitchen. Preparation will begin shortly."}
+                  {activeOrder.status === "PREPARING" && "The chef is actively preparing your dishes. Sit tight!"}
+                  {activeOrder.status === "SERVED" && "Dishes have been served at your table! Enjoy your meal."}
+                  {activeOrder.status === "COMPLETED" && "This order has been completed and settled. Thank you for dining with us!"}
+                  {activeOrder.status === "CANCELLED" && `This order was cancelled${activeOrder.cancelReason ? `: ${activeOrder.cancelReason}` : ""}.`}
                 </p>
               </div>
 
@@ -1641,14 +1826,28 @@ export function MenuView({
                   )}
                 </div>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setIsReceiptOpen(false)}
-                  className="rounded-xl h-9 text-xs text-muted-foreground hover:text-foreground font-semibold"
-                >
-                  Order More Items / Close Receipt
-                </Button>
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      handleDismissOrder();
+                      setIsReceiptOpen(false);
+                      toast.info("Order status dismissed from screen");
+                    }}
+                    className="rounded-xl h-8 text-[11px] text-muted-foreground hover:text-destructive gap-1 px-2"
+                  >
+                    <X className="size-3" /> Dismiss from Screen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setIsReceiptOpen(false)}
+                    className="rounded-xl h-8 text-xs text-foreground font-bold hover:bg-secondary px-3"
+                  >
+                    Order More / Close
+                  </Button>
+                </div>
               </div>
             </div>
           )}

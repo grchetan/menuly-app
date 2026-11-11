@@ -87,7 +87,7 @@ function MyMenuSkeleton() {
         </div>
 
         {/* Main Grid Skeleton */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:grid-cols-[minmax(0,1fr)_340px] min-w-0">
           <div className="min-w-0 space-y-4">
             <div className="h-11 rounded-xl bg-muted/60 animate-pulse" />
             <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3">
@@ -1101,7 +1101,7 @@ function MyMenu() {
         </div>
 
         {/* Main Grid: Menu Management + Live Customer Phone Preview */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_300px] min-w-0 pb-28 lg:pb-8">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:grid-cols-[minmax(0,1fr)_340px] min-w-0 pb-28 lg:pb-8">
           {/* Left Column: Categories & Dishes */}
           <div className="min-w-0 space-y-4">
             {/* Search Input & Quick Status Filter Row */}
@@ -1604,7 +1604,7 @@ function MyMenu() {
               {/* Realistic Smartphone Device Chassis */}
               <div
                 className={cn(
-                  "relative mx-auto h-[min(600px,calc(100vh-140px))] w-full max-w-[300px] xl:max-w-[320px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden transition-colors duration-200",
+                  "relative mx-auto h-[min(650px,calc(100vh-120px))] w-full max-w-[340px] xl:max-w-[360px] rounded-[2.5rem] border-[6px] xl:border-[8px] border-foreground/90 bg-card shadow-lift flex flex-col overflow-hidden transition-colors duration-200",
                   previewDark && "dark menuly-menu-dark bg-[#0d0f12]"
                 )}
               >
@@ -1646,10 +1646,10 @@ function MyMenu() {
               </div>
 
               {/* Quick Jump to QR */}
-              <div className="rounded-xl border bg-card p-2.5 text-center shadow-soft">
+              <div className="rounded-xl border bg-card p-2 text-center shadow-soft">
                 <Button asChild size="sm" className="w-full text-xs font-bold">
                   <Link to="/qr">
-                    <QrCode className="size-3.5 mr-1.5" /> Download Printable QR Codes →
+                    <QrCode className="size-3.5 mr-1.5" /> Print Table QRs →
                   </Link>
                 </Button>
               </div>

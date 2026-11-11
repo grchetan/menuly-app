@@ -73,8 +73,15 @@ RULES FOR EXTRACTION:
 3. For each dish in "items":
    - "name": Clean culinary dish name (e.g., "Paneer Butter Masala", "Dal Makhani", "Butter Naan"). Remove leading numbers, bullet points, asterisks, or dashes.
    - "description": Short description or ingredient line if printed under the dish; otherwise empty string or null.
-   - "price": Numerical INR price as a number (e.g. 240, 180, 50). If prices are listed as Half/Full like "120 / 220" or "H 120 F 220", extract the Full/higher price as the standard price. If no price is listed, default to 0.
-   - "isVeg": boolean. Set true if the dish is vegetarian (green dot, paneer, dal, veg, mushroom, chaap, corn, etc.). Set false if non-veg (chicken, mutton, fish, egg, red dot). If uncertain, default to true for Indian menus.
+   - "price": Numerical price as a number.
+     * If the menu is printed with full rupee amounts (e.g. 240, 180, 50, "250/-"), extract that full integer number.
+     * If the menu has decimal prices like 2.5, 3.0, 2.9, extract the numerical value.
+     * If prices are listed as Half/Full like "120 / 220" or "H 120 F 220", extract the Full/higher price as the standard price.
+     * If no price is listed, default to 0.
+   - "isVeg": boolean. Strictly determine vegetarian vs non-vegetarian:
+     * TRUE (Vegetarian): Paneer, cheese, margherita, veg pizza, veg burger, potato, aloo, mushroom, dal, lentils, chana, rajma, soya chaap, sweet corn, vegetables, roti, naan, rice, curd, chaas, desserts, green dot/mark.
+     * FALSE (Non-Vegetarian): Chicken, mutton, lamb, fish, prawn, shrimp, seafood, egg, beef, pork, bacon, ham, pepperoni, sausage, hotdog, meat bolognese, red/brown dot or non-veg mark.
+     * If ambiguous, default to true.
 4. Output MUST BE valid JSON adhering to the exact schema with NO trailing commas, NO markdown wrappers, and pure JSON output.`;
 
   const requestPayload = {

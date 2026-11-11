@@ -181,7 +181,8 @@ export function AiMenuScannerModal({
   };
 
   const handleItemPriceChange = (catIdx: number, itemIdx: number, newPriceStr: string) => {
-    const num = Math.max(0, Number(newPriceStr.replace(/\D/g, "")) || 0);
+    const val = newPriceStr.replace(/[^0-9.]/g, "");
+    const num = Math.max(0, parseFloat(val) || 0);
     setCategories((prev) => {
       const copy = [...prev];
       const targetCat = copy[catIdx];
@@ -304,8 +305,13 @@ export function AiMenuScannerModal({
         duration: 5000,
       });
 
-      // Refetch restaurant query so live menu refreshes everywhere
+      // Clear client caches so live menu refreshes everywhere immediately
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("menuly_cached_full_menu");
+        localStorage.removeItem("menuly_cached_full_menu_ts");
+      }
       await qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+      await qc.refetchQueries({ queryKey: myMenuQuery.queryKey });
 
       handleReset();
       onOpenChange(false);
@@ -575,19 +581,22 @@ export function AiMenuScannerModal({
                               className="size-3.5 accent-primary rounded cursor-pointer shrink-0"
                             />
 
-                            {/* Veg / Non-Veg Toggle Pill */}
+                            {/* Official FSSAI Square Veg / Non-Veg Indicator Toggle Button */}
                             <button
                               type="button"
                               onClick={() => handleItemVegToggle(catIdx, itemIdx)}
                               className={cn(
-                                "size-5 rounded-md flex items-center justify-center border font-bold text-[9px] shrink-0",
-                                it.isVeg
-                                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
-                                  : "border-rose-500 bg-rose-500/10 text-rose-600"
+                                "size-5 rounded-xs border-2 flex items-center justify-center p-0.5 shrink-0 transition-transform active:scale-95 cursor-pointer bg-card shadow-2xs",
+                                it.isVeg ? "border-emerald-600" : "border-rose-600"
                               )}
-                              title={it.isVeg ? "Vegetarian (Tap to change)" : "Non-Vegetarian (Tap to change)"}
+                              title={it.isVeg ? "Pure Veg (Tap to switch to Non-Veg)" : "Non-Veg (Tap to switch to Veg)"}
                             >
-                              {it.isVeg ? "🌱" : "🍗"}
+                              <span
+                                className={cn(
+                                  "size-2 rounded-full",
+                                  it.isVeg ? "bg-emerald-600" : "bg-rose-600"
+                                )}
+                              />
                             </button>
 
                             {/* Dish Name Input */}
