@@ -610,30 +610,31 @@ export function MenuView({
         </div>
       )}
 
-      {/* TOP HEADER: Restaurant Logo, Name, Hours & Theme Toggle Button */}
+      {/* TOP HEADER: Restaurant Identity & Customer Actions */}
       <header
         className={cn(
           "sticky top-0 z-30 backdrop-blur-md border-b transition-colors",
           isDark ? "bg-[#0d0f12]/95 border-[#232834]" : "bg-background/95 border-border/40",
-          compact ? "py-1.5 px-2.5" : "py-1.5 px-2.5 sm:py-2.5 sm:px-4"
+          compact ? "py-2 px-3" : "py-2 px-3 sm:py-2.5 sm:px-4"
         )}
       >
         <div className="mx-auto max-w-2xl flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+          {/* Left: Brand Identity & Table Info (No blinking live circles) */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             {r.logo_url ? (
               <img
                 src={r.logo_url}
                 alt={r.name}
                 className={cn(
-                  "rounded-full object-cover border-2 border-orange-500/30 shadow-xs shrink-0",
-                  compact ? "size-7" : "size-8 sm:size-10"
+                  "rounded-2xl object-cover border border-border/70 shadow-xs shrink-0",
+                  compact ? "size-8.5" : "size-9 sm:size-11"
                 )}
               />
             ) : (
               <div
                 className={cn(
-                  "rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0",
-                  compact ? "size-7 text-xs" : "size-8 sm:size-10 text-xs sm:text-base"
+                  "rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0",
+                  compact ? "size-8.5 text-xs" : "size-9 sm:size-11 text-xs sm:text-base"
                 )}
               >
                 {r.name.slice(0, 1)}
@@ -642,71 +643,59 @@ export function MenuView({
             <div className="min-w-0 flex-1 overflow-hidden">
               <h1
                 className={cn(
-                  "font-serif font-bold text-foreground tracking-tight truncate leading-tight",
-                  compact ? "text-[13px]" : "text-sm sm:text-base md:text-lg"
+                  "font-serif font-black text-foreground tracking-tight truncate leading-tight",
+                  compact ? "text-xs sm:text-sm" : "text-sm sm:text-base md:text-lg"
                 )}
                 title={r.name}
               >
                 {r.name}
               </h1>
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
-                <span className="relative flex size-2 items-center justify-center shrink-0">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
-                </span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Live · Open</span>
-                {!compact && r.hours && (
-                  <>
-                    <span className="text-muted-foreground/60 hidden md:inline">•</span>
-                    <span className="truncate hidden md:inline">{r.hours.replace(/Mon–Sun,\s*/i, "")}</span>
-                  </>
-                )}
-              </div>
+              
+              {/* Clean Subtitle: Table # & Dining Mode */}
+              {(table || activeTableNumber) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingTable(true);
+                    setIsOrderDrawerOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer truncate mt-0.5"
+                  title="Tap to change table"
+                >
+                  <span className="font-bold text-orange-600 dark:text-orange-400">
+                    Table #{activeTableNumber || table}
+                  </span>
+                  <span className="text-muted-foreground/60">•</span>
+                  <span className="truncate">Dine-in</span>
+                </button>
+              ) : (
+                <p className="text-[10.5px] text-muted-foreground truncate mt-0.5">
+                  {r.address || "Dine-in & Table Service"}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Right Action: Table # Badge + Orders Badge + Call Waiter + Dark Mode Theme Toggle */}
-          <div className={cn("flex items-center shrink-0", compact ? "gap-1" : "gap-1 sm:gap-1.5")}>
-            {(table || activeTableNumber) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditingTable(true);
-                  setIsOrderDrawerOpen(true);
-                }}
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-full bg-orange-500/10 border border-orange-500/30 font-bold text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 active:scale-95 transition-all cursor-pointer",
-                  compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
-                )}
-                title="Tap to change table"
-              >
-                {compact ? (
-                  <span>T#{activeTableNumber || table}</span>
-                ) : (
-                  <>
-                    <span className="sm:hidden">T#{activeTableNumber || table}</span>
-                    <span className="hidden sm:inline">Table #{activeTableNumber || table}</span>
-                  </>
-                )}
-              </button>
-            )}
-
+          {/* Right: Minimalist Luxury Action Buttons */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Orders & History Drawer Button */}
             {orderHistory.length > 0 && (
               <button
                 type="button"
                 onClick={() => setIsHistoryModalOpen(true)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 font-bold text-emerald-700 dark:text-emerald-300 shrink-0 hover:bg-emerald-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
-                  compact ? "px-1.5 py-0.5 text-[9px]" : "px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
+                  "relative items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 active:scale-95 transition-all shadow-2xs cursor-pointer",
+                  compact ? "flex size-8 justify-center shrink-0" : "flex size-8.5 sm:size-auto sm:px-3 sm:py-1.5 justify-center shrink-0 text-xs font-bold"
                 )}
                 title="View active and previous orders placed at this table"
               >
-                <ReceiptText className={cn("text-emerald-600 dark:text-emerald-400 shrink-0", compact ? "size-2.5" : "size-3")} />
+                <ReceiptText className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 {!compact && <span className="hidden sm:inline">Orders</span>}
                 <span className={cn(
                   "flex items-center justify-center rounded-full bg-emerald-600 text-white font-black",
-                  compact ? "min-w-3.5 h-3.5 px-0.5 text-[8.5px]" : "min-w-3.5 h-3.5 sm:min-w-4 sm:h-4 px-1 text-[9px]"
+                  compact
+                    ? "absolute -top-1 -right-1 size-4 text-[9px] ring-2 ring-background"
+                    : "size-4 sm:size-auto sm:px-1.5 text-[9px] sm:text-[10px]"
                 )}>
                   {orderHistory.length}
                 </span>
@@ -718,20 +707,13 @@ export function MenuView({
               type="button"
               onClick={() => setIsCallWaiterOpen(true)}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 font-bold text-amber-700 dark:text-amber-300 shrink-0 hover:bg-amber-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
-                compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px]"
+                "items-center gap-1.5 rounded-full border border-border/70 bg-secondary/80 hover:bg-secondary text-foreground active:scale-95 transition-all shadow-2xs cursor-pointer",
+                compact ? "flex size-8 justify-center shrink-0" : "flex size-8.5 sm:size-auto sm:px-3 sm:py-1.5 justify-center shrink-0 text-xs font-bold"
               )}
               title="Call waiter or request water / bill"
             >
-              <BellRing className={cn("text-amber-600 dark:text-amber-400 shrink-0 animate-pulse", compact ? "size-2.5" : "size-3")} />
-              {compact ? (
-                <span>Call</span>
-              ) : (
-                <>
-                  <span className="sm:hidden">Call</span>
-                  <span className="hidden sm:inline">Call Waiter</span>
-                </>
-              )}
+              <BellRing className="size-3.5 text-amber-500 hover:text-amber-600 transition-colors shrink-0" />
+              {!compact && <span className="hidden sm:inline">Call Waiter</span>}
             </button>
 
             {/* Theme Toggle Button */}
@@ -740,17 +722,14 @@ export function MenuView({
               onClick={toggleDark}
               aria-label="Toggle dark theme"
               className={cn(
-                "rounded-full border flex items-center justify-center transition-colors shadow-xs cursor-pointer shrink-0",
-                isDark
-                  ? "bg-[#15181e] text-amber-400 hover:bg-[#1a1e26] border-[#232834]"
-                  : "bg-card text-foreground hover:bg-secondary border-border/80",
-                compact ? "size-6" : "size-7 sm:size-8.5"
+                "flex items-center justify-center rounded-full border border-border/70 bg-secondary/80 hover:bg-secondary text-foreground active:scale-95 transition-all shadow-2xs cursor-pointer shrink-0",
+                compact ? "size-8" : "size-8.5 sm:size-9"
               )}
             >
               {isDark ? (
-                <Sun className={compact ? "size-3 text-amber-400" : "size-3.5 sm:size-4 text-amber-400"} />
+                <Sun className={compact ? "size-3.5 text-amber-400" : "size-4 text-amber-400"} />
               ) : (
-                <Moon className={compact ? "size-3 text-foreground/80" : "size-3.5 sm:size-4 text-foreground/80"} />
+                <Moon className={compact ? "size-3.5 text-foreground/80" : "size-4 text-foreground/80"} />
               )}
             </button>
           </div>
