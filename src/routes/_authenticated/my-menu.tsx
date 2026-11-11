@@ -852,37 +852,33 @@ function MyMenu() {
           </div>
         </div>
 
-        {/* Smart Menu Photo Digitizer Hero Banner (Clean, Minimal, Premium Studio UI) */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs hover:border-border transition-all">
-          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-gradient-to-br from-indigo-500/10 via-sky-500/5 to-transparent blur-3xl" />
-          <div className="flex items-center gap-3.5 relative z-10">
-            <div className="size-11 rounded-xl border border-border/80 bg-background/90 shadow-2xs flex items-center justify-center shrink-0">
-              <GeminiIcon size={22} />
+        {/* Smart Menu Photo Digitizer Hero Banner (Clean, Minimal, Short UI) */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs hover:border-border transition-all">
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="size-9 rounded-xl border border-border/80 bg-background/90 shadow-2xs flex items-center justify-center shrink-0">
+              <GeminiIcon size={18} />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-serif font-black text-base text-foreground tracking-tight">
+              <div className="flex items-center gap-2">
+                <h3 className="font-serif font-bold text-sm sm:text-base text-foreground tracking-tight">
                   Smart Menu Digitizer
                 </h3>
-                <span className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-secondary/80 px-2.5 py-0.5 text-[10px] font-semibold text-foreground/80">
-                  <GeminiIcon size={10} /> Powered by Gemini Vision
-                </span>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  • 100% Free
+                <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-secondary/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  AI Scan
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                Scan or upload any paper menu card, brochure, or rate board. Instantly extracts categories, dishes &amp; prices.
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Scan your paper menu photo to auto-import dishes &amp; prices.
               </p>
             </div>
           </div>
           <Button
             type="button"
             onClick={() => setIsAiScanOpen(true)}
-            className="h-10 px-4 rounded-xl font-semibold text-xs gap-2 bg-foreground text-background hover:bg-foreground/90 transition-all shadow-xs shrink-0 w-full sm:w-auto cursor-pointer relative z-10"
+            className="h-9 px-3.5 rounded-xl font-semibold text-xs gap-1.5 bg-foreground text-background hover:bg-foreground/90 transition-all shadow-xs shrink-0 w-full sm:w-auto cursor-pointer relative z-10"
           >
-            <GeminiIcon size={14} />
-            <span>Scan Menu Card</span>
+            <GeminiIcon size={13} />
+            <span>Scan Menu</span>
           </Button>
         </div>
 

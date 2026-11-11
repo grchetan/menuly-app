@@ -371,11 +371,11 @@ export function AiMenuScannerModal({
                     Smart Menu Digitizer
                   </h3>
                   <span className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-secondary/70 px-2 py-0.5 text-[10px] font-semibold text-foreground/80">
-                    <GeminiIcon size={10} /> Gemini Vision
+                    <GeminiIcon size={10} /> AI Scan
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground font-normal">
-                  Convert physical menu cards, rate boards &amp; pamphlets into a live digital menu
+                  Photo scan your paper menu to auto-import dishes &amp; prices
                 </p>
               </div>
             </div>
