@@ -3,6 +3,16 @@ import { useEffect, useState } from "react";
 import { AnimatedQR } from "@/components/AnimatedQR";
 import { AlertOctagon, ShieldAlert, Mail, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ordersSyncManager } from "@/lib/orders-sync";
+
+function GlobalOrdersListener() {
+  useEffect(() => {
+    // Starts background polling across all authenticated routes (QR Studio, Menu, Dashboard, etc.)
+    ordersSyncManager.startPolling();
+  }, []);
+
+  return null;
+}
 
 function AuthenticatedSkeleton() {
   return (
@@ -242,5 +252,10 @@ function AuthenticatedLayout() {
 
   if (accountStatus === "UNAUTHENTICATED") return null;
 
-  return <Outlet />;
+  return (
+    <>
+      <GlobalOrdersListener />
+      <Outlet />
+    </>
+  );
 }

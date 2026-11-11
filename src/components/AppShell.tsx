@@ -20,6 +20,7 @@ import { myMenuQuery, isDemoMode, setDemoMode } from "@/lib/restaurant";
 import { APP_NAME } from "@/lib/config";
 import { AnimatedQR } from "./AnimatedQR";
 import { cn } from "@/lib/utils";
+import { useOrdersSync } from "@/lib/orders-sync";
 
 const DASHBOARD_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
@@ -70,6 +71,8 @@ export function AppShell({
   const { data } = useQuery(myMenuQuery);
   const slug = data?.restaurant?.slug;
   const liveMenuUrl = slug ? `/menu/${slug}` : "/menu";
+
+  const { pendingCount } = useOrdersSync();
 
   const isDemo = isDemoMode() && typeof window !== "undefined" && !localStorage.getItem("menuly_token");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -211,7 +214,12 @@ export function AppShell({
                         : "text-background/70 hover:text-background"
                     )}
                   >
-                    {l.label}
+                    <span>{l.label}</span>
+                    {l.to === "/orders" && pendingCount > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-black leading-none shadow-xs animate-pulse">
+                        {pendingCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -314,7 +322,14 @@ export function AppShell({
                 style={{ animationDelay: `${i * 70}ms` }}
                 className="animate-rise flex items-center justify-between border-b border-background/10 px-3 py-4 font-display text-2xl last:border-0 data-[status=active]:text-accent"
               >
-                <span>{l.label}</span>
+                <span className="flex items-center gap-2">
+                  <span>{l.label}</span>
+                  {l.to === "/orders" && pendingCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-black leading-none shadow-xs animate-pulse">
+                      {pendingCount}
+                    </span>
+                  )}
+                </span>
                 <ArrowRight className="size-5 opacity-60" />
               </Link>
             ))}

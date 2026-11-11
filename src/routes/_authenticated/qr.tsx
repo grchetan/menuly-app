@@ -1780,61 +1780,119 @@ function QrPage() {
     });
   };
 
+  const sortTables = (a: RestaurantTable, b: RestaurantTable) => {
+    const numA = Number(a.table_number);
+    const numB = Number(b.table_number);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return a.table_number.localeCompare(b.table_number);
+  };
+
   const handleAddTable = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTableNum.trim()) {
+    const tableNum = newTableNum.trim();
+    const tableLabel = newTableLabel.trim();
+    if (!tableNum) {
       toast.error("Please enter a table number");
       return;
     }
-    setSavingTable(true);
+
+    // 0ms INSTANT OPTIMISTIC UI: Card appears immediately without waiting for server roundtrip
+    const tempId = `temp-${Date.now()}`;
+    const optimisticTable: RestaurantTable = {
+      id: tempId,
+      restaurant_id: r.id,
+      table_number: tableNum,
+      label: tableLabel || null,
+      scans_count: 0,
+      created_at: new Date().toISOString(),
+    };
+
+    // Close modal and clear inputs immediately! 0ms latency for user!
+    setShowAddTable(false);
+    setNewTableNum("");
+    setNewTableLabel("");
+
+    // Update state immediately
+    setTables((prev) => {
+      const idx = prev.findIndex((t) => t.table_number === optimisticTable.table_number);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = optimisticTable;
+        return copy;
+      }
+      return [...prev, optimisticTable].sort(sortTables);
+    });
+
+    toast.success(`Table #${tableNum} added`);
+
+    // Sync in background
     try {
-      const created = await saveRestaurantTable(r.id, newTableNum.trim(), newTableLabel.trim());
-      setTables((prev) => {
-        const idx = prev.findIndex((t) => t.table_number === created.table_number);
-        if (idx >= 0) {
-          const copy = [...prev];
-          copy[idx] = created;
-          return copy;
-        }
-        return [...prev, created].sort((a, b) => {
-          const numA = Number(a.table_number);
-          const numB = Number(b.table_number);
-          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-          return a.table_number.localeCompare(b.table_number);
-        });
-      });
-      toast.success(`Table #${created.table_number} added`);
-      setNewTableNum("");
-      setNewTableLabel("");
-      setShowAddTable(false);
+      const created = await saveRestaurantTable(r.id, tableNum, tableLabel);
+      // Reconcile real ID from server
+      setTables((prev) =>
+        prev.map((t) => (t.id === tempId ? created : t))
+      );
     } catch (err: unknown) {
+      // Rollback on failure
+      setTables((prev) => prev.filter((t) => t.id !== tempId));
       const msg = err instanceof Error ? err.message : "Failed to add table";
       toast.error(msg);
-    } finally {
-      setSavingTable(false);
     }
   };
 
   const handleDeleteTable = async (tbl: RestaurantTable) => {
     if (!window.confirm(`Delete Table #${tbl.table_number}? This cannot be undone.`)) return;
+
+    // Save previous snapshot for rollback
+    const prevTables = tables;
+
+    // 0ms INSTANT OPTIMISTIC REMOVAL: Card disappears immediately!
+    setTables((prev) => prev.filter((t) => t.id !== tbl.id));
+    toast.success(`Table #${tbl.table_number} removed`);
+
+    // Sync in background
     try {
       await deleteRestaurantTable(r.id, tbl.id);
-      setTables((prev) => prev.filter((t) => t.id !== tbl.id));
-      toast.success(`Table #${tbl.table_number} removed`);
     } catch (err: unknown) {
+      // Rollback on failure
+      setTables(prevTables);
       const msg = err instanceof Error ? err.message : "Failed to remove table";
       toast.error(msg);
     }
   };
 
   const handleBulkGenerate = async () => {
+    const nums = tables.map((t) => Number(t.table_number)).filter((n) => !isNaN(n));
+    const nextStart = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+
+    // 0ms INSTANT OPTIMISTIC BULK GENERATION: 5 cards appear immediately!
+    const optimisticBatch: RestaurantTable[] = Array.from({ length: 5 }, (_, idx) => {
+      const num = String(nextStart + idx);
+      return {
+        id: `temp-bulk-${Date.now()}-${idx}`,
+        restaurant_id: r.id,
+        table_number: num,
+        label: `Table ${num}`,
+        scans_count: 0,
+        created_at: new Date().toISOString(),
+      };
+    });
+
+    const prevTables = tables;
+
+    setTables((prev) => [...prev, ...optimisticBatch].sort(sortTables));
+    toast.success("Generated 5 new tables!");
+
+    // Sync in background
     try {
-      const nums = tables.map((t) => Number(t.table_number)).filter((n) => !isNaN(n));
-      const nextStart = nums.length > 0 ? Math.max(...nums) + 1 : 1;
       const updated = await bulkGenerateTables(r.id, nextStart, 5);
-      setTables(updated);
-      toast.success("Generated 5 new tables!");
+      // Reconcile server persisted objects
+      setTables((prev) => {
+        const serverMap = new Map(updated.map((t) => [t.table_number, t]));
+        return prev.map((t) => serverMap.get(t.table_number) || t);
+      });
     } catch (err: unknown) {
+      setTables(prevTables);
       const msg = err instanceof Error ? err.message : "Failed to generate tables";
       toast.error(msg);
     }

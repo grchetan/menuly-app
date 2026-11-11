@@ -34,161 +34,26 @@ import { formatPrice, whatsappLink } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { printReceipt } from "@/lib/receipt-printer";
+import {
+  useOrdersSync,
+  StoredOrder,
+  OrderStatus,
+  PaymentStatus,
+  ServiceCallItem,
+} from "@/lib/orders-sync";
+import {
+  orderAudioService,
+  playChimeSound,
+  speakVoiceAnnouncement,
+} from "@/lib/order-audio";
 
-export type OrderStatus = "PENDING" | "PREPARING" | "SERVED" | "COMPLETED" | "CANCELLED";
-export type PaymentStatus = "UNPAID" | "PAID_AT_COUNTER" | "PAID_ONLINE";
-
-export interface StoredOrder {
-  id: string;
-  orderNumber: string;
-  restaurantId: string;
-  tableNumber: string;
-  customerName: string | null;
-  customerPhone: string | null;
-  notes: string | null;
-  cancelReason?: string | null | undefined;
-  items: Array<{
-    id: string;
-    name: string;
-    price: number;
-    quantity: number;
-    total: number;
-    isVeg: boolean;
-  }>;
-  totalItems: number;
-  subtotal: number;
-  tax: number;
-  grandTotal: number;
-  status: OrderStatus;
-  paymentStatus: PaymentStatus;
-  paymentMethod: string;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { OrderStatus, PaymentStatus, StoredOrder, ServiceCallItem };
+export { playChimeSound, speakVoiceAnnouncement };
 
 interface LiveOrdersManagerProps {
   restaurantId: string;
   restaurantSlug: string;
   restaurantName: string;
-}
-
-export interface ServiceCallItem {
-  id: string;
-  restaurantId: string;
-  tableNumber: string;
-  reason: "waiter" | "water" | "bill" | "cutlery" | "assistance";
-  customNotes?: string;
-  status: "PENDING" | "ATTENDED";
-  createdAt: string;
-}
-
-function playChimeSound() {
-  if (typeof window === "undefined") return;
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-    const now = ctx.currentTime;
-
-    // Tone 1: Energetic Bell Chime (880 Hz / A5)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = "sine";
-    osc1.frequency.setValueAtTime(880, now);
-    gain1.gain.setValueAtTime(0.4, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.35);
-
-    // Tone 2: Crisp Accent Bell (1318.5 Hz / E6)
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = "sine";
-    osc2.frequency.setValueAtTime(1318.51, now + 0.12);
-    gain2.gain.setValueAtTime(0.45, now + 0.12);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(now + 0.12);
-    osc2.stop(now + 0.6);
-  } catch {
-    // Ignore audio autoplay restrictions
-  }
-}
-
-let activeAudioElement: HTMLAudioElement | null = null;
-
-/**
- * Loud, studio-grade Hindi voice announcement (Google Assistant Neural Studio Voice).
- * Automatically streams high-bitrate MP3 via /api/voice/tts, with fallback to Web Speech API.
- */
-export async function speakVoiceAnnouncement(hindiText: string, englishFallback?: string) {
-  if (typeof window === "undefined") return;
-
-  // 1. Try Google Assistant Neural Studio Audio (Real MP3 - Crisp, Loud & Powerful)
-  try {
-    if (activeAudioElement) {
-      activeAudioElement.pause();
-      activeAudioElement.currentTime = 0;
-    }
-
-    const ttsUrl = `/api/voice/tts?text=${encodeURIComponent(hindiText)}`;
-    const res = await fetch(ttsUrl, { signal: AbortSignal.timeout(3500) });
-    if (!res.ok) {
-      throw new Error(`TTS server responded with ${res.status}`);
-    }
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const audio = new Audio(blobUrl);
-    activeAudioElement = audio;
-    audio.volume = 1.0;
-    audio.onended = () => {
-      URL.revokeObjectURL(blobUrl);
-    };
-
-    await audio.play();
-    return;
-  } catch {
-    // If audio element failed (e.g. offline or upstream timeout), fall back to Web Speech
-  }
-
-  // 2. Fallback to Web Speech API with Devanagari Hindi or Indian English
-  try {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-
-    const voices = window.speechSynthesis.getVoices();
-    // Prioritize natural Indian Hindi or Indian English voice
-    const hindiVoice = voices.find(
-      (v) => (v.lang && (v.lang.startsWith("hi") || v.lang.includes("hi-IN"))) || v.name.toLowerCase().includes("hindi")
-    );
-    const indianEnglishVoice = voices.find(
-      (v) => v.lang && (v.lang.toLowerCase() === "en-in" || v.name.toLowerCase().includes("india"))
-    );
-
-    const speechText = hindiVoice ? hindiText : (englishFallback || hindiText);
-    const utterance = new SpeechSynthesisUtterance(speechText);
-    utterance.volume = 1.0;
-    utterance.rate = 0.92;
-    utterance.pitch = 1.02;
-
-    if (hindiVoice) {
-      utterance.voice = hindiVoice;
-      utterance.lang = hindiVoice.lang || "hi-IN";
-    } else if (indianEnglishVoice) {
-      utterance.voice = indianEnglishVoice;
-      utterance.lang = "en-IN";
-    } else {
-      utterance.lang = "en-US";
-    }
-
-    window.speechSynthesis.speak(utterance);
-  } catch (err) {
-    console.warn("Speech synthesis fallback failed:", err);
-  }
 }
 
 function timeAgo(dateStr: string): string {
@@ -208,12 +73,19 @@ export function LiveOrdersManager({
   restaurantName,
 }: LiveOrdersManagerProps) {
   const [activeTab, setActiveTab] = useState<"live" | "history">("live");
-  const [orders, setOrders] = useState<StoredOrder[]>([]);
-  const [serviceCalls, setServiceCalls] = useState<ServiceCallItem[]>([]);
+  const {
+    orders,
+    serviceCalls,
+    loading,
+    initialFetchDone,
+    refetch,
+    updateOrderStatus,
+    resolveServiceCall,
+  } = useOrdersSync();
+
   const [resolvingCallId, setResolvingCallId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(() => orderAudioService.isSoundEnabled());
   const [selectedTable, setSelectedTable] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -222,278 +94,30 @@ export function LiveOrdersManager({
   const [selectedCancelReason, setSelectedCancelReason] = useState("Customer Left / Changed Mind");
   const [customCancelReason, setCustomCancelReason] = useState("");
 
-  const prevPendingIdsRef = useRef<Set<string>>(new Set());
-  const prevServiceCallIdsRef = useRef<Set<string>>(new Set());
-  const initialFetchDoneRef = useRef(false);
-
-  // Tracks in-flight / optimistic status updates so background polling NEVER reverts UI
-  const optimisticUpdatesRef = useRef<
-    Map<string, { status: OrderStatus; timestamp: number; cancelReason?: string | undefined }>
-  >(new Map());
-
-  // Tracks already announced order and service call IDs across session so they speak ONLY ONCE and NEVER repeat
-  const announcedIdsRef = useRef<Set<string>>(new Set<string>());
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const stored = sessionStorage.getItem("menuly_announced_voice_ids");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((id: string) => announcedIdsRef.current.add(id));
-        }
-      }
-    } catch {}
-  }, []);
-
-  const getAuthHeader = () => {
-    if (typeof window === "undefined") return {};
-    const token = localStorage.getItem("menuly_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
-
-  const fetchOrders = useCallback(async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
-    try {
-      const res = await fetch("/api/restaurant/orders", {
-        headers: getAuthHeader(),
-      });
-      const data = await res.json();
-      if (res.ok && data.success && Array.isArray(data.orders)) {
-        const now = Date.now();
-        // Prune optimistic locks older than 15s
-        optimisticUpdatesRef.current.forEach((val, id) => {
-          if (now - val.timestamp > 15000) {
-            optimisticUpdatesRef.current.delete(id);
-          }
-        });
-
-        // Merge fetched orders with any active optimistic status updates
-        const mergedOrders: StoredOrder[] = data.orders.map((o: StoredOrder) => {
-          const optimistic =
-            optimisticUpdatesRef.current.get(o.id) ||
-            optimisticUpdatesRef.current.get(o.orderNumber);
-          if (optimistic) {
-            return {
-              ...o,
-              status: optimistic.status,
-              cancelReason: optimistic.cancelReason || o.cancelReason,
-            };
-          }
-          return o;
-        });
-
-        const fetchedOrders: StoredOrder[] = mergedOrders;
-        setOrders(fetchedOrders);
-
-        // Service bell / Waiter calls detection & voice alert
-        if (Array.isArray(data.serviceCalls)) {
-          const fetchedCalls: ServiceCallItem[] = data.serviceCalls;
-          setServiceCalls(fetchedCalls);
-
-          // On first load: seed all existing calls into announcedIds so they NEVER speak (prevents old orders from shouting)
-          if (!initialFetchDoneRef.current) {
-            fetchedCalls.forEach((c) => announcedIdsRef.current.add(c.id));
-          } else if (soundEnabled) {
-            // Find truly new calls that:
-            // a) Have NEVER been announced before in this session
-            // b) Were created in the last 90 seconds (not old/beeta hua calls)
-            const now = Date.now();
-            const newCalls = fetchedCalls.filter((c) => {
-              if (announcedIdsRef.current.has(c.id)) return false;
-              const callAgeMs = now - new Date(c.createdAt).getTime();
-              if (callAgeMs > 90 * 1000) {
-                // Older than 90s: mark announced silently without speaking
-                announcedIdsRef.current.add(c.id);
-                return false;
-              }
-              return true;
-            });
-
-            if (newCalls.length > 0) {
-              const firstCall = newCalls[0];
-              if (firstCall) {
-                // Mark announced immediately so it NEVER repeats
-                newCalls.forEach((c) => announcedIdsRef.current.add(c.id));
-                try {
-                  sessionStorage.setItem(
-                    "menuly_announced_voice_ids",
-                    JSON.stringify(Array.from(announcedIdsRef.current).slice(-200))
-                  );
-                } catch {}
-
-                playChimeSound();
-                let reasonHindi = "वेटर को बुलाया गया है";
-                let reasonEn = "Staff assistance requested";
-                if (firstCall.reason === "water") {
-                  reasonHindi = "पीने का पानी मंगाया गया है";
-                  reasonEn = "Drinking water requested";
-                } else if (firstCall.reason === "bill") {
-                  reasonHindi = "बिल मंगाया गया है";
-                  reasonEn = "Bill requested";
-                } else if (firstCall.reason === "cutlery") {
-                  reasonHindi = "कटलरी मंगाई गई है";
-                  reasonEn = "Cutlery requested";
-                }
-
-                const speechHindi = `ध्यान दें! टेबल नंबर ${firstCall.tableNumber} पर ${reasonHindi}!`;
-                const speechEnglish = `Attention! Table number ${firstCall.tableNumber}: ${reasonEn}!`;
-                setTimeout(() => speakVoiceAnnouncement(speechHindi, speechEnglish), 350);
-
-                toast.warning(`Table #${firstCall.tableNumber}: ${firstCall.reason.toUpperCase()} requested!`, {
-                  duration: 8000,
-                });
-              }
-            }
-          }
-          prevServiceCallIdsRef.current = new Set(fetchedCalls.map((c) => c.id));
-        }
-
-        // Sound chime & Natural voice detection for newly arrived pending orders
-        const currentPendingIds = new Set(
-          fetchedOrders.filter((o) => o.status === "PENDING").map((o) => o.id)
-        );
-
-        // On first load: seed all existing pending orders into announcedIds so they NEVER speak
-        if (!initialFetchDoneRef.current) {
-          fetchedOrders
-            .filter((o) => o.status === "PENDING")
-            .forEach((o) => announcedIdsRef.current.add(o.id));
-        } else if (soundEnabled) {
-          // Find truly new orders that:
-          // a) Have NEVER been announced before in this session
-          // b) Were created in the last 90 seconds (not old/beeta hua orders)
-          const now = Date.now();
-          const newOrders = fetchedOrders.filter((o) => {
-            if (o.status !== "PENDING") return false;
-            if (announcedIdsRef.current.has(o.id)) return false;
-            const orderAgeMs = now - new Date(o.createdAt).getTime();
-            if (orderAgeMs > 90 * 1000) {
-              // Older than 90s: mark announced silently without speaking
-              announcedIdsRef.current.add(o.id);
-              return false;
-            }
-            return true;
-          });
-
-          if (newOrders.length > 0) {
-            const first = newOrders[0];
-            if (first) {
-              // Mark announced immediately so it NEVER repeats
-              newOrders.forEach((o) => announcedIdsRef.current.add(o.id));
-              try {
-                sessionStorage.setItem(
-                  "menuly_announced_voice_ids",
-                  JSON.stringify(Array.from(announcedIdsRef.current).slice(-200))
-                );
-              } catch {}
-
-              playChimeSound();
-              const dishCount = first.totalItems || first.items.reduce((sum, it) => sum + it.quantity, 0) || 1;
-              const speechHindi = `ध्यान दें! टेबल नंबर ${first.tableNumber} से ${dishCount} डिश का नया आर्डर आया है!`;
-              const speechEnglish = `Attention kitchen! Table number ${first.tableNumber}: New order of ${dishCount} items received!`;
-              setTimeout(() => speakVoiceAnnouncement(speechHindi, speechEnglish), 350);
-
-              toast.success(`New Order ${first.orderNumber} from Table #${first.tableNumber}!`, {
-                duration: 6000,
-              });
-            }
-          }
-        }
-
-        prevPendingIdsRef.current = currentPendingIds;
-        initialFetchDoneRef.current = true;
-      }
-    } catch (err) {
-      if (!isSilent) console.warn("Failed fetching live restaurant orders:", err);
-    } finally {
-      if (!isSilent) setLoading(false);
-    }
-  }, [soundEnabled]);
-
-  // Handle Mark Service Call as Attended (Optimistic 0ms instant update)
+  // Handle Mark Service Call as Attended (Optimistic 0ms instant update via store)
   const handleResolveServiceCall = async (callId: string) => {
-    const prevCalls = serviceCalls;
-    // 0ms instant UI removal
-    setServiceCalls((prev) => prev.filter((c) => c.id !== callId));
-    toast.success("Table service marked as attended");
-
     setResolvingCallId(callId);
+    toast.success("Table service marked as attended");
     try {
-      const res = await fetch("/api/restaurant/service-calls/resolve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ callId }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update service status");
-      }
+      await resolveServiceCall(callId);
     } catch {
-      // Revert if network failed
-      setServiceCalls(prevCalls);
       toast.error("Failed to update service status");
     } finally {
       setResolvingCallId(null);
     }
   };
 
-  // Initial load + periodic polling every 2.5 seconds (Ultra-fast live response)
-  useEffect(() => {
-    fetchOrders(false);
-    const interval = setInterval(() => {
-      fetchOrders(true);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [fetchOrders]);
-
-  // Update Status handler (Optimistic 0ms instant UI update with background lock)
+  // Update Status handler (Optimistic 0ms instant UI update with background store lock)
   const handleUpdateStatus = async (orderId: string, status: OrderStatus, cancelReason?: string) => {
-    // 1. Lock optimistic status so background polling NEVER reverts it
-    optimisticUpdatesRef.current.set(orderId, {
-      status,
-      timestamp: Date.now(),
-      cancelReason: cancelReason || undefined,
-    });
-
-    // 2. 0ms instant UI update (immediately transitions card / removes completed)
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId || o.orderNumber === orderId
-          ? { ...o, status, cancelReason: cancelReason || o.cancelReason, updatedAt: new Date().toISOString() }
-          : o
-      )
-    );
-
     toast.success(
       status === "CANCELLED"
         ? `Order cancelled (${cancelReason || "Cancelled"})`
         : `Order marked as ${status.toLowerCase()}`
     );
-
     setUpdatingId(orderId);
     try {
-      const res = await fetch("/api/restaurant/orders/update-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ orderId, status, cancelReason }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update order");
-      }
-      if (data.order?.id) {
-        optimisticUpdatesRef.current.set(data.order.id, {
-          status: data.order.status,
-          timestamp: Date.now(),
-          cancelReason: data.order.cancelReason,
-        });
-      }
+      await updateOrderStatus({ orderId, status, cancelReason });
     } catch (err: any) {
-      optimisticUpdatesRef.current.delete(orderId);
       toast.error(err.message || "Failed to update status on server");
     } finally {
       setUpdatingId(null);
@@ -590,8 +214,10 @@ export function LiveOrdersManager({
             variant="outline"
             size="sm"
             onClick={() => {
-              setSoundEnabled((prev) => !prev);
-              toast.info(soundEnabled ? "Voice & audio alerts disabled" : "Voice & audio alerts enabled");
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              orderAudioService.setSoundEnabled(next);
+              toast.info(next ? "Voice & audio alerts enabled" : "Voice & audio alerts disabled");
             }}
             className={cn("h-8 text-xs font-bold gap-1.5", soundEnabled && "border-primary/40 bg-primary/10 text-primary shadow-xs")}
             title="Toggle Hindi/Hinglish speech and chime alerts"
@@ -605,7 +231,7 @@ export function LiveOrdersManager({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => fetchOrders(false)}
+            onClick={() => refetch()}
             disabled={loading}
             className="h-8 text-xs font-semibold gap-1.5"
           >
@@ -837,7 +463,7 @@ export function LiveOrdersManager({
       {/* ------------------------------------------------------------- */}
       {/* 5. ORDERS LIST (CARDS)                                        */}
       {/* ------------------------------------------------------------- */}
-      {loading && orders.length === 0 ? (
+      {loading && orders.length === 0 && !initialFetchDone ? (
         <div className="py-12 text-center text-muted-foreground text-xs space-y-2">
           <RefreshCw className="size-6 animate-spin mx-auto text-primary" />
           <p>Connecting to kitchen live stream...</p>

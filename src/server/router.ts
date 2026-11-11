@@ -1038,8 +1038,9 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         const rawBody = await request.json().catch(() => ({}));
         const body = sanitizeObject(rawBody);
         const count = Number(body.count) || 10;
+        const start = Number(body.start) || 1;
         const prefix = body.prefix || "Table ";
-        const tables = await bulkCreateTablesForRestaurant(auth.userId, count, prefix);
+        const tables = await bulkCreateTablesForRestaurant(auth.userId, count, prefix, start);
         return json({ success: true, tables });
       }
 

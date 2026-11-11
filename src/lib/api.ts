@@ -247,7 +247,7 @@ export async function bulkGenerateTables(
     const res = await fetch("/api/restaurant/tables/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeader() },
-      body: JSON.stringify({ count, prefix: "Table " }),
+      body: JSON.stringify({ count, prefix: "Table ", start }),
     });
     const data = await res.json();
     if (res.ok && data.success && Array.isArray(data.tables)) {

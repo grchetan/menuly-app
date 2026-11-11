@@ -639,18 +639,50 @@ export async function applyPresetToRestaurant(userId: string, presetId: string) 
   return result;
 }
 
+// In-memory cache for ultra-fast 0ms table queries
+const tablesMemoryCache = new Map<string, Array<{
+  id: string;
+  restaurant_id: string;
+  table_number: string;
+  label: string | null;
+  scans_count: number;
+  created_at: string;
+}>>();
+
 export async function getTablesForRestaurant(userId: string) {
   const restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
   });
   if (!restaurant) return [];
 
+  const cached = tablesMemoryCache.get(restaurant.id);
+  if (cached && Array.isArray(cached) && cached.length > 0) {
+    // Return cached immediately, refresh asynchronously in background
+    prisma.restaurantTable.findMany({
+      where: { restaurantId: restaurant.id },
+      orderBy: { tableNumber: "asc" },
+    }).then((fresh) => {
+      tablesMemoryCache.set(
+        restaurant.id,
+        fresh.map((t) => ({
+          id: t.id,
+          restaurant_id: t.restaurantId,
+          table_number: t.tableNumber,
+          label: t.label,
+          scans_count: t.scansCount,
+          created_at: t.createdAt.toISOString(),
+        }))
+      );
+    }).catch(() => {});
+    return cached;
+  }
+
   const tables = await prisma.restaurantTable.findMany({
     where: { restaurantId: restaurant.id },
     orderBy: { tableNumber: "asc" },
   });
 
-  return tables.map((t) => ({
+  const mapped = tables.map((t) => ({
     id: t.id,
     restaurant_id: t.restaurantId,
     table_number: t.tableNumber,
@@ -658,6 +690,9 @@ export async function getTablesForRestaurant(userId: string) {
     scans_count: t.scansCount,
     created_at: t.createdAt.toISOString(),
   }));
+
+  tablesMemoryCache.set(restaurant.id, mapped);
+  return mapped;
 }
 
 export async function saveTableForRestaurant(
@@ -692,7 +727,7 @@ export async function saveTableForRestaurant(
     },
   });
 
-  return {
+  const formatted = {
     id: table.id,
     restaurant_id: table.restaurantId,
     table_number: table.tableNumber,
@@ -700,6 +735,24 @@ export async function saveTableForRestaurant(
     scans_count: table.scansCount,
     created_at: table.createdAt.toISOString(),
   };
+
+  // Immediate in-memory cache update
+  const existing = tablesMemoryCache.get(restaurant.id) || [];
+  const idx = existing.findIndex((t) => t.table_number === formatted.table_number);
+  if (idx >= 0) {
+    existing[idx] = formatted;
+  } else {
+    existing.push(formatted);
+  }
+  existing.sort((a, b) => {
+    const numA = Number(a.table_number);
+    const numB = Number(b.table_number);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return a.table_number.localeCompare(b.table_number);
+  });
+  tablesMemoryCache.set(restaurant.id, existing);
+
+  return formatted;
 }
 
 export async function deleteTableForRestaurant(userId: string, id: string) {
@@ -707,6 +760,15 @@ export async function deleteTableForRestaurant(userId: string, id: string) {
     where: { ownerId: userId },
   });
   if (!restaurant) throw new Error("Restaurant not found.");
+
+  // Immediate in-memory cache eviction
+  const existing = tablesMemoryCache.get(restaurant.id);
+  if (existing) {
+    tablesMemoryCache.set(
+      restaurant.id,
+      existing.filter((t) => t.id !== id)
+    );
+  }
 
   await prisma.restaurantTable.deleteMany({
     where: { id, restaurantId: restaurant.id },
@@ -718,7 +780,8 @@ export async function deleteTableForRestaurant(userId: string, id: string) {
 export async function bulkCreateTablesForRestaurant(
   userId: string,
   count: number,
-  prefix: string = "Table "
+  prefix: string = "Table ",
+  start: number = 1
 ) {
   const restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
@@ -727,12 +790,13 @@ export async function bulkCreateTablesForRestaurant(
 
   const total = Math.min(Math.max(1, count), 100);
   const cleanPrefix = sanitizeText(prefix, 25) || "Table ";
-  const created: any[] = [];
+  const startNum = Math.max(1, start);
 
-  for (let i = 1; i <= total; i++) {
-    const tableNum = String(i);
-    const label = `${cleanPrefix.trim()} ${i}`.trim();
-    const t = await prisma.restaurantTable.upsert({
+  // Parallel database execution via Promise.all (0ms batch instead of sequential roundtrips)
+  const tablePromises = Array.from({ length: total }, (_, idx) => {
+    const tableNum = String(startNum + idx);
+    const label = `${cleanPrefix.trim()} ${startNum + idx}`.trim();
+    return prisma.restaurantTable.upsert({
       where: {
         restaurantId_tableNumber: {
           restaurantId: restaurant.id,
@@ -746,17 +810,38 @@ export async function bulkCreateTablesForRestaurant(
         label,
       },
     });
-    created.push({
-      id: t.id,
-      restaurant_id: t.restaurantId,
-      table_number: t.tableNumber,
-      label: t.label,
-      scans_count: t.scansCount,
-      created_at: t.createdAt.toISOString(),
-    });
-  }
+  });
 
-  return created;
+  const createdTables = await Promise.all(tablePromises);
+  const mapped = createdTables.map((t) => ({
+    id: t.id,
+    restaurant_id: t.restaurantId,
+    table_number: t.tableNumber,
+    label: t.label,
+    scans_count: t.scansCount,
+    created_at: t.createdAt.toISOString(),
+  }));
+
+  // Update in-memory cache
+  const existing = tablesMemoryCache.get(restaurant.id) || [];
+  const merged = [...existing];
+  for (const m of mapped) {
+    const idx = merged.findIndex((x) => x.table_number === m.table_number);
+    if (idx >= 0) {
+      merged[idx] = m;
+    } else {
+      merged.push(m);
+    }
+  }
+  merged.sort((a, b) => {
+    const numA = Number(a.table_number);
+    const numB = Number(b.table_number);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return a.table_number.localeCompare(b.table_number);
+  });
+  tablesMemoryCache.set(restaurant.id, merged);
+
+  return mapped;
 }
 
 export async function updateRestaurant(userId: string, data: Partial<RestaurantPayload>) {
