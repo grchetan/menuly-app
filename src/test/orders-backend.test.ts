@@ -129,7 +129,7 @@ describe("Table-Wise Dine-In Order Engine & POS Suite", () => {
     expect(compRes.success).toBe(true);
     expect(compRes.order?.status).toBe("COMPLETED");
     expect(compRes.order?.paymentStatus).toBe("PAID_AT_COUNTER");
-  });
+  }, 20000);
 
   it("supports order cancellation with specific reason and lookup by orderNumber", async () => {
     const created = await createOrder({

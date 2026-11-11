@@ -20,6 +20,8 @@ import {
   Plus,
   Sparkles,
   User,
+  Bell,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +68,16 @@ interface LiveOrdersManagerProps {
   restaurantName: string;
 }
 
+export interface ServiceCallItem {
+  id: string;
+  restaurantId: string;
+  tableNumber: string;
+  reason: "waiter" | "water" | "bill" | "cutlery" | "assistance";
+  customNotes?: string;
+  status: "PENDING" | "ATTENDED";
+  createdAt: string;
+}
+
 function playChimeSound() {
   if (typeof window === "undefined") return;
   try {
@@ -83,6 +95,34 @@ function playChimeSound() {
     osc.stop(ctx.currentTime + 0.6);
   } catch {
     // Ignore audio autoplay restrictions
+  }
+}
+
+/**
+ * Natural voice announcement in Hindi/Hinglish via Web Speech API
+ */
+export function speakVoiceAnnouncement(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const voice =
+      voices.find((v) => v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi")) ||
+      voices.find((v) => v.lang === "en-IN" || v.name.toLowerCase().includes("india")) ||
+      voices.find((v) => v.lang.startsWith("en"));
+
+    if (voice) {
+      utterance.voice = voice;
+    }
+    utterance.lang = voice?.lang || "hi-IN";
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.warn("Speech synthesis error:", err);
   }
 }
 
@@ -104,6 +144,8 @@ export function LiveOrdersManager({
 }: LiveOrdersManagerProps) {
   const [activeTab, setActiveTab] = useState<"live" | "history">("live");
   const [orders, setOrders] = useState<StoredOrder[]>([]);
+  const [serviceCalls, setServiceCalls] = useState<ServiceCallItem[]>([]);
+  const [resolvingCallId, setResolvingCallId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -116,6 +158,7 @@ export function LiveOrdersManager({
   const [customCancelReason, setCustomCancelReason] = useState("");
 
   const prevPendingIdsRef = useRef<Set<string>>(new Set());
+  const prevServiceCallIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef(false);
 
   const getAuthHeader = () => {
@@ -135,7 +178,35 @@ export function LiveOrdersManager({
         const fetchedOrders: StoredOrder[] = data.orders;
         setOrders(fetchedOrders);
 
-        // Sound chime detection for newly arrived pending orders
+        // Service bell / Waiter calls detection & voice alert
+        if (Array.isArray(data.serviceCalls)) {
+          const fetchedCalls: ServiceCallItem[] = data.serviceCalls;
+          setServiceCalls(fetchedCalls);
+
+          if (initialFetchDoneRef.current && soundEnabled) {
+            const newCalls = fetchedCalls.filter((c) => !prevServiceCallIdsRef.current.has(c.id));
+            if (newCalls.length > 0) {
+              playChimeSound();
+              const firstCall = newCalls[0];
+              if (firstCall) {
+                let reasonHindi = "waiter ko bula rahe hain";
+                if (firstCall.reason === "water") reasonHindi = "paani mangaaya hai";
+                else if (firstCall.reason === "bill") reasonHindi = "bill mangaaya hai";
+                else if (firstCall.reason === "cutlery") reasonHindi = "cutlery mangaayi hai";
+
+                const speechText = `Attention: Table number ${firstCall.tableNumber} se ${reasonHindi}!`;
+                setTimeout(() => speakVoiceAnnouncement(speechText), 350);
+
+                toast.warning(`🛎️ Table #${firstCall.tableNumber}: ${firstCall.reason.toUpperCase()} requested!`, {
+                  duration: 8000,
+                });
+              }
+            }
+          }
+          prevServiceCallIdsRef.current = new Set(fetchedCalls.map((c) => c.id));
+        }
+
+        // Sound chime & Natural voice detection for newly arrived pending orders
         const currentPendingIds = new Set(
           fetchedOrders.filter((o) => o.status === "PENDING").map((o) => o.id)
         );
@@ -148,6 +219,11 @@ export function LiveOrdersManager({
             playChimeSound();
             const first = newOrders[0];
             if (first) {
+              const dishCount = first.totalItems || first.items.reduce((sum, it) => sum + it.quantity, 0) || 1;
+              const dishWord = dishCount === 1 ? "1 dish" : `${dishCount} dish`;
+              const speechText = `Table number ${first.tableNumber} se ${dishWord} ka naya order aaya hai.`;
+              setTimeout(() => speakVoiceAnnouncement(speechText), 350);
+
               toast.success(`🔔 New Order ${first.orderNumber} from Table #${first.tableNumber}!`, {
                 duration: 6000,
               });
@@ -164,6 +240,37 @@ export function LiveOrdersManager({
       if (!isSilent) setLoading(false);
     }
   }, [soundEnabled]);
+
+  // Handle Mark Service Call as Attended
+  const handleResolveServiceCall = async (callId: string) => {
+    setResolvingCallId(callId);
+    try {
+      const res = await fetch("/api/restaurant/service-calls/resolve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ callId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setServiceCalls((prev) => prev.filter((c) => c.id !== callId));
+        toast.success("✅ Table service marked as attended!");
+      }
+    } catch {
+      toast.error("Failed to update service status");
+    } finally {
+      setResolvingCallId(null);
+    }
+  };
+
+  // Test Voice Announcement helper
+  const handleTestVoice = () => {
+    playChimeSound();
+    speakVoiceAnnouncement("Testing Menuly Voice Alert: Table number 1 se 4 dish ka order aaya hai.");
+    toast.success("🔊 Testing voice: Table 1 se 4 dish ka order aaya hai");
+  };
 
   // Initial load + periodic polling every 8 seconds
   useEffect(() => {
@@ -322,20 +429,33 @@ export function LiveOrdersManager({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Sound Toggle */}
+          {/* Sound & Natural Voice Alert Toggle */}
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => {
               setSoundEnabled((prev) => !prev);
-              toast.info(soundEnabled ? "Audio chimes disabled" : "Audio chimes enabled");
+              toast.info(soundEnabled ? "Voice & audio alerts disabled" : "Voice & audio alerts enabled");
             }}
-            className={cn("h-8 text-xs font-semibold gap-1.5", soundEnabled && "border-primary/40 bg-primary/5 text-primary")}
-            title="Toggle new order sound alerts"
+            className={cn("h-8 text-xs font-bold gap-1.5", soundEnabled && "border-primary/40 bg-primary/10 text-primary shadow-xs")}
+            title="Toggle Hindi/Hinglish speech and chime alerts"
           >
             {soundEnabled ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5 text-muted-foreground" />}
-            <span className="hidden sm:inline">{soundEnabled ? "Chime On" : "Chime Off"}</span>
+            <span className="hidden sm:inline">{soundEnabled ? "Voice On" : "Voice Off"}</span>
+          </Button>
+
+          {/* Test Voice Speech Button */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleTestVoice}
+            className="h-8 text-xs font-semibold gap-1.5 border-border hover:bg-secondary cursor-pointer"
+            title="Listen to sample Hindi speech announcement"
+          >
+            <Sparkles className="size-3 text-orange-500" />
+            <span className="hidden sm:inline">Test Voice</span>
           </Button>
 
           {/* Refresh Button */}
@@ -359,11 +479,74 @@ export function LiveOrdersManager({
             onClick={handleSimulateOrder}
             className="h-8 text-xs font-bold gap-1"
           >
-            <Sparkles className="size-3.5 text-amber-500" />
+            <CookingPot className="size-3.5 text-amber-500" />
             <span>Test Order</span>
           </Button>
         </div>
       </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* LIVE TABLE SERVICE BELL / WAITER CALLS BANNER                */}
+      {/* ------------------------------------------------------------- */}
+      {serviceCalls.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-card p-3.5 sm:p-4 space-y-3 shadow-md animate-rise">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="relative flex size-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full size-2.5 bg-amber-500"></span>
+              </span>
+              <span className="font-bold text-xs uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <BellRing className="size-4 text-amber-600 animate-bounce" />
+                Active Table Service Calls ({serviceCalls.length})
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground hidden sm:inline">
+              Requires immediate table assistance
+            </span>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {serviceCalls.map((call) => (
+              <div
+                key={call.id}
+                className="flex items-center justify-between p-3 rounded-xl bg-card border border-amber-500/30 shadow-xs gap-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-foreground">
+                      Table #{call.tableNumber}
+                    </span>
+                    <span className="rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold uppercase">
+                      {call.reason === "water"
+                        ? "💧 Water"
+                        : call.reason === "bill"
+                        ? "🧾 Bill"
+                        : call.reason === "cutlery"
+                        ? "🥄 Cutlery"
+                        : "🙋‍♂️ Waiter"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                    {timeAgo(call.createdAt)} {call.customNotes ? `• "${call.customNotes}"` : ""}
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleResolveServiceCall(call.id)}
+                  disabled={resolvingCallId === call.id}
+                  className="h-8 px-3 rounded-lg text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs shrink-0 cursor-pointer"
+                >
+                  <Check className="size-3.5" />
+                  <span>Attended</span>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* 2. SUMMARY COUNTERS                                           */}

@@ -107,9 +107,13 @@ function OfflineOrNotFound() {
 }
 
 export const Route = createFileRoute("/menu/$slug")({
-  validateSearch: (search: Record<string, unknown>): MenuSearch => ({
-    table: typeof search["table"] === "string" ? (search["table"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): MenuSearch => {
+    const raw = search["table"] ?? search["t"] ?? search["tableNumber"] ?? search["table_number"];
+    const tableStr = raw !== undefined && raw !== null ? String(raw).trim() : undefined;
+    return {
+      table: tableStr || undefined,
+    };
+  },
   loader: async ({ params }) => {
     try {
       const menu = await getPublicMenu({ data: params.slug });

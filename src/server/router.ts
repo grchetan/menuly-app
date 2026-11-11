@@ -58,6 +58,11 @@ import {
   getRestaurantOrderStats,
 } from "./orders/service";
 import {
+  requestServiceCall,
+  getPendingServiceCalls,
+  resolveServiceCall,
+} from "./orders/service-calls";
+import {
   extractMenuFromImage,
   applyScannedMenuToRestaurant,
 } from "./ai/menu-scanner";
@@ -731,6 +736,38 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // PUBLIC SERVICE / WAITER CALL: POST /api/public/service-call
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/public/service-call" && request.method === "POST") {
+      const rate = checkRateLimit(`service_call:${clientIp}`, { windowMs: 60 * 1000, max: 20 });
+      if (!rate.allowed) {
+        return json(
+          { error: `Please wait ${rate.resetInSeconds}s before sending another alert.` },
+          429
+        );
+      }
+      const rawBody = await request.json().catch(() => ({}));
+      let restaurantId = rawBody.restaurantId;
+      if (!restaurantId && rawBody.slug) {
+        const rest = await prisma.restaurant.findUnique({
+          where: { slug: rawBody.slug },
+          select: { id: true },
+        });
+        if (rest) restaurantId = rest.id;
+      }
+      if (!restaurantId) {
+        return json({ error: "Restaurant not found" }, 404);
+      }
+      const res = requestServiceCall({
+        restaurantId,
+        tableNumber: rawBody.tableNumber || "1",
+        reason: rawBody.reason || "waiter",
+        customNotes: rawBody.customNotes,
+      });
+      return json({ success: true, call: res.call, isDuplicate: res.isDuplicate });
+    }
+
+    // --------------------------------------------------------------------------
     // USER STATUS / VERIFICATION: GET /api/user/status & GET /api/auth/me
     // --------------------------------------------------------------------------
     if ((pathname === "/api/user/status" || pathname === "/api/auth/me") && request.method === "GET") {
@@ -980,7 +1017,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           tableNumber: table,
           limit,
         });
-        return json({ success: true, orders });
+        const serviceCalls = getPendingServiceCalls(restaurantId);
+        return json({ success: true, orders, serviceCalls });
       }
 
       // 16. POST /api/restaurant/orders/update-status (Update status: PREPARING, SERVED, COMPLETED, CANCELLED)
@@ -999,6 +1037,22 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           cancelReason: rawBody.cancelReason,
         });
         return json(res, res.status);
+      }
+
+      // 16b. POST /api/restaurant/service-calls/resolve (Acknowledge / Mark Attended)
+      if (pathname === "/api/restaurant/service-calls/resolve" && request.method === "POST") {
+        const userRest = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        const restaurantId = (userRest as any)?.restaurant?.id || (userRest as any)?.id;
+        if (!restaurantId) {
+          return json({ error: "No restaurant found for this account" }, 404);
+        }
+        const rawBody = await request.json().catch(() => ({}));
+        const callId = rawBody.callId;
+        if (!callId) {
+          return json({ error: "callId is required" }, 400);
+        }
+        const ok = resolveServiceCall(restaurantId, callId);
+        return json({ success: ok, serviceCalls: getPendingServiceCalls(restaurantId) });
       }
 
       // 17. GET /api/restaurant/orders/stats (Live Active Orders, Today Revenue, Tables)

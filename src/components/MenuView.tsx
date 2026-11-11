@@ -28,6 +28,8 @@ import {
   Edit2,
   RefreshCw,
   User,
+  Bell,
+  BellRing,
 } from "lucide-react";
 import type { FullMenu, Category, MenuItem } from "@/lib/restaurant";
 import { formatPrice, whatsappLink, APP_NAME } from "@/lib/config";
@@ -107,9 +109,36 @@ export function MenuView({
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
   // Table & Dine-in Details
-  const [activeTableNumber, setActiveTableNumber] = useState<string>(() => {
-    return table || (typeof window !== "undefined" ? localStorage.getItem(`menuly_last_table_${r.slug}`) || "1" : "1");
-  });
+  const getInitialTable = (): string => {
+    if (table && String(table).trim()) return String(table).trim();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlTable = params.get("table") || params.get("t") || params.get("tableNumber") || params.get("table_number");
+      if (urlTable && urlTable.trim()) return urlTable.trim();
+      const lastTable = localStorage.getItem(`menuly_last_table_${r.slug}`);
+      if (lastTable && lastTable.trim()) return lastTable.trim();
+    }
+    return "1";
+  };
+
+  const [activeTableNumber, setActiveTableNumber] = useState<string>(getInitialTable);
+
+  // Synchronize immediately whenever table prop or URL query parameter changes
+  useEffect(() => {
+    let currentTable = table ? String(table).trim() : null;
+    if (!currentTable && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlTable = params.get("table") || params.get("t") || params.get("tableNumber") || params.get("table_number");
+      if (urlTable && urlTable.trim()) currentTable = urlTable.trim();
+    }
+    if (currentTable) {
+      setActiveTableNumber(currentTable);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`menuly_last_table_${r.slug}`, currentTable);
+      }
+    }
+  }, [table, r.slug]);
+
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [dinerName, setDinerName] = useState(() => {
     return typeof window !== "undefined" ? localStorage.getItem("menuly_diner_name") || "" : "";
@@ -134,6 +163,54 @@ export function MenuView({
     } catch {}
     return null;
   });
+
+  // Service & Waiter Call States
+  const [isCallWaiterOpen, setIsCallWaiterOpen] = useState(false);
+  const [callReason, setCallReason] = useState<"waiter" | "water" | "bill" | "cutlery">("waiter");
+  const [callNotes, setCallNotes] = useState("");
+  const [isCallingWaiter, setIsCallingWaiter] = useState(false);
+  const [waiterCallSuccess, setWaiterCallSuccess] = useState<string | null>(null);
+
+  const handleCallWaiter = async () => {
+    setIsCallingWaiter(true);
+    try {
+      const targetTable = (activeTableNumber || table || "1").trim();
+      const res = await fetch("/api/public/service-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: r.id,
+          slug: r.slug,
+          tableNumber: targetTable,
+          reason: callReason,
+          customNotes: callNotes.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to notify staff");
+      }
+      const label =
+        callReason === "water"
+          ? "Drinking Water"
+          : callReason === "bill"
+          ? "Bill & Payment"
+          : callReason === "cutlery"
+          ? "Cutlery & Tissues"
+          : "Staff / Waiter";
+      setWaiterCallSuccess(`✅ ${label} requested for Table #${targetTable}! Staff notified.`);
+      toast.success(`🛎️ Waiter alerted for Table #${targetTable}!`);
+      setTimeout(() => {
+        setIsCallWaiterOpen(false);
+        setWaiterCallSuccess(null);
+        setCallNotes("");
+      }, 2400);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to call waiter. Please try again.");
+    } finally {
+      setIsCallingWaiter(false);
+    }
+  };
 
   const handlePlaceDineInOrder = async () => {
     if (cartItems.length === 0) return;
@@ -474,6 +551,20 @@ export function MenuView({
                 Table #{activeTableNumber || table}
               </button>
             )}
+
+            {/* Call Waiter / Service Bell Button */}
+            <button
+              type="button"
+              onClick={() => setIsCallWaiterOpen(true)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 font-bold text-amber-700 dark:text-amber-300 shrink-0 hover:bg-amber-500/25 active:scale-95 transition-all cursor-pointer shadow-2xs",
+                compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+              )}
+              title="Call waiter or request water / bill"
+            >
+              <BellRing className="size-3 text-amber-600 dark:text-amber-400 animate-pulse" />
+              <span>Call Waiter</span>
+            </button>
             <button
               type="button"
               onClick={toggleDark}
@@ -1289,7 +1380,13 @@ export function MenuView({
                   <Input
                     type="text"
                     value={activeTableNumber}
-                    onChange={(e) => setActiveTableNumber(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setActiveTableNumber(val);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem(`menuly_last_table_${r.slug}`, val);
+                      }
+                    }}
                     placeholder="Enter Table # (e.g. 1, 2, Outdoor-A)"
                     className="h-8 text-xs rounded-xl bg-card border-border"
                   />
@@ -1551,6 +1648,120 @@ export function MenuView({
                   className="rounded-xl h-9 text-xs text-muted-foreground hover:text-foreground font-semibold"
                 >
                   Order More Items / Close Receipt
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CALL WAITER & TABLE SERVICE DIALOG */}
+      <Dialog open={isCallWaiterOpen} onOpenChange={setIsCallWaiterOpen}>
+        <DialogContent
+          className={cn(
+            "sm:max-w-md rounded-3xl border-border bg-card p-5 sm:p-6 space-y-4",
+            isDark && "dark menuly-menu-dark bg-[#15181e] text-[#f3f4f6]"
+          )}
+        >
+          <DialogHeader className="text-left space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 items-center justify-center font-bold">
+                  <BellRing className="size-4 animate-bounce" />
+                </span>
+                <DialogTitle className="font-serif font-black text-lg text-foreground">
+                  Call Waiter & Service Bell
+                </DialogTitle>
+              </div>
+              <span className="rounded-full bg-orange-500/10 border border-orange-500/30 font-black text-orange-600 dark:text-orange-400 px-2.5 py-0.5 text-xs">
+                Table #{activeTableNumber || "1"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Select what you need at your table and the restaurant kitchen staff will be alerted immediately.
+            </p>
+          </DialogHeader>
+
+          {waiterCallSuccess ? (
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center space-y-2 animate-rise">
+              <span className="text-3xl">🛎️</span>
+              <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                Staff Notified!
+              </p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                {waiterCallSuccess}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-1">
+              {/* Quick Service Category Tiles */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "waiter", label: "Call Waiter", icon: "🙋‍♂️", desc: "Staff to table" },
+                  { id: "water", label: "Drinking Water", icon: "💧", desc: "Water bottle / refill" },
+                  { id: "bill", label: "Get Bill", icon: "🧾", desc: "Final check & pay" },
+                  { id: "cutlery", label: "Cutlery & Tissues", icon: "🥄", desc: "Spoons, plates, napkins" },
+                ].map((item) => {
+                  const isSelected = callReason === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setCallReason(item.id as any)}
+                      className={cn(
+                        "flex flex-col items-start p-3 rounded-2xl border text-left transition-all cursor-pointer",
+                        isSelected
+                          ? "border-amber-500 bg-amber-500/15 shadow-xs"
+                          : "border-border/80 bg-secondary/30 hover:bg-secondary/60"
+                      )}
+                    >
+                      <span className="text-xl mb-1">{item.icon}</span>
+                      <span className="font-bold text-xs text-foreground">{item.label}</span>
+                      <span className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Optional Custom Note Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Specific Request (Optional)
+                </label>
+                <Input
+                  value={callNotes}
+                  onChange={(e) => setCallNotes(e.target.value)}
+                  placeholder="e.g. 2 extra glasses, warm water, extra plates..."
+                  className="h-10 text-xs rounded-xl bg-background border-border"
+                  maxLength={120}
+                />
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCallWaiterOpen(false)}
+                  className="flex-1 rounded-xl h-11 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={isCallingWaiter}
+                  onClick={handleCallWaiter}
+                  className="flex-1 rounded-xl h-11 font-bold text-xs gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-soft cursor-pointer"
+                >
+                  {isCallingWaiter ? (
+                    <>
+                      <RefreshCw className="size-3.5 animate-spin" /> Calling...
+                    </>
+                  ) : (
+                    <>
+                      <BellRing className="size-3.5" /> Ring Staff Bell
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
