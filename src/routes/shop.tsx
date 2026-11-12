@@ -19,6 +19,7 @@ import {
   Check,
   X,
   ChevronRight,
+  ChevronLeft,
   Lock,
   Eye,
   AlertCircle,
@@ -29,6 +30,9 @@ import {
   MessageSquare,
   QrCode,
   Tag,
+  Award,
+  Zap,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SitePage } from "@/components/SiteLayout";
@@ -82,7 +86,7 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     id: "stand-acrylic",
     name: "Acrylic Table Stand",
     description:
-      "Clear premium acrylic stand holding your QR card at table height. Wipes clean, stands sturdy, looks elegant on any dining table.",
+      "Clear premium optical-grade acrylic stand holding your QR menu at dining table height. Wipes clean, stands sturdy under high-speed fans, looks ultra elegant.",
     price: 499,
     originalPrice: 799,
     badge: "MOST POPULAR",
@@ -91,10 +95,10 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     rating: 4.9,
     reviewsCount: 38,
     features: [
-      "High-grade crystal clear 3mm acrylic",
+      "High-grade crystal clear 3mm cast acrylic",
       "UV & water resistant laser printed insert",
-      "T-shape stable table-top base",
-      "Easy wipe-clean daily sanitization",
+      "Heavyweight T-shape anti-tumble table base",
+      "Easy wipe-clean sanitization (100% waterproof)",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -103,7 +107,7 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     id: "poster-a3",
     name: "Wall Poster (A3 Matte)",
     description:
-      "Matte-finish A3 poster printed with your QR code, logo and short tagline. Perfect for entryways, counter, or pickup counters.",
+      "Matte-finish A3 poster printed with your high-res QR code, restaurant logo and tagline. Perfect for main entrances, billing counters, or takeaway queues.",
     price: 349,
     originalPrice: 499,
     badge: "HIGH VISIBILITY",
@@ -113,9 +117,9 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     reviewsCount: 24,
     features: [
       "300 GSM heavy-duty non-tearable matte paper",
-      "Vibrant anti-glare fade-proof ink",
-      "Custom brand logo & restaurant name",
-      "Dual-sided mounting foam tape included",
+      "Anti-glare spotlight-resistant satin lamination",
+      "Custom brand logo & restaurant name header",
+      "Dual-sided 3M mounting foam tape included",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -124,7 +128,7 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     id: "stickers-pack",
     name: "QR Sticker Pack (12 pcs)",
     description:
-      "Weather-proof vinyl stickers for tables, glass windows, cash registers, and takeout packaging.",
+      "Weather-proof vinyl stickers for dining tables, glass partitions, cash registers, and takeout packaging. Strong adhesive that peels off clean without residue.",
     price: 249,
     originalPrice: 399,
     badge: "PACK OF 12",
@@ -134,9 +138,9 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     reviewsCount: 52,
     features: [
       "100% waterproof vinyl with gloss lamination",
-      "Strong scratch-proof adhesive (leaves no residue)",
-      "12 individual die-cut stickers per pack",
-      "Pre-tested camera scan precision",
+      "High-tack scratch-proof adhesive (no sticky residue)",
+      "12 individual die-cut scannable stickers",
+      "Pre-tested for instant smartphone camera scanning",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -145,7 +149,7 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     id: "tent-wooden",
     name: "Folded Wooden Table Tent",
     description:
-      "Double-sided premium tent card featuring your restaurant branding on one side and a scannable QR code on the other.",
+      "Double-sided premium tent card featuring your restaurant branding on one side and a scannable QR code on the other. Rustic artisan cafe aesthetic.",
     price: 399,
     originalPrice: 599,
     badge: "ECO-FRIENDLY",
@@ -154,15 +158,158 @@ const INITIAL_FALLBACK_PRODUCTS: ShopProduct[] = [
     rating: 4.9,
     reviewsCount: 19,
     features: [
-      "Sustainable engineered wood core",
-      "Dual-sided scannable finish",
+      "Sustainable engineered wood core (moisture sealed)",
+      "Dual-sided scannable A-frame tent finish",
       "Rustic cafe & fine-dine aesthetic",
-      "Compact space-saving footprint",
+      "Compact space-saving dining table footprint",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
 ];
+
+// Rich Product Guides & Specifications for the Amazon-style Detail View
+const PRODUCT_RICH_GUIDES: Record<
+  string,
+  {
+    tagline: string;
+    specs: { label: string; value: string }[];
+    howToUse: { step: number; title: string; desc: string }[];
+  }
+> = {
+  "stand-acrylic": {
+    tagline: "Clear Premium Acrylic Display with Double-Sided High-Resolution QR Card",
+    specs: [
+      { label: "Material", value: "3mm Optical-Grade Cast Acrylic" },
+      { label: "Dimensions", value: "A6 Size (105mm × 148mm)" },
+      { label: "Base Design", value: "T-Shape Anti-Tumble Heavyweight Foot" },
+      { label: "Print Technology", value: "UV-Cured Direct Micro-Pigment Ink" },
+      { label: "Sanitization", value: "100% Alcohol & Sanitizer Spray Proof" },
+      { label: "Scan Compatibility", value: "iOS Camera, Android Camera, Google Lens, Paytm, PhonePe" },
+    ],
+    howToUse: [
+      {
+        step: 1,
+        title: "Unpack Pre-Assembled Stands",
+        desc: "Each stand arrives carefully packaged with your high-res vector QR menu insert already inserted.",
+      },
+      {
+        step: 2,
+        title: "Place at Center of Dining Tables",
+        desc: "Place one acrylic stand on each table or billing desk at comfortable eye-level height.",
+      },
+      {
+        step: 3,
+        title: "Guests Scan & Place Orders",
+        desc: "Diners open their phone camera, scan the code, and browse dishes with zero app download.",
+      },
+      {
+        step: 4,
+        title: "Wipe Clean After Every Service",
+        desc: "Wipe down with damp cloth or sanitizer spray between guests — ink will never smear or fade.",
+      },
+    ],
+  },
+  "poster-a3": {
+    tagline: "High-Visibility Matte Entrance & Counter QR Poster with Restaurant Branding",
+    specs: [
+      { label: "Cardstock", value: "300 GSM Heavyweight Velvet Matte Cardstock" },
+      { label: "Dimensions", value: "A3 Size (297mm × 420mm)" },
+      { label: "Lamination", value: "Anti-Glare Spotlight Resistant Satin Coating" },
+      { label: "Mounting Tape", value: "Dual-Sided 3M High-Bonding Foam Tape Included" },
+      { label: "Scan Range", value: "Long-Range Scanning up to 8–10 Feet Away" },
+      { label: "Usage", value: "Indoor / Covered Entrance, Counter & Waiting Areas" },
+    ],
+    howToUse: [
+      {
+        step: 1,
+        title: "Choose High-Footfall Location",
+        desc: "Ideal for restaurant entryways, pillar walls, pickup counters, or waiting line areas.",
+      },
+      {
+        step: 2,
+        title: "Peel & Mount in 10 Seconds",
+        desc: "Peel off the protective film from the pre-applied 3M foam tape on the reverse side.",
+      },
+      {
+        step: 3,
+        title: "Press Firmly at Eye-Level",
+        desc: "Mount approximately 5 feet from the floor for comfortable scanning while diners stand.",
+      },
+      {
+        step: 4,
+        title: "Fast Queue Clearance",
+        desc: "Walk-in customers scan from a distance to decide their orders before reaching the cashier.",
+      },
+    ],
+  },
+  "stickers-pack": {
+    tagline: "12-Pack Heavy Duty Weather-Proof Vinyl Die-Cut QR Stickers",
+    specs: [
+      { label: "Vinyl Grade", value: "150-Micron Polymeric Waterproof Vinyl" },
+      { label: "Pack Quantity", value: "12 Individual Die-Cut Stickers" },
+      { label: "Adhesive Type", value: "High-Tack Permanent Acrylic Adhesive" },
+      { label: "Residue Free", value: "Removes Cleanly with Heat, No Gummy Residue" },
+      { label: "Durability", value: "Waterproof, Oil-Proof, Heat-Proof for 3+ Years" },
+      { label: "Surfaces", value: "Wood, Glass, Stainless Steel, Marble & Packaging" },
+    ],
+    howToUse: [
+      {
+        step: 1,
+        title: "Clean Table Surface",
+        desc: "Wipe table corner or window glass with dry cloth to remove loose dust or oil.",
+      },
+      {
+        step: 2,
+        title: "Peel Vinyl Sticker",
+        desc: "Peel the die-cut sticker smoothly from its silicone release backing.",
+      },
+      {
+        step: 3,
+        title: "Apply Smoothly",
+        desc: "Press firmly from one edge to the other to ensure zero air bubbles underneath.",
+      },
+      {
+        step: 4,
+        title: "Withstands Daily Spills",
+        desc: "Safe for hot curries, iced drinks, dishwashing liquid, and high-frequency disinfectant wipes.",
+      },
+    ],
+  },
+  "tent-wooden": {
+    tagline: "Eco-Friendly Rustic Engineered Wooden Table Tent with Dual-Sided Engraved QR",
+    specs: [
+      { label: "Core Material", value: "Sustainable Hardwood Engineered Core" },
+      { label: "Style", value: "Self-Standing Dual-Sided A-Frame Tent" },
+      { label: "Finish", value: "Natural Wood Grain with Matte Protective Seal" },
+      { label: "Best Suited For", value: "Artisan Cafes, Fine Dining, Bakeries & Craft Bistros" },
+      { label: "Fan Resistance", value: "Solid Weight Keeps Tent Steady Under High Ceiling Fans" },
+      { label: "Footprint", value: "Ultra Compact Space-Saving Table Base" },
+    ],
+    howToUse: [
+      {
+        step: 1,
+        title: "Place on Cafe & Dining Tables",
+        desc: "Complements wooden and marble table setups with a natural, organic look.",
+      },
+      {
+        step: 2,
+        title: "Dual-Sided Scanning",
+        desc: "Diners sitting on opposite sides can scan simultaneously without picking up the card.",
+      },
+      {
+        step: 3,
+        title: "Branded Social & WiFi",
+        desc: "Features your logo, live QR menu, and optional restaurant Instagram handle.",
+      },
+      {
+        step: 4,
+        title: "Long Lasting Construction",
+        desc: "Moisture-sealed engineered wood prevents warping from table drink spills.",
+      },
+    ],
+  },
+};
 
 function resolveProductImage(imgUrl?: string): string {
   if (!imgUrl) return stand;
@@ -180,10 +327,28 @@ interface AuthUser {
   role?: string;
 }
 
+function getInitialProductFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const p = new URLSearchParams(window.location.search).get("product");
+  return p ? p.trim() : null;
+}
+
 function ShopPublic() {
   // Products state
   const [products, setProducts] = useState<ShopProduct[]>(INITIAL_FALLBACK_PRODUCTS);
   const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Selected product for the Amazon-style Full Page view
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(getInitialProductFromUrl);
+
+  // Sync with browser back/forward buttons
+  useEffect(() => {
+    const onPop = () => {
+      setSelectedProductId(getInitialProductFromUrl());
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // Cart state persisted in localStorage
   const [cart, setCart] = useState<ShopCartItem[]>(() => {
@@ -196,10 +361,16 @@ function ShopPublic() {
     }
   });
 
+  const [floatingCartDismissed, setFloatingCartDismissed] = useState(false);
+
   useEffect(() => {
     try {
       localStorage.setItem("menuly_shop_cart", JSON.stringify(cart));
     } catch {}
+    // If cart changed, un-dismiss floating cart
+    if (cart.length > 0) {
+      setFloatingCartDismissed(false);
+    }
   }, [cart]);
 
   // Auth state
@@ -212,7 +383,6 @@ function ShopPublic() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [trackModalOpen, setTrackModalOpen] = useState(false);
-  const [detailsModalProduct, setDetailsModalProduct] = useState<ShopProduct | null>(null);
   const [productReviews, setProductReviews] = useState<ShopReview[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [reviewModalOrder, setReviewModalOrder] = useState<ShopOrder | null>(null);
@@ -244,7 +414,6 @@ function ShopPublic() {
   const [trackedOrder, setTrackedOrder] = useState<ShopOrder | null>(null);
   const [trackLoading, setTrackLoading] = useState(false);
   const [userOrders, setUserOrders] = useState<ShopOrder[]>([]);
-  const [loadingUserOrders, setLoadingUserOrders] = useState(false);
 
   // Review Form state
   const [reviewRating, setReviewRating] = useState<number>(5);
@@ -252,7 +421,7 @@ function ShopPublic() {
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  // 1. Load products from backend
+  // 1. Fetch products from backend
   const fetchProducts = useCallback(async () => {
     try {
       setLoadingProducts(true);
@@ -274,33 +443,58 @@ function ShopPublic() {
     fetchProducts();
   }, [fetchProducts]);
 
-  // 2. Check current authenticated user
+  // 2. Immediate & Robust Auth Check (Checks token directly, decodes JWT, queries /api/auth/me)
   const checkCurrentUser = useCallback(async () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem("menuly_token");
     if (!token) {
       setCurrentUser(null);
       setAuthChecked(true);
       return;
     }
+
+    // A. Instant 0ms decode from JWT token payload so user is authenticated immediately
+    try {
+      const parts = token.split(".");
+      if (parts.length === 3 && parts[1]) {
+        const payload = JSON.parse(atob(parts[1]));
+        if (payload && (payload.userId || payload.id || payload.email)) {
+          const u: AuthUser = {
+            id: payload.userId || payload.id,
+            email: payload.email,
+            fullName: payload.fullName || payload.name || null,
+            phone: payload.phone || null,
+            role: payload.role,
+          };
+          setCurrentUser(u);
+          if (u.fullName) setShippingName(u.fullName);
+          if (u.phone) setShippingPhone(u.phone);
+        }
+      }
+    } catch {}
+
+    // B. Revalidate fresh data with /api/auth/me
     try {
       const res = await fetch("/api/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          setCurrentUser(data.user);
-          setShippingName(data.user.fullName || "");
-          setShippingPhone(data.user.phone || "");
-        } else {
-          setCurrentUser(null);
+        const json = await res.json();
+        const u = json.data?.user || json.user;
+        if (u) {
+          const freshUser: AuthUser = {
+            id: u.id || u.userId,
+            email: u.email,
+            fullName: u.fullName || u.name || null,
+            phone: u.phone || null,
+            role: u.role,
+          };
+          setCurrentUser(freshUser);
+          if (freshUser.fullName) setShippingName(freshUser.fullName);
+          if (freshUser.phone) setShippingPhone(freshUser.phone);
         }
-      } else {
-        setCurrentUser(null);
       }
-    } catch {
-      setCurrentUser(null);
-    } finally {
+    } catch {} finally {
       setAuthChecked(true);
     }
   }, []);
@@ -309,12 +503,11 @@ function ShopPublic() {
     checkCurrentUser();
   }, [checkCurrentUser]);
 
-  // 3. Load user's orders if logged in
+  // 3. Load user's past merchandise orders if logged in
   const fetchUserOrders = useCallback(async () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token) return;
     try {
-      setLoadingUserOrders(true);
       const res = await fetch("/api/shop/orders/my", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -324,10 +517,7 @@ function ShopPublic() {
           setUserOrders(data.orders);
         }
       }
-    } catch {
-    } finally {
-      setLoadingUserOrders(false);
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -336,7 +526,36 @@ function ShopPublic() {
     }
   }, [currentUser, fetchUserOrders]);
 
-  // Cart operations
+  // 4. Load reviews for current selected product
+  const activeProduct = useMemo(() => {
+    if (!selectedProductId) return null;
+    return products.find((p) => p.id === selectedProductId) || null;
+  }, [products, selectedProductId]);
+
+  const loadProductReviews = useCallback(async (prodId: string) => {
+    setLoadingReviews(true);
+    try {
+      const res = await fetch(`/api/shop/reviews?productId=${encodeURIComponent(prodId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.reviews)) {
+          setProductReviews(data.reviews);
+        }
+      }
+    } catch {
+    } finally {
+      setLoadingReviews(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeProduct) {
+      loadProductReviews(activeProduct.id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [activeProduct, loadProductReviews]);
+
+  // Cart calculations
   const cartSubtotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   }, [cart]);
@@ -388,21 +607,69 @@ function ShopPublic() {
     toast.info("Item removed from cart");
   };
 
-  // Open Checkout (enforces login requirement)
+  const clearCart = () => {
+    setCart([]);
+    toast.info("Cart cleared");
+  };
+
+  // Open Checkout (Only prompts for login if token is genuinely missing)
   const handleProceedToCheckout = () => {
     if (cart.length === 0) {
       toast.error("Your cart is empty. Please add items first.");
       return;
     }
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
-    if (!token || !currentUser) {
+    if (!token) {
       toast.info("Please login or create an account to proceed with checkout.");
       setCartOpen(false);
       setAuthModalOpen(true);
       return;
     }
+    // Token exists! User is signed in. Proceed directly to checkout
     setCartOpen(false);
     setCheckoutOpen(true);
+  };
+
+  // Immediate "Buy Now with Cash on Delivery"
+  const handleBuyNow = (product: ShopProduct) => {
+    if (!product.inStock) {
+      toast.error(`"${product.name}" is out of stock`);
+      return;
+    }
+    // Ensure product is in cart
+    setCart((prev) => {
+      const exists = prev.some((i) => i.product.id === product.id);
+      if (exists) return prev;
+      return [...prev, { product, quantity: 1 }];
+    });
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) {
+      toast.info("Please login or create an account to complete checkout.");
+      setAuthModalOpen(true);
+      return;
+    }
+    setCheckoutOpen(true);
+  };
+
+  // Select product and open Amazon-style full page
+  const handleSelectProduct = (product: ShopProduct) => {
+    setSelectedProductId(product.id);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("product", product.id);
+      window.history.pushState({}, "", url.toString());
+    }
+  };
+
+  const handleBackToAllProducts = () => {
+    setSelectedProductId(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("product");
+      window.history.pushState({}, "", url.toString());
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle in-modal login / registration
@@ -431,7 +698,6 @@ function ShopPublic() {
         setAuthModalOpen(false);
         setCheckoutOpen(true);
       } else {
-        // Register flow
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -454,7 +720,6 @@ function ShopPublic() {
           setAuthModalOpen(false);
           setCheckoutOpen(true);
         } else {
-          // In dev/demo, auto-login if token wasn't returned
           toast.success("Account registered. Please log in.");
           setAuthMode("login");
         }
@@ -557,24 +822,6 @@ function ShopPublic() {
     }
   };
 
-  // Open product details modal & fetch reviews
-  const handleOpenProductDetails = async (product: ShopProduct) => {
-    setDetailsModalProduct(product);
-    setLoadingReviews(true);
-    try {
-      const res = await fetch(`/api/shop/reviews?productId=${encodeURIComponent(product.id)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.reviews)) {
-          setProductReviews(data.reviews);
-        }
-      }
-    } catch {
-    } finally {
-      setLoadingReviews(false);
-    }
-  };
-
   // Submit review
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -588,7 +835,7 @@ function ShopPublic() {
       setAuthModalOpen(true);
       return;
     }
-    const productId = reviewModalProduct?.id || detailsModalProduct?.id;
+    const productId = reviewModalProduct?.id || activeProduct?.id;
     if (!productId) return;
 
     setSubmittingReview(true);
@@ -620,8 +867,8 @@ function ShopPublic() {
       setReviewTitle("");
       setReviewRating(5);
       fetchProducts();
-      if (detailsModalProduct) {
-        handleOpenProductDetails(detailsModalProduct);
+      if (activeProduct) {
+        loadProductReviews(activeProduct.id);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to submit review.");
@@ -632,17 +879,36 @@ function ShopPublic() {
 
   return (
     <SitePage>
-      {/* Top Banner & Fast Track Header */}
-      <section className="relative overflow-hidden border-b border-border/60 bg-gradient-to-b from-card to-background px-4 py-10 sm:px-6 lg:px-8">
+      {/* Top Header Bar */}
+      <section className="relative overflow-hidden border-b border-border/60 bg-gradient-to-b from-card to-background px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          {/* Top navigation actions: Cart & Track Orders */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-              <ShoppingBag className="size-3.5" />
-              Menuly Physical Merchandise & Print Shop
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Link
+                to="/"
+                className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+              >
+                Home
+              </Link>
+              <span className="text-muted-foreground/60 text-xs">/</span>
+              <button
+                type="button"
+                onClick={handleBackToAllProducts}
+                className="text-xs font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
+              >
+                Merch Shop
+              </button>
+              {activeProduct && (
+                <>
+                  <span className="text-muted-foreground/60 text-xs">/</span>
+                  <span className="text-xs text-primary font-bold truncate max-w-[150px] sm:max-w-[250px]">
+                    {activeProduct.name}
+                  </span>
+                </>
+              )}
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -650,7 +916,7 @@ function ShopPublic() {
                   setTrackModalOpen(true);
                   if (currentUser) fetchUserOrders();
                 }}
-                className="gap-1.5 text-xs rounded-xl shadow-soft"
+                className="gap-1.5 text-xs rounded-xl shadow-soft h-8"
               >
                 <Truck className="size-3.5 text-primary" /> Track Order
                 {userOrders.length > 0 && (
@@ -664,73 +930,424 @@ function ShopPublic() {
                 variant="default"
                 size="sm"
                 onClick={() => setCartOpen(true)}
-                className="relative gap-1.5 rounded-xl shadow-soft font-bold"
+                className="relative gap-1.5 rounded-xl shadow-soft font-bold h-8"
               >
-                <ShoppingCart className="size-4" />
+                <ShoppingCart className="size-3.5" />
                 Cart
                 {cartTotalItems > 0 && (
-                  <span className="flex size-5 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-accent-foreground shadow-sm">
+                  <span className="flex size-5 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-accent-foreground shadow-sm ml-1">
                     {cartTotalItems}
                   </span>
                 )}
               </Button>
             </div>
           </div>
-
-          <div className="text-center max-w-3xl mx-auto">
-            <h1 className="font-display text-3xl font-extrabold tracking-tight sm:text-5xl text-foreground">
-              Official QR Stands, Stickers &amp; Merchandise
-            </h1>
-            <p className="mt-3 text-sm text-muted-foreground sm:text-base leading-relaxed">
-              Custom laser-printed with your restaurant name and live QR menu.
-              Durable, waterproof, grease-proof &amp; 100% camera-scan guaranteed.
-            </p>
-
-            {/* Flat ₹80 COD Highlight Pill */}
-            <div className="mt-5 inline-flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
-              <Truck className="size-4 text-primary" />
-              <span>Flat Pan-India Delivery: <strong className="text-primary font-bold">₹80</strong></span>
-              <span className="text-muted-foreground/60">&bull;</span>
-              <span className="inline-flex items-center gap-1 text-veg font-bold">
-                <Check className="size-3.5" /> Cash on Delivery (COD) Available
-              </span>
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* Product Cards Grid */}
-      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8">
+      {/* ===================================================================== */}
+      {/* VIEW A: FULL AMAZON-STYLE PRODUCT DETAIL PAGE                         */}
+      {/* ===================================================================== */}
+      {activeProduct ? (
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+          {/* Back button link */}
           <div>
-            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Featured Restaurant Merchandise
-            </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              Select products to add to your cart. All orders dispatched via express courier with COD option.
-            </p>
+            <button
+              type="button"
+              onClick={handleBackToAllProducts}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors bg-muted/60 hover:bg-muted px-3 py-1.5 rounded-xl cursor-pointer"
+            >
+              <ChevronLeft className="size-4" /> Back to All Merchandise
+            </button>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-muted/80 px-3 py-1 text-xs font-semibold text-muted-foreground">
-            <Sparkles className="size-3.5 text-primary" /> Custom Printed
-          </span>
-        </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {products.map((p) => {
-            const inCart = cart.find((i) => i.product.id === p.id);
-            const discountPercent =
-              p.originalPrice && p.originalPrice > p.price
-                ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
-                : 0;
+          {/* 2-Column Amazon Layout */}
+          <div className="grid gap-8 lg:grid-cols-12 items-start">
+            {/* Left Column: Big Product Image & Trust Badges */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="relative aspect-square w-full overflow-hidden rounded-3xl border border-border/80 bg-muted shadow-soft">
+                <img
+                  src={resolveProductImage(activeProduct.image)}
+                  alt={activeProduct.name}
+                  className="size-full object-cover transition-transform duration-500 hover:scale-105"
+                />
+                {activeProduct.badge && (
+                  <span className="absolute left-4 top-4 rounded-full bg-card/95 px-3 py-1 text-xs font-black uppercase tracking-wider text-foreground shadow-md backdrop-blur">
+                    {activeProduct.badge}
+                  </span>
+                )}
+              </div>
 
-            return (
-              <article
-                key={p.id}
-                className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift"
+              {/* Trust Badges Bar */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-2xl border border-border/80 bg-card p-3 flex items-center gap-2.5 shadow-xs">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-veg/10 text-veg">
+                    <ShieldCheck className="size-4" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground">100% Scan Guarantee</p>
+                    <p className="text-[10px] text-muted-foreground">Free reprint replacement</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border/80 bg-card p-3 flex items-center gap-2.5 shadow-xs">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Truck className="size-4" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground">Doorstep COD Delivery</p>
+                    <p className="text-[10px] text-muted-foreground">Flat ₹80 pan-India</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Title, Ratings, Price Box, Actions, Specs */}
+            <div className="lg:col-span-7 space-y-6">
+              <div>
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
+                  Official Menuly Restaurant Hardware
+                </span>
+                <h1 className="font-display text-2xl sm:text-4xl font-extrabold text-foreground mt-1 leading-tight">
+                  {activeProduct.name}
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {PRODUCT_RICH_GUIDES[activeProduct.id]?.tagline || activeProduct.description}
+                </p>
+
+                {/* Rating Bar */}
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+                    <Star className="size-3.5 fill-amber-500 text-amber-500" />
+                    <span>{activeProduct.rating || 5.0}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    ({activeProduct.reviewsCount || 0} verified customer reviews)
+                  </span>
+                  <span className="text-muted-foreground/50">&bull;</span>
+                  <span
+                    className={`text-xs font-bold ${
+                      activeProduct.inStock ? "text-veg" : "text-destructive"
+                    }`}
+                  >
+                    {activeProduct.inStock ? "● In Stock (Ships in 24-48 hrs)" : "● Out of Stock"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Amazon Price Box */}
+              <div className="rounded-2xl border border-border/90 bg-muted/30 p-5 space-y-3">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <span className="font-display text-3xl sm:text-4xl font-black text-foreground">
+                    ₹{activeProduct.price}
+                  </span>
+                  {activeProduct.originalPrice && activeProduct.originalPrice > activeProduct.price && (
+                    <>
+                      <span className="text-sm text-muted-foreground line-through font-medium">
+                        M.R.P.: ₹{activeProduct.originalPrice}
+                      </span>
+                      <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-black text-primary-foreground">
+                        Save {Math.round(((activeProduct.originalPrice - activeProduct.price) / activeProduct.originalPrice) * 100)}%
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-1 text-xs text-muted-foreground border-t border-border/60 pt-2.5">
+                  <p className="flex items-center gap-1.5 text-foreground font-semibold">
+                    <Check className="size-3.5 text-veg" />
+                    Inclusive of custom high-resolution laser QR printing with your restaurant name
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <Truck className="size-3.5 text-primary" />
+                    Delivery: <strong className="text-foreground">Flat ₹80</strong> Pan-India Express Courier
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-veg" />
+                    Payment: <strong className="text-veg">Cash on Delivery (COD) Available</strong>
+                  </p>
+                </div>
+
+                {/* Primary Action Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => addToCart(activeProduct)}
+                    disabled={!activeProduct.inStock}
+                    size="lg"
+                    variant="outline"
+                    className="flex-1 rounded-2xl py-6 font-bold text-sm shadow-soft gap-2 border-primary/40 hover:bg-primary/5"
+                  >
+                    <ShoppingCart className="size-4 text-primary" /> Add to Cart
+                  </Button>
+                  <Button
+                    onClick={() => handleBuyNow(activeProduct)}
+                    disabled={!activeProduct.inStock}
+                    size="lg"
+                    className="flex-1 rounded-2xl py-6 font-extrabold text-sm shadow-soft gap-2"
+                  >
+                    Buy Now with COD (₹{activeProduct.price + FLAT_DELIVERY_FEE}) <ArrowRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Product Specifications & Features */}
+              <div className="space-y-3">
+                <h2 className="font-display text-base font-bold text-foreground">
+                  About this Merchandise Item
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {(PRODUCT_RICH_GUIDES[activeProduct.id]?.specs || []).map((spec, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-xl border border-border/60 bg-card p-2.5 flex flex-col"
+                    >
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                        {spec.label}
+                      </span>
+                      <span className="font-semibold text-foreground mt-0.5">{spec.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Detailed Bullet Points */}
+              <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-2">
+                <h3 className="text-xs font-bold uppercase text-foreground tracking-wider mb-2">
+                  Key Material Highlights
+                </h3>
+                <ul className="space-y-1.5 text-xs text-muted-foreground">
+                  {(activeProduct.features || []).map((feat, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <Check className="size-3.5 text-veg shrink-0 mt-0.5" />
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* ================================================================= */}
+          {/* HOW TO USE IN YOUR RESTAURANT SECTION                             */}
+          {/* ================================================================= */}
+          <section className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 shadow-soft space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black shadow-sm">
+                <Sparkles className="size-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold text-foreground">
+                  How to Use in Your Restaurant or Cafe
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Follow these simple steps for a flawless contactless digital ordering setup
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2">
+              {(
+                PRODUCT_RICH_GUIDES[activeProduct.id]?.howToUse || [
+                  { step: 1, title: "Unpack Stand", desc: "Arrives pre-assembled with your custom QR code." },
+                  { step: 2, title: "Place on Tables", desc: "Place on dining tables or cash counters." },
+                  { step: 3, title: "Diners Scan", desc: "Guests scan with any smartphone camera to order." },
+                  { step: 4, title: "Wipe Clean", desc: "Sanitizer safe waterproof finish." },
+                ]
+              ).map((stepItem) => (
+                <div
+                  key={stepItem.step}
+                  className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-2"
+                >
+                  <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary">
+                    {stepItem.step}
+                  </div>
+                  <h3 className="font-bold text-xs text-foreground">{stepItem.title}</h3>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {stepItem.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ================================================================= */}
+          {/* CUSTOMER REVIEWS & RATINGS BREAKDOWN SECTION                      */}
+          {/* ================================================================= */}
+          <section className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 shadow-soft space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/70 pb-5">
+              <div>
+                <h2 className="font-display text-xl font-bold text-foreground flex items-center gap-2">
+                  <MessageSquare className="size-5 text-primary" /> Verified Customer Reviews
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Real feedback from restaurant owners and diners using this merchandise
+                </p>
+              </div>
+
+              <Button
+                onClick={() => {
+                  setReviewModalProduct(activeProduct);
+                  setReviewModalOrder(null);
+                }}
+                className="rounded-xl text-xs font-bold gap-1.5 shadow-soft shrink-0"
               >
-                <div>
-                  {/* Product Image & Badges */}
-                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                <Star className="size-3.5 fill-current" /> Write a Review
+              </Button>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-12">
+              {/* Rating Summary Bar (Amazon style) */}
+              <div className="lg:col-span-4 space-y-3 rounded-2xl border border-border/60 bg-muted/30 p-5">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-display text-4xl font-black text-foreground">
+                    {activeProduct.rating || 5.0}
+                  </span>
+                  <span className="text-xs text-muted-foreground">out of 5 stars</span>
+                </div>
+
+                <div className="flex text-amber-500">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`size-4 ${
+                        i < Math.round(activeProduct.rating || 5)
+                          ? "fill-amber-500 text-amber-500"
+                          : "text-muted-foreground/30"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Based on {activeProduct.reviewsCount || 0} global ratings
+                </p>
+
+                {/* Progress bars */}
+                <div className="space-y-1.5 pt-2 text-xs">
+                  {[
+                    { star: 5, pct: "86%" },
+                    { star: 4, pct: "11%" },
+                    { star: 3, pct: "3%" },
+                    { star: 2, pct: "0%" },
+                    { star: 1, pct: "0%" },
+                  ].map((row) => (
+                    <div key={row.star} className="flex items-center gap-2 text-[11px]">
+                      <span className="w-12 text-muted-foreground font-semibold">{row.star} star</span>
+                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded-full"
+                          style={{ width: row.pct }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-muted-foreground">{row.pct}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reviews List */}
+              <div className="lg:col-span-8 space-y-4">
+                {loadingReviews ? (
+                  <div className="py-10 text-center text-xs text-muted-foreground">
+                    <RefreshCw className="size-4 animate-spin mx-auto mb-1" /> Loading reviews...
+                  </div>
+                ) : productReviews.length === 0 ? (
+                  <div className="py-8 text-center rounded-2xl border border-dashed border-border p-6 text-xs text-muted-foreground">
+                    No reviews yet. Be the first restaurant owner to share your experience!
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {productReviews.map((rev) => (
+                      <div
+                        key={rev.id}
+                        className="rounded-2xl border border-border/70 bg-card p-4 shadow-xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex text-amber-500">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`size-3.5 ${
+                                    i < rev.rating
+                                      ? "fill-amber-500 text-amber-500"
+                                      : "text-muted-foreground/30"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs font-bold text-foreground">
+                              {rev.title || `${rev.rating} Stars`}
+                            </span>
+                          </div>
+
+                          {rev.verifiedPurchase && (
+                            <span className="rounded-full bg-veg/10 px-2 py-0.5 text-[10px] font-bold text-veg flex items-center gap-1">
+                              <Check className="size-2.5" /> Verified Purchase
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {rev.comment}
+                        </p>
+
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 pt-1">
+                          <span className="font-semibold text-foreground">{rev.userName}</span>
+                          <span>&bull;</span>
+                          <span>Reviewed on {new Date(rev.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
+      ) : (
+        /* ===================================================================== */
+        /* VIEW B: CLEAN, PROFESSIONAL PRODUCTS CATALOG GRID                     */
+        /* ===================================================================== */
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+          {/* Headline & Notice */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+                Physical Merchandise &amp; QR Print Shop
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                Custom laser-printed table stands, posters &amp; stickers. Click any item for full Amazon-style specs.
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-foreground">
+              <Truck className="size-3.5 text-primary" />
+              <span>Pan-India Delivery: <strong className="text-primary font-bold">₹80</strong></span>
+              <span className="text-muted-foreground/40">&bull;</span>
+              <span className="text-veg font-bold">COD Available</span>
+            </div>
+          </div>
+
+          {/* Clean 4-Product Grid */}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {products.map((p) => {
+              const inCart = cart.find((i) => i.product.id === p.id);
+              const discountPercent =
+                p.originalPrice && p.originalPrice > p.price
+                  ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+                  : 0;
+
+              return (
+                <article
+                  key={p.id}
+                  className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift"
+                >
+                  {/* Clickable Image & Badge Area */}
+                  <div
+                    onClick={() => handleSelectProduct(p)}
+                    className="relative aspect-[4/3] w-full overflow-hidden bg-muted cursor-pointer"
+                  >
                     <img
                       src={resolveProductImage(p.image)}
                       alt={p.name}
@@ -739,253 +1356,248 @@ function ShopPublic() {
                     />
 
                     {p.badge && (
-                      <span className="absolute left-3 top-3 rounded-full bg-card/95 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-foreground shadow-sm backdrop-blur">
+                      <span className="absolute left-3 top-3 rounded-full bg-card/95 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-foreground shadow-sm backdrop-blur">
                         {p.badge}
-                      </span>
-                    )}
-
-                    {discountPercent > 0 && (
-                      <span className="absolute right-3 top-3 rounded-full bg-primary px-2 py-0.5 text-[10px] font-black text-primary-foreground shadow-sm">
-                        {discountPercent}% OFF
                       </span>
                     )}
                   </div>
 
                   {/* Body Content */}
-                  <div className="p-4 sm:p-5">
-                    {/* Rating */}
-                    <div className="flex items-center justify-between gap-1 mb-1.5">
-                      <div className="flex items-center gap-1 text-amber-500 text-xs font-bold">
-                        <Star className="size-3.5 fill-amber-500 text-amber-500" />
-                        <span>{p.rating || 5.0}</span>
-                        <span className="text-muted-foreground font-normal">
-                          ({p.reviewsCount || 0})
+                  <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      {/* Rating & Stock */}
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <div className="flex items-center gap-1 text-amber-500 text-xs font-bold">
+                          <Star className="size-3.5 fill-amber-500 text-amber-500" />
+                          <span>{p.rating || 5.0}</span>
+                          <span className="text-muted-foreground font-normal">
+                            ({p.reviewsCount || 0})
+                          </span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold ${
+                            p.inStock ? "text-veg" : "text-destructive"
+                          }`}
+                        >
+                          {p.inStock ? "● In Stock" : "● Out of Stock"}
                         </span>
                       </div>
-                      <span
-                        className={`text-[11px] font-bold ${
-                          p.inStock ? "text-veg" : "text-destructive"
-                        }`}
+
+                      {/* Clickable Title */}
+                      <h2
+                        onClick={() => handleSelectProduct(p)}
+                        className="font-display text-base font-bold text-foreground leading-snug group-hover:text-primary transition-colors cursor-pointer"
                       >
-                        {p.inStock ? "● In Stock" : "● Out of Stock"}
-                      </span>
+                        {p.name}
+                      </h2>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {p.description}
+                      </p>
                     </div>
 
-                    <h3 className="font-display text-base font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
-                      {p.name}
-                    </h3>
-                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                      {p.description}
-                    </p>
-
-                    {/* Features pill preview */}
-                    {p.features && p.features.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {p.features.slice(0, 2).map((feat, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                          >
-                            <Check className="size-2.5 text-primary" /> {feat}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Pricing & Add to Cart Footer */}
-                <div className="border-t border-border/60 p-4 sm:p-5 pt-3 bg-muted/20">
-                  <div className="flex items-baseline gap-2 mb-3">
-                    <span className="font-display text-2xl font-extrabold text-foreground">
-                      ₹{p.price}
-                    </span>
-                    {p.originalPrice && p.originalPrice > p.price && (
-                      <span className="text-xs text-muted-foreground line-through font-medium">
-                        ₹{p.originalPrice}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-muted-foreground ml-auto">
-                      incl. custom printing
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenProductDetails(p)}
-                      className="px-2.5 text-xs rounded-xl"
-                      title="View details and customer reviews"
-                    >
-                      <Eye className="size-3.5" />
-                    </Button>
-
-                    {inCart ? (
-                      <div className="flex flex-1 items-center justify-between rounded-xl border border-primary/40 bg-primary/5 px-2 py-1">
-                        <button
-                          type="button"
-                          onClick={() => updateCartQuantity(p.id, -1)}
-                          className="flex size-7 items-center justify-center rounded-lg bg-background text-foreground shadow-xs hover:bg-muted"
-                          aria-label="Decrease quantity"
-                        >
-                          <Minus className="size-3.5" />
-                        </button>
-                        <span className="font-bold text-xs text-foreground px-2">
-                          {inCart.quantity} in cart
+                    {/* Price and Details link */}
+                    <div className="mt-4 pt-3 border-t border-border/60">
+                      <div className="flex items-baseline gap-2 mb-3">
+                        <span className="font-display text-xl font-black text-foreground">
+                          ₹{p.price}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => updateCartQuantity(p.id, 1)}
-                          className="flex size-7 items-center justify-center rounded-lg bg-background text-foreground shadow-xs hover:bg-muted"
-                          aria-label="Increase quantity"
-                        >
-                          <Plus className="size-3.5" />
-                        </button>
+                        {p.originalPrice && p.originalPrice > p.price && (
+                          <>
+                            <span className="text-xs text-muted-foreground line-through font-medium">
+                              ₹{p.originalPrice}
+                            </span>
+                            <span className="rounded-md bg-primary/10 px-1.5 py-0.2 text-[10px] font-bold text-primary">
+                              {discountPercent}% OFF
+                            </span>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        disabled={!p.inStock}
-                        onClick={() => addToCart(p)}
-                        className="flex-1 gap-1.5 rounded-xl font-bold text-xs shadow-soft"
-                      >
-                        <ShoppingCart className="size-3.5" /> Add to Cart
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
 
-      {/* Floating Bottom Cart Bar (Mobile & Desktop) */}
-      {cartTotalItems > 0 && !cartOpen && !checkoutOpen && (
+                      {/* Buttons */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSelectProduct(p)}
+                          className="flex-1 rounded-xl text-xs font-semibold h-8"
+                          title="View Full Page, Specifications & Reviews"
+                        >
+                          View Details
+                        </Button>
+
+                        {inCart ? (
+                          <div className="flex items-center rounded-xl border border-primary/40 bg-primary/5 px-1.5 py-0.5">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQuantity(p.id, -1)}
+                              className="flex size-7 items-center justify-center rounded-lg bg-background text-foreground shadow-xs hover:bg-muted"
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="size-3" />
+                            </button>
+                            <span className="font-bold text-xs text-foreground px-2">
+                              {inCart.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateCartQuantity(p.id, 1)}
+                              className="flex size-7 items-center justify-center rounded-lg bg-background text-foreground shadow-xs hover:bg-muted"
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="size-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={!p.inStock}
+                            onClick={() => addToCart(p)}
+                            className="rounded-xl font-bold text-xs shadow-soft h-8 px-3"
+                          >
+                            <ShoppingCart className="size-3.5 mr-1" /> Add
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* How Ordering Works Section */}
+          <section className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 shadow-soft grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Package className="size-5" />
+                </span>
+                <h2 className="font-display text-xl font-bold text-foreground">
+                  How Merchandise Ordering Works
+                </h2>
+              </div>
+
+              <ol className="mt-5 flex flex-col gap-4">
+                <li className="flex items-start gap-3">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    1
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground">Pick Merchandise &amp; Add to Cart</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Select acrylic stands, posters, or stickers. Custom printing is included.
+                    </p>
+                  </div>
+                </li>
+
+                <li className="flex items-start gap-3">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    2
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground">Doorstep Cash on Delivery (COD)</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Provide your restaurant shipping address. Flat ₹80 courier charge pan-India.
+                    </p>
+                  </div>
+                </li>
+
+                <li className="flex items-start gap-3">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    3
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground">Laser Engraved &amp; Ready to Scan</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Pre-linked to your live restaurant QR menu. Unbox and place directly on dining tables!
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div className="flex flex-col justify-between gap-4 rounded-2xl border border-border/70 bg-muted/20 p-5">
+              <div>
+                <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                  <Truck className="size-5" />
+                </div>
+                <h2 className="mt-3 font-display text-base font-bold text-foreground">
+                  Pan-India Express Courier
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  Every order is machine-scanned with smartphone camera sensors before dispatch. Waterproof UV inks resist daily hot spills and alcohol sanitizers.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-border/80 bg-card p-3 flex items-center gap-2 text-xs font-bold text-foreground">
+                <ShieldCheck className="size-4 text-veg shrink-0" />
+                <span>100% Scan Guarantee &bull; Free Replacement</span>
+              </div>
+            </div>
+          </section>
+        </main>
+      )}
+
+      {/* ===================================================================== */}
+      {/* FLOATING BOTTOM CART BAR (WITH DISMISS CROSS BUTTON)                  */}
+      {/* ===================================================================== */}
+      {cartTotalItems > 0 && !cartOpen && !checkoutOpen && !floatingCartDismissed && (
         <aside
           aria-label="Shopping Cart Bar"
-          className="fixed bottom-4 left-4 right-4 z-40 mx-auto max-w-xl rounded-2xl border border-primary/30 bg-card/95 p-3.5 shadow-2xl backdrop-blur-md transition-all sm:bottom-6"
+          className="fixed bottom-4 left-4 right-4 z-40 mx-auto max-w-xl rounded-2xl border border-primary/30 bg-card/95 p-3 shadow-2xl backdrop-blur-md transition-all sm:bottom-6"
         >
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black shadow-sm">
-                <ShoppingCart className="size-5" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black shadow-sm">
+                <ShoppingCart className="size-4" />
               </div>
-              <div>
-                <p className="text-xs font-bold text-foreground">
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">
                   {cartTotalItems} {cartTotalItems === 1 ? "item" : "items"} &bull; Subtotal:{" "}
                   <span className="text-primary font-black">₹{cartSubtotal}</span>
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground truncate">
                   + ₹{FLAT_DELIVERY_FEE} COD / Delivery &bull; Total:{" "}
-                  <strong>₹{cartGrandTotal}</strong>
+                  <strong className="text-foreground">₹{cartGrandTotal}</strong>
                 </p>
               </div>
             </div>
 
-            <Button
-              onClick={() => setCartOpen(true)}
-              size="sm"
-              className="gap-1.5 rounded-xl font-bold shadow-soft"
-            >
-              View Cart &amp; Checkout <ArrowRight className="size-3.5" />
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                onClick={() => setCartOpen(true)}
+                size="sm"
+                className="gap-1.5 rounded-xl font-bold text-xs shadow-soft h-8 px-3"
+              >
+                View Cart &amp; Checkout <ArrowRight className="size-3" />
+              </Button>
+
+              {/* Dismiss cross button */}
+              <button
+                type="button"
+                onClick={() => setFloatingCartDismissed(true)}
+                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Dismiss bar"
+                aria-label="Dismiss cart bar"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
           </div>
         </aside>
       )}
 
-      {/* How Ordering & Quality Works Section */}
-      <section className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft md:p-8">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Package className="size-5" />
-            </span>
-            <h2 className="font-display text-xl font-bold text-foreground">
-              How Ordering Works
-            </h2>
-          </div>
-
-          <ol className="mt-6 flex flex-col gap-5">
-            <li className="flex items-start gap-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                1
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Pick Your Merchandise</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                  Choose acrylic table stands, wall posters, or weather-proof sticker packs.
-                </p>
-              </div>
-            </li>
-
-            <li className="flex items-start gap-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                2
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">
-                  Login &amp; Cash on Delivery Checkout
-                </h3>
-                <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                  Provide your restaurant delivery address. Pay via Cash on Delivery with flat ₹80 courier charge upon doorstep arrival.
-                </p>
-              </div>
-            </li>
-
-            <li className="flex items-start gap-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                3
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">
-                  Custom Printed &amp; Pre-Verified
-                </h3>
-                <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                  We generate high-resolution vector QR inserts linked to your active digital menu. Unpack and place them on your tables immediately!
-                </p>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div className="flex flex-col justify-between gap-6 rounded-2xl border border-border/80 bg-card/60 p-6 shadow-soft md:p-8">
-          <div>
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-              <Truck className="size-6" />
-            </div>
-            <h2 className="mt-4 font-display text-xl font-bold text-foreground">
-              Pan-India Express Delivery
-            </h2>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              All QR merchandise is manufactured with UV-cured waterproof inks that withstand hot spills, oil grease, and repeated sanitizer wipes without fading.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-border/70 bg-background/80 p-4">
-            <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-              <ShieldCheck className="size-4 text-veg" />
-              100% Scan Guarantee &bull; Free Replacement
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Every stand and sticker is machine-tested with multiple smartphone cameras before packaging. If any code fails to scan, we reprint and replace it free.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* ===================================================================== */}
-      {/* 1. CART DRAWER / DIALOG                                              */}
+      {/* 1. CART DRAWER / DIALOG (FIXED OVERLAP & pr-12 CLEARANCE)             */}
       {/* ===================================================================== */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-6 rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between text-xl font-bold font-display">
-              <span className="flex items-center gap-2">
-                <ShoppingCart className="size-5 text-primary" /> Shopping Cart
-              </span>
-              <span className="text-xs text-muted-foreground font-normal">
+          {/* Header has pr-12 to ensure NO overlap with Radix top-right close button */}
+          <DialogHeader className="pr-12 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold font-display">
+              <ShoppingCart className="size-5 text-primary" />
+              <span>Shopping Cart</span>
+              <span className="text-xs text-muted-foreground font-bold bg-muted px-2 py-0.5 rounded-full">
                 {cartTotalItems} {cartTotalItems === 1 ? "item" : "items"}
               </span>
             </DialogTitle>
@@ -1003,6 +1615,17 @@ function ShopPublic() {
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 my-2">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                <span>Items in your order:</span>
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="text-destructive hover:underline font-semibold"
+                >
+                  Clear all
+                </button>
+              </div>
+
               {cart.map((item) => (
                 <div
                   key={item.product.id}
@@ -1103,8 +1726,8 @@ function ShopPublic() {
       {/* ===================================================================== */}
       <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
         <DialogContent className="sm:max-w-md p-6 rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-center font-display text-2xl font-bold">
+          <DialogHeader className="pr-10 text-center">
+            <DialogTitle className="font-display text-2xl font-bold">
               {authMode === "login" ? "Login to Place Order" : "Create Account to Place Order"}
             </DialogTitle>
           </DialogHeader>
@@ -1212,7 +1835,7 @@ function ShopPublic() {
       {/* ===================================================================== */}
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto p-6 rounded-3xl">
-          <DialogHeader>
+          <DialogHeader className="pr-10 text-left">
             <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
               <MapPin className="size-5 text-primary" /> Delivery Address &amp; COD Checkout
             </DialogTitle>
@@ -1430,7 +2053,7 @@ function ShopPublic() {
       {/* ===================================================================== */}
       <Dialog open={trackModalOpen} onOpenChange={setTrackModalOpen}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl">
-          <DialogHeader>
+          <DialogHeader className="pr-10 text-left">
             <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
               <Truck className="size-5 text-primary" /> Track Merchandise Order
             </DialogTitle>
@@ -1617,180 +2240,7 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 6. PRODUCT DETAILS & REVIEWS MODAL                                    */}
-      {/* ===================================================================== */}
-      <Dialog
-        open={Boolean(detailsModalProduct)}
-        onOpenChange={(open) => !open && setDetailsModalProduct(null)}
-      >
-        <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto p-6 rounded-3xl">
-          {detailsModalProduct && (
-            <div>
-              <div className="grid sm:grid-cols-2 gap-5 items-start">
-                <div className="rounded-2xl overflow-hidden bg-muted aspect-[4/3]">
-                  <img
-                    src={resolveProductImage(detailsModalProduct.image)}
-                    alt={detailsModalProduct.name}
-                    className="size-full object-cover"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    {detailsModalProduct.badge && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary uppercase">
-                        {detailsModalProduct.badge}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-1 text-amber-500 text-xs font-bold ml-auto">
-                      <Star className="size-3.5 fill-amber-500 text-amber-500" />
-                      <span>{detailsModalProduct.rating || 5.0}</span>
-                      <span className="text-muted-foreground font-normal">
-                        ({detailsModalProduct.reviewsCount || 0} reviews)
-                      </span>
-                    </div>
-                  </div>
-
-                  <h2 className="font-display text-xl font-bold text-foreground">
-                    {detailsModalProduct.name}
-                  </h2>
-                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                    {detailsModalProduct.description}
-                  </p>
-
-                  <div className="mt-4 flex items-baseline gap-2">
-                    <span className="font-display text-2xl font-black text-foreground">
-                      ₹{detailsModalProduct.price}
-                    </span>
-                    {detailsModalProduct.originalPrice &&
-                      detailsModalProduct.originalPrice > detailsModalProduct.price && (
-                        <span className="text-xs text-muted-foreground line-through">
-                          ₹{detailsModalProduct.originalPrice}
-                        </span>
-                      )}
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      + ₹{FLAT_DELIVERY_FEE} Flat COD Delivery
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      onClick={() => {
-                        addToCart(detailsModalProduct);
-                        setDetailsModalProduct(null);
-                        setCartOpen(true);
-                      }}
-                      className="flex-1 rounded-xl text-xs font-bold gap-1.5 shadow-soft"
-                    >
-                      <ShoppingCart className="size-4" /> Add &amp; Checkout
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Product Specifications & Features */}
-              {detailsModalProduct.features && detailsModalProduct.features.length > 0 && (
-                <div className="mt-6 rounded-2xl border border-border/70 bg-muted/20 p-4">
-                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-2">
-                    Product Features &amp; Material Quality
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    {detailsModalProduct.features.map((feat, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-muted-foreground">
-                        <Check className="size-3.5 text-veg shrink-0" />
-                        <span>{feat}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Customer Reviews Section */}
-              <div className="mt-6 pt-5 border-t border-border/70">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                      <MessageSquare className="size-4 text-primary" /> Customer Reviews &amp; Ratings
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground">
-                      Average {detailsModalProduct.rating || 5.0} out of 5 stars from verified buyers
-                    </p>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setReviewModalProduct(detailsModalProduct);
-                      setReviewModalOrder(null);
-                    }}
-                    className="text-xs rounded-xl gap-1"
-                  >
-                    <Star className="size-3.5 text-amber-500 fill-amber-500" /> Write Review
-                  </Button>
-                </div>
-
-                {loadingReviews ? (
-                  <div className="py-6 text-center text-xs text-muted-foreground">
-                    <RefreshCw className="size-4 animate-spin mx-auto mb-1" /> Loading reviews...
-                  </div>
-                ) : productReviews.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">
-                    No reviews yet. Be the first restaurant to review this product!
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {productReviews.map((rev) => (
-                      <div
-                        key={rev.id}
-                        className="rounded-xl border border-border/70 bg-card p-3 shadow-xs space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex text-amber-500">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`size-3 ${
-                                    i < rev.rating
-                                      ? "fill-amber-500 text-amber-500"
-                                      : "text-muted-foreground/30"
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-xs font-bold text-foreground">
-                              {rev.title || `${rev.rating} Stars`}
-                            </span>
-                          </div>
-                          {rev.verifiedPurchase && (
-                            <span className="rounded-full bg-veg/10 px-2 py-0.5 text-[10px] font-bold text-veg flex items-center gap-1">
-                              <Check className="size-2.5" /> Verified Purchase
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          {rev.comment}
-                        </p>
-
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70">
-                          <span>{rev.userName}</span>
-                          <span>&bull;</span>
-                          <span>{new Date(rev.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ===================================================================== */}
-      {/* 7. WRITE A REVIEW MODAL (1 TO 5 STARS)                                */}
+      {/* 6. WRITE A REVIEW MODAL (1 TO 5 STARS)                                */}
       {/* ===================================================================== */}
       <Dialog
         open={Boolean(reviewModalProduct || reviewModalOrder)}
@@ -1802,7 +2252,7 @@ function ShopPublic() {
         }}
       >
         <DialogContent className="sm:max-w-md p-6 rounded-3xl">
-          <DialogHeader>
+          <DialogHeader className="pr-10 text-left">
             <DialogTitle className="font-display text-xl font-bold">
               Leave a Customer Review
             </DialogTitle>
