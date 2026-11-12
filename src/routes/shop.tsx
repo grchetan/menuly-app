@@ -168,11 +168,13 @@ function ShopOrderCard({
   products,
   onPayUpi,
   onReview,
+  onCheckStatus,
 }: {
   order: ShopOrder;
   products: ShopProduct[];
   onPayUpi: (order: ShopOrder) => void;
   onReview: (productId: string, orderId: string) => void;
+  onCheckStatus?: (order: ShopOrder) => void;
 }) {
   const stepIndex =
     order.status === "DELIVERED"
@@ -246,17 +248,29 @@ function ShopOrderCard({
               <div>
                 <span className="font-bold block">PREPAID ORDER — PAYMENT PENDING (₹{order.grandTotal})</span>
                 <p className="text-[10px] text-amber-700 mt-0.5">
-                  Order is saved. Please scan Kotak QR code to complete payment and dispatch.
+                  Order saved. Scan Kotak QR or check bank confirmation to complete.
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => onPayUpi(order)}
-              className="bg-neutral-900 hover:bg-black text-white px-3 py-1.5 text-xs font-bold uppercase rounded-none cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
-            >
-              <CreditCard className="size-3.5" /> Open QR &amp; Pay
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onPayUpi(order)}
+                className="bg-neutral-900 hover:bg-black text-white px-3 py-1.5 text-xs font-bold uppercase rounded-none cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <CreditCard className="size-3.5" /> Open QR &amp; Pay
+              </button>
+              {onCheckStatus && (
+                <button
+                  type="button"
+                  onClick={() => onCheckStatus(order)}
+                  className="border border-neutral-300 hover:bg-neutral-100 text-neutral-800 px-2.5 py-1.5 text-xs font-bold uppercase rounded-none cursor-pointer flex items-center justify-center gap-1"
+                  title="Check Payment Status with Bank"
+                >
+                  <RefreshCw className="size-3 text-neutral-600" /> Check
+                </button>
+              )}
+            </div>
           </div>
         )
       ) : (
@@ -789,6 +803,9 @@ function ShopPublic() {
   const [upiModalOpen, setUpiModalOpen] = useState(false);
   const [activePaymentSession, setActivePaymentSession] = useState<ShopPaymentSession | null>(null);
   const [pendingUpiOrder, setPendingUpiOrder] = useState<ShopOrder | null>(null);
+  const [qrSecondsLeft, setQrSecondsLeft] = useState<number>(300);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState<boolean>(false);
+  const [checkStatusFeedback, setCheckStatusFeedback] = useState<string | null>(null);
 
   // Order Placement Result
   const [placedOrder, setPlacedOrder] = useState<ShopOrder | null>(null);
@@ -1009,7 +1026,7 @@ function ShopPublic() {
       }
       return [...prev, { product, quantity: qty }];
     });
-    toast.success(`Added ${qty > 1 ? `${qty}x ` : ""}${product.name} to cart.`);
+    setFloatingCartDismissed(false);
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
@@ -1170,6 +1187,35 @@ function ShopPublic() {
     });
   };
 
+  // Reset timer whenever activePaymentSession changes or modal opens
+  useEffect(() => {
+    if (upiModalOpen && activePaymentSession) {
+      setQrSecondsLeft(300);
+      setCheckStatusFeedback(null);
+    }
+  }, [upiModalOpen, activePaymentSession?.id]);
+
+  // 5-minute active countdown timer
+  useEffect(() => {
+    if (!upiModalOpen || !activePaymentSession || activePaymentSession.status === "PAID") return;
+    const timer = setInterval(() => {
+      setQrSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [upiModalOpen, activePaymentSession]);
+
+  const formatTimer = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
   // Real-time Kotak UPI Payment Session status polling
   useEffect(() => {
     if (!upiModalOpen || !activePaymentSession || activePaymentSession.status === "PAID") return;
@@ -1189,7 +1235,7 @@ function ShopPublic() {
                 upiUtr: data.session?.utr,
               });
             }
-            toast.success("Payment Received! Kotak Bank credit verified.");
+            toast.success("Payment Received & Verified in Kotak Bank! Order Confirmed.");
             fetchUserOrders();
           }
         }
@@ -1198,6 +1244,129 @@ function ShopPublic() {
 
     return () => clearInterval(interval);
   }, [upiModalOpen, activePaymentSession, pendingUpiOrder, fetchUserOrders]);
+
+  // Background polling for pending orders even when QR modal is closed
+  useEffect(() => {
+    if (!currentUser) return;
+    const hasPendingUpi = userOrders.some(
+      (o) => o.paymentMode === "UPI" && o.paymentStatus !== "PAID" && o.status !== "CANCELLED"
+    );
+    if (!hasPendingUpi) return;
+
+    const bgTimer = setInterval(async () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      if (!token) return;
+      try {
+        const res = await fetch("/api/shop/orders/my", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.orders)) {
+            const newlyPaid = data.orders.find(
+              (newO: ShopOrder) =>
+                newO.paymentMode === "UPI" &&
+                newO.paymentStatus === "PAID" &&
+                userOrders.some((oldO) => oldO.id === newO.id && oldO.paymentStatus !== "PAID")
+            );
+            if (newlyPaid) {
+              toast.success(`Payment Verified! Order #${newlyPaid.orderNumber} confirmed.`);
+            }
+            setUserOrders(data.orders);
+          }
+        }
+      } catch {}
+    }, 4000);
+
+    return () => clearInterval(bgTimer);
+  }, [currentUser, userOrders]);
+
+  // Manual Check Payment Status button handler
+  const handleManualCheckPayment = async () => {
+    if (!activePaymentSession) return;
+    setCheckingPaymentStatus(true);
+    setCheckStatusFeedback(null);
+    try {
+      const res = await fetch(`/api/shop/payments/status?sessionId=${activePaymentSession.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.status === "PAID") {
+          setActivePaymentSession(data.session);
+          setUpiModalOpen(false);
+          if (pendingUpiOrder) {
+            setPlacedOrder({
+              ...pendingUpiOrder,
+              paymentStatus: "PAID",
+              upiUtr: data.session?.utr,
+            });
+          }
+          toast.success("Payment Received & Verified in Kotak Bank! Order Confirmed.");
+          fetchUserOrders();
+          return;
+        }
+      }
+      setCheckStatusFeedback(
+        "Payment not confirmed yet. It typically takes 10–20 seconds for bank settlement. If already paid, please tap Check again shortly."
+      );
+    } catch {
+      setCheckStatusFeedback("Network error checking payment status. Please try again.");
+    } finally {
+      setCheckingPaymentStatus(false);
+    }
+  };
+
+  // Regenerate UPI QR code when 5-minute timer expires
+  const handleRegenerateUpiQr = async () => {
+    if (!activePaymentSession) return;
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    try {
+      const res = await fetch("/api/shop/payments/create-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          amount: activePaymentSession.amount,
+          customerName: activePaymentSession.customerName,
+          customerPhone: activePaymentSession.customerPhone,
+          orderNumber: activePaymentSession.orderNumber,
+          orderId: activePaymentSession.orderId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.session) {
+        setActivePaymentSession(data.session);
+        setQrSecondsLeft(300);
+        setCheckStatusFeedback(null);
+        toast.success("Fresh QR code generated (valid for 5 minutes).");
+      }
+    } catch {
+      toast.error("Failed to generate fresh QR code. Please try again.");
+    }
+  };
+
+  // Check individual past order payment status from Track Orders
+  const handleCheckOrderPayment = async (ord: ShopOrder) => {
+    if (!ord.paymentSessionId) {
+      toast.info("No active payment session linked. Click 'Open QR & Pay' to generate one.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/shop/payments/status?sessionId=${ord.paymentSessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.status === "PAID") {
+          toast.success(`Order #${ord.orderNumber} payment confirmed & verified!`);
+          fetchUserOrders();
+          return;
+        }
+      }
+      toast.info("Payment not confirmed yet. It typically takes 10–20 seconds for bank settlement.");
+    } catch {
+      toast.error("Network error checking payment status.");
+    }
+  };
 
   // Place Order / Start Payment Flow
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -2741,9 +2910,18 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 4. DYNAMIC KOTAK UPI PAYMENT MODAL (Auto-Detector & Instant UTR)     */}
+      {/* 4. DYNAMIC KOTAK UPI PAYMENT MODAL (Auto-Detector & Instant Check)    */}
       {/* ===================================================================== */}
-      <Dialog open={upiModalOpen} onOpenChange={setUpiModalOpen}>
+      <Dialog
+        open={upiModalOpen}
+        onOpenChange={(open) => {
+          setUpiModalOpen(open);
+          if (open) {
+            setQrSecondsLeft(300);
+            setCheckStatusFeedback(null);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
@@ -2753,20 +2931,53 @@ function ShopPublic() {
           </DialogHeader>
 
           {activePaymentSession && (
-            <div className="space-y-5 py-3 text-center">
-              {/* Amount badge */}
-              <div>
-                <p className="text-xs uppercase text-neutral-500 font-semibold">Amount to Pay</p>
-                <p className="text-3xl font-extrabold text-neutral-900 mt-0.5">
-                  ₹{activePaymentSession.amount}
-                </p>
+            <div className="space-y-4 py-2 text-center">
+              {/* Amount badge & 5-minute Countdown Timer */}
+              <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+                <div className="text-left">
+                  <p className="text-[10px] uppercase text-neutral-500 font-semibold tracking-wider">Amount to Pay</p>
+                  <p className="text-2xl font-extrabold text-neutral-900">
+                    ₹{activePaymentSession.amount}
+                  </p>
+                </div>
+                <div>
+                  {qrSecondsLeft > 0 ? (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold font-mono">
+                      <Clock className="size-3 text-amber-700 animate-pulse" />
+                      <span>Expires in {formatTimer(qrSecondsLeft)}</span>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                      Expired
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Local Vector SVG QR Code (100% Reliable Offline Generation) */}
-              <LocalUpiQrCode upiUri={activePaymentSession.upiUri} />
-              <p className="text-[11px] text-neutral-600 font-medium">
-                Scan with Google Pay, PhonePe, Paytm, BHIM, CRED or any UPI app
-              </p>
+              {/* QR Code Display or Expired State */}
+              {qrSecondsLeft > 0 ? (
+                <>
+                  <LocalUpiQrCode upiUri={activePaymentSession.upiUri} />
+                  <p className="text-[11px] text-neutral-600 font-medium">
+                    Scan with Google Pay, PhonePe, Paytm, CRED or any UPI app
+                  </p>
+                </>
+              ) : (
+                <div className="w-56 h-56 mx-auto border border-dashed border-red-300 bg-red-50/60 flex flex-col items-center justify-center p-4 text-center space-y-3">
+                  <Clock className="size-8 text-red-500" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-red-900">QR Code Expired</p>
+                  <p className="text-[11px] text-neutral-600 leading-tight">
+                    For security, dynamic payment QR codes expire after 5 minutes.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateUpiQr}
+                    className="bg-neutral-900 hover:bg-black text-white px-3 py-1.5 text-xs font-bold uppercase cursor-pointer transition-colors"
+                  >
+                    Generate Fresh QR
+                  </button>
+                </div>
+              )}
 
               {/* Account details & 1-click copy */}
               <div className="border border-neutral-200 p-3 bg-neutral-50 text-xs space-y-1.5 text-left">
@@ -2797,26 +3008,46 @@ function ShopPublic() {
               </div>
 
               {/* 1-Click Mobile Intent Button */}
+              {qrSecondsLeft > 0 && (
+                <div>
+                  <a
+                    href={activePaymentSession.upiUri}
+                    className="block w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black transition-colors"
+                  >
+                    Pay via GPay / PhonePe / Paytm App
+                  </a>
+                </div>
+              )}
+
+              {/* Dedicated "Check Payment Status / I Have Paid" Button */}
               <div>
-                <a
-                  href={activePaymentSession.upiUri}
-                  className="block w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black transition-colors"
+                <button
+                  type="button"
+                  disabled={checkingPaymentStatus}
+                  onClick={handleManualCheckPayment}
+                  className="w-full border border-neutral-800 bg-white hover:bg-neutral-100 text-neutral-900 py-2.5 px-4 text-xs font-bold uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Pay via GPay / PhonePe / Paytm App
-                </a>
+                  <RefreshCw className={cn("size-3.5", checkingPaymentStatus && "animate-spin")} />
+                  {checkingPaymentStatus ? "Verifying with Kotak Bank..." : "Check Payment Status / I Have Paid"}
+                </button>
+                {checkStatusFeedback && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2 mt-2 text-left">
+                    {checkStatusFeedback}
+                  </p>
+                )}
               </div>
 
-              {/* Live Status Detector & Clear Instruction */}
-              <div className="bg-emerald-50/80 border border-emerald-200/80 p-3.5 rounded-none text-left space-y-1.5">
+              {/* Live Status Detector & Clear Professional English Instructions */}
+              <div className="bg-emerald-50/80 border border-emerald-200/80 p-3 rounded-none text-left space-y-1">
                 <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
                   <RefreshCw className="size-3.5 animate-spin text-emerald-700 shrink-0" />
-                  <span>Auto-detecting payment with Kotak Bank...</span>
+                  <span>Auto-detecting Kotak Bank confirmation...</span>
                 </div>
                 <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  Apne kisi bhi UPI app se ₹{activePaymentSession.amount} pay karein. Jaise hi Kotak Bank mein credit confirm hoga, yeh screen automatically order confirm kar degi.
+                  Complete ₹{activePaymentSession.amount} from any UPI app. Your order will confirm automatically once the bank confirms credit.
                 </p>
                 <p className="text-[10px] text-emerald-700/90 font-semibold">
-                  ✓ 100% Automatic • Koi UTR ya Reference number type karne ki zaroorat nahi hai.
+                  ✓ 100% Automated • Zero manual reference entry needed
                 </p>
               </div>
 
@@ -2945,6 +3176,7 @@ function ShopPublic() {
                   order={trackedOrder}
                   products={products}
                   onPayUpi={handlePayOrderUpi}
+                  onCheckStatus={handleCheckOrderPayment}
                   onReview={(prodId, ordId) => {
                     const prod = products.find((p) => p.id === prodId) || {
                       id: prodId,
@@ -2974,6 +3206,7 @@ function ShopPublic() {
                       order={ord}
                       products={products}
                       onPayUpi={handlePayOrderUpi}
+                      onCheckStatus={handleCheckOrderPayment}
                       onReview={(prodId, ordId) => {
                         const prod = products.find((p) => p.id === prodId) || {
                           id: prodId,

@@ -371,7 +371,7 @@ function RootComponent() {
       <VisitorTracker />
       <RootInner />
       <CookieConsentBanner />
-      <Toaster position="bottom-right" closeButton />
+      <Toaster position="top-right" closeButton />
     </QueryClientProvider>
   );
 }
