@@ -39,6 +39,7 @@ import {
   Sliders,
   Check,
   Save,
+  User,
   UserCheck,
   UserPlus,
   UserMinus,
@@ -142,13 +143,19 @@ export type AdminRestaurant = {
   ownerName: string;
   ownerEmail: string;
   phone: string;
+  whatsapp?: string;
+  address?: string;
   city: string;
+  hours?: string;
   dishCount: number;
   categoryCount: number;
+  tablesCount?: number;
+  ordersCount?: number;
   plan?: "starter" | "pro" | "enterprise";
   status: "active" | "setup" | "suspended";
   qrScans: number;
   joinedDate: string;
+  createdAtIso?: string;
 };
 
 export type AdminUser = {
@@ -583,6 +590,7 @@ function AdminPage() {
   // Restaurant Management State
   const [restaurantToDelete, setRestaurantToDelete] = useState<AdminRestaurant | null>(null);
   const [deletingRestaurantLoading, setDeletingRestaurantLoading] = useState(false);
+  const [inspectingRestaurant, setInspectingRestaurant] = useState<AdminRestaurant | null>(null);
 
   // New Ticket Dialog State
   const [createTicketOpen, setCreateTicketOpen] = useState(false);
@@ -3278,9 +3286,23 @@ function AdminPage() {
                         </a>
                       </td>
 
-                      <td className="px-5 py-4 text-muted-foreground text-xs">
-                        <div className="font-semibold text-foreground">{res.ownerName}</div>
-                        <div>{res.city}</div>
+                      <td
+                        className="px-5 py-4 text-muted-foreground text-xs cursor-pointer hover:bg-primary/5 transition-colors group"
+                        onClick={() => setInspectingRestaurant(res)}
+                        title="Click to view full A-to-Z owner profile & contact details"
+                      >
+                        <div className="font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+                          <span>{res.ownerName}</span>
+                          <span className="text-[10px] font-mono text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded-md">
+                            A-Z Data
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 max-w-[180px] truncate" title={res.ownerEmail}>
+                          {res.ownerEmail}
+                        </div>
+                        <div className="text-[11px] font-mono text-foreground font-medium">
+                          {res.phone || "No phone"}
+                        </div>
                       </td>
 
                       <td className="px-5 py-4 font-semibold text-foreground">
@@ -3308,6 +3330,17 @@ function AdminPage() {
 
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {/* Owner Profile A to Z Dialog Trigger */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setInspectingRestaurant(res)}
+                            className="text-xs h-7 font-bold gap-1 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
+                            title="View Owner Profile, Email, Phone & A-to-Z Data"
+                          >
+                            <Users className="size-3" /> Owner Info
+                          </Button>
+
                           {/* Direct WhatsApp Contact */}
                           <a
                             href={`https://wa.me/${res.phone}?text=Hello%20${encodeURIComponent(
@@ -6006,6 +6039,262 @@ function AdminPage() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================================================= */}
+        {/* RESTAURANT & OWNER FULL PROFILE (A TO Z DOSSIER)              */}
+        {/* ============================================================= */}
+        <Dialog open={Boolean(inspectingRestaurant)} onOpenChange={(open) => !open && setInspectingRestaurant(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto no-scrollbar p-6 rounded-3xl border-border bg-card space-y-5">
+            {inspectingRestaurant && (
+              <>
+                <DialogHeader>
+                  <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="size-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-lg">
+                        {inspectingRestaurant.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <DialogTitle className="font-serif font-black text-xl text-foreground">
+                          {inspectingRestaurant.name}
+                        </DialogTitle>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <span>Owner Dossier &amp; Restaurant A to Z Profile</span>
+                          <span>•</span>
+                          <span className="font-mono text-primary font-semibold">/menu/{inspectingRestaurant.slug}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase",
+                          inspectingRestaurant.status === "active"
+                            ? "bg-veg/10 text-veg"
+                            : inspectingRestaurant.status === "setup"
+                            ? "bg-accent/20 text-accent-foreground"
+                            : "bg-destructive/10 text-destructive"
+                        )}
+                      >
+                        {inspectingRestaurant.status}
+                      </span>
+                      <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[10px] font-bold uppercase text-foreground">
+                        {inspectingRestaurant.plan || "starter"}
+                      </span>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                {/* Section 1: Owner Contact Information (A-Z) */}
+                <div className="space-y-3 rounded-2xl border border-border/80 bg-secondary/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Users className="size-3.5 text-primary" /> Owner Information
+                    </h4>
+                    <span className="text-[10px] text-muted-foreground">
+                      Joined: {inspectingRestaurant.joinedDate}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {/* Full Name */}
+                    <div className="rounded-xl bg-card border border-border/70 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Owner Full Name</span>
+                      <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                        <User className="size-3.5 text-primary" />
+                        <span>{inspectingRestaurant.ownerName || "Not Provided"}</span>
+                      </p>
+                    </div>
+
+                    {/* Email with 1-click Copy & Mailto */}
+                    <div className="rounded-xl bg-card border border-border/70 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Registered Email</span>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <p className="font-mono text-xs font-semibold text-foreground truncate select-all" title={inspectingRestaurant.ownerEmail}>
+                          {inspectingRestaurant.ownerEmail}
+                        </p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="size-7 p-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(inspectingRestaurant.ownerEmail);
+                              toast.success("Email copied to clipboard");
+                            }}
+                            title="Copy Email"
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="size-7 p-0 text-primary"
+                            asChild
+                            title="Send Email"
+                          >
+                            <a href={`mailto:${inspectingRestaurant.ownerEmail}`}>
+                              <Mail className="size-3" />
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Phone & WhatsApp with direct actions */}
+                    <div className="rounded-xl bg-card border border-border/70 p-3 space-y-1 sm:col-span-2">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Phone &amp; WhatsApp Number</span>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <p className="font-mono text-sm font-black text-foreground">
+                          {inspectingRestaurant.phone || "No phone number registered"}
+                        </p>
+                        {inspectingRestaurant.phone && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              asChild
+                              className="text-xs h-7 gap-1 font-semibold"
+                            >
+                              <a href={`tel:${inspectingRestaurant.phone}`}>
+                                <Phone className="size-3 text-blue-600" /> Call
+                              </a>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              asChild
+                              className="text-xs h-7 gap-1 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              <a
+                                href={`https://wa.me/${inspectingRestaurant.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
+                                  inspectingRestaurant.ownerName
+                                )},%20this%20is%20Menuly%20Administration%20Support%20regarding%20${encodeURIComponent(
+                                  inspectingRestaurant.name
+                                )}:`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <MessageCircle className="size-3" /> Chat WhatsApp
+                              </a>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Restaurant & Outlet Details */}
+                <div className="space-y-3 rounded-2xl border border-border/80 bg-secondary/20 p-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Store className="size-3.5 text-orange-500" /> Outlet &amp; Menu Address
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                    <div className="rounded-xl bg-card border border-border/70 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">City / Location</span>
+                      <p className="font-semibold text-foreground">{inspectingRestaurant.city || "India"}</p>
+                      {inspectingRestaurant.address && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{inspectingRestaurant.address}</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl bg-card border border-border/70 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Operating Hours</span>
+                      <p className="font-semibold text-foreground">
+                        {inspectingRestaurant.hours || "Mon–Sun, 10:00 AM – 11:00 PM"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-card border border-border/70 p-3 space-y-1.5 sm:col-span-2">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Public Live Menu Link</span>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          readOnly
+                          value={`https://menulyindia.online/menu/${inspectingRestaurant.slug}`}
+                          className="h-8 text-xs font-mono bg-secondary/30 select-all"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`https://menulyindia.online/menu/${inspectingRestaurant.slug}`);
+                            toast.success("Menu URL copied to clipboard");
+                          }}
+                          className="h-8 px-2.5 text-xs font-semibold gap-1"
+                        >
+                          <Copy className="size-3" /> Copy
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          asChild
+                          className="h-8 px-2.5 text-xs font-semibold gap-1"
+                        >
+                          <a
+                            href={`/menu/${inspectingRestaurant.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink className="size-3" /> View
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Key Operational Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="rounded-xl bg-secondary/30 border border-border/70 p-3 text-center space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Dishes</span>
+                    <p className="font-display text-xl font-black text-foreground">{inspectingRestaurant.dishCount}</p>
+                  </div>
+                  <div className="rounded-xl bg-secondary/30 border border-border/70 p-3 text-center space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Categories</span>
+                    <p className="font-display text-xl font-black text-foreground">{inspectingRestaurant.categoryCount}</p>
+                  </div>
+                  <div className="rounded-xl bg-secondary/30 border border-border/70 p-3 text-center space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Tables</span>
+                    <p className="font-display text-xl font-black text-foreground">{inspectingRestaurant.tablesCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-xl bg-secondary/30 border border-border/70 p-3 text-center space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Scans</span>
+                    <p className="font-display text-xl font-black text-primary">{inspectingRestaurant.qrScans.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleRestaurantStatus(inspectingRestaurant.id)}
+                    className="text-xs h-8 font-semibold"
+                  >
+                    {inspectingRestaurant.status === "active" ? "Suspend Restaurant" : "Activate Restaurant"}
+                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setInspectingRestaurant(null)}
+                      className="text-xs h-8 px-4 font-bold"
+                    >
+                      Close Dossier
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 

@@ -535,19 +535,19 @@ function Dashboard() {
         {/* ============================================================= */}
         {/* DEDICATED ORDER ANALYTICS & INSIGHTS SECTION                  */}
         {/* ============================================================= */}
-        <div className="space-y-4 rounded-3xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+        <div className="space-y-6 rounded-3xl border border-border/80 bg-card p-5 sm:p-7 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 border-b border-border/60 pb-5">
             <div>
-              <div className="flex items-center gap-2">
-                <div className="size-8 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-400">
-                  <CookingPot className="size-4" />
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <CookingPot className="size-5" />
                 </div>
                 <div>
                   <h2 className="font-serif font-black text-lg sm:text-xl text-foreground">
-                    Order Performance &amp; Cancellation Analytics
+                    Order Performance &amp; Cancellation Audit
                   </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Daily dine-in volume, order fulfillment rate, and cancellation reason reports.
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Real-time dine-in volume, order fulfillment rate, and cancellation logs.
                   </p>
                 </div>
               </div>
@@ -555,24 +555,24 @@ function Dashboard() {
 
             <Button
               asChild
-              className="rounded-xl font-bold text-xs gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shadow-soft shrink-0"
+              className="rounded-xl font-bold text-xs gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shadow-soft shrink-0 h-9 px-4"
             >
               <Link to="/orders">
                 <CookingPot className="size-4" />
-                <span>Open Live Kitchen POS ({orderStats?.activeOrdersCount ?? 0} Active)</span>
+                <span>Open Kitchen POS ({orderStats?.activeOrdersCount ?? 0} Active)</span>
                 <ArrowRight className="size-3.5" />
               </Link>
             </Button>
           </div>
 
           {/* 4 Performance Metric Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4.5">
+            <div className="rounded-2xl sm:rounded-3xl border border-border/70 bg-secondary/30 p-4 sm:p-5 space-y-1.5 transition-all">
+              <span className="text-[11px] font-bold text-muted-foreground flex items-center justify-between">
                 <span>Today Orders</span>
                 <UtensilsCrossed className="size-3.5 text-primary" />
               </span>
-              <p className="font-display text-2xl font-black text-foreground">
+              <p className="font-display text-2xl sm:text-3xl font-black text-foreground">
                 {orderStats?.todayOrdersCount ?? 0}
               </p>
               <p className="text-[11px] text-muted-foreground">
@@ -580,25 +580,25 @@ function Dashboard() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+            <div className="rounded-2xl sm:rounded-3xl border border-border/70 bg-secondary/30 p-4 sm:p-5 space-y-1.5 transition-all">
+              <span className="text-[11px] font-bold text-muted-foreground flex items-center justify-between">
                 <span>Active Cooking</span>
                 <CookingPot className="size-3.5 text-blue-500" />
               </span>
-              <p className="font-display text-2xl font-black text-blue-600 dark:text-blue-400">
+              <p className="font-display text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">
                 {orderStats?.activeOrdersCount ?? 0}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {orderStats?.pendingCount ?? 0} pending • {orderStats?.preparingCount ?? 0} in kitchen
+                {orderStats?.pendingCount ?? 0} pending • {orderStats?.preparingCount ?? 0} cooking
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+            <div className="rounded-2xl sm:rounded-3xl border border-border/70 bg-secondary/30 p-4 sm:p-5 space-y-1.5 transition-all">
+              <span className="text-[11px] font-bold text-muted-foreground flex items-center justify-between">
                 <span>Completed Orders</span>
                 <CheckCircle2 className="size-3.5 text-emerald-500" />
               </span>
-              <p className="font-display text-2xl font-black text-emerald-600 dark:text-emerald-400">
+              <p className="font-display text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
                 {orderStats?.completedCount ?? 0}
               </p>
               <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
@@ -606,12 +606,12 @@ function Dashboard() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+            <div className="rounded-2xl sm:rounded-3xl border border-border/70 bg-secondary/30 p-4 sm:p-5 space-y-1.5 transition-all">
+              <span className="text-[11px] font-bold text-muted-foreground flex items-center justify-between">
                 <span>Cancelled Orders</span>
                 <XCircle className="size-3.5 text-destructive" />
               </span>
-              <p className="font-display text-2xl font-black text-destructive">
+              <p className="font-display text-2xl sm:text-3xl font-black text-destructive">
                 {orderStats?.cancelledCount ?? 0}
               </p>
               <p className="text-[11px] text-muted-foreground">
@@ -621,48 +621,48 @@ function Dashboard() {
           </div>
 
           {/* 2-Column: Daily Order Trends + Cancellation Log */}
-          <div className="grid gap-4 lg:grid-cols-2 pt-1">
-            {/* 7-Day Daily Order Chart */}
-            <div className="rounded-2xl border border-border/70 bg-secondary/20 p-4 space-y-3">
-              <div className="flex items-center justify-between">
+          <div className="grid gap-5 lg:grid-cols-2 pt-1">
+            {/* 7-Day Order Volume Chart */}
+            <div className="rounded-2xl sm:rounded-3xl border border-border/70 bg-secondary/20 p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">7-Day Daily Order Volume</h3>
-                  <p className="text-[11px] text-muted-foreground">Completed vs Cancelled orders per day</p>
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground">7-Day Order Volume</h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Completed vs Cancelled orders per day</p>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold">
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <div className="flex items-center gap-2.5 text-[11px] font-bold">
+                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                     <span className="size-2 rounded-full bg-emerald-500" /> Served
                   </span>
-                  <span className="flex items-center gap-1 text-destructive">
+                  <span className="flex items-center gap-1.5 text-destructive">
                     <span className="size-2 rounded-full bg-destructive" /> Cancelled
                   </span>
                 </div>
               </div>
 
               {/* Stacked / Dual Bar Chart */}
-              <div className="h-36 flex items-end justify-between gap-2 pt-2 px-1">
+              <div className="h-40 sm:h-44 flex items-end justify-between gap-2.5 pt-3 px-1">
                 {(orderStats?.dailyBreakdown || []).map((d) => {
                   const maxDay = Math.max(1, ...((orderStats?.dailyBreakdown || []).map((x) => x.totalOrders)));
-                  const completedHeight = d.completedOrders > 0 ? Math.max(6, Math.round((d.completedOrders / maxDay) * 90)) : 0;
-                  const cancelledHeight = d.cancelledOrders > 0 ? Math.max(6, Math.round((d.cancelledOrders / maxDay) * 90)) : 0;
+                  const completedHeight = d.completedOrders > 0 ? Math.max(8, Math.round((d.completedOrders / maxDay) * 105)) : 0;
+                  const cancelledHeight = d.cancelledOrders > 0 ? Math.max(8, Math.round((d.cancelledOrders / maxDay) * 105)) : 0;
 
                   return (
-                    <div key={d.date} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
-                      <span className="text-[10px] font-bold text-muted-foreground group-hover:text-foreground">
+                    <div key={d.date} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
+                      <span className="text-[11px] font-bold text-muted-foreground group-hover:text-foreground">
                         {d.totalOrders}
                       </span>
-                      <div className="w-full max-w-[28px] flex flex-col-reverse items-center gap-0.5 rounded-t-md overflow-hidden bg-muted/40 p-0.5">
+                      <div className="w-full max-w-[32px] flex flex-col-reverse items-center gap-1 rounded-t-lg overflow-hidden bg-muted/40 p-0.5">
                         {completedHeight > 0 && (
                           <div
                             style={{ height: `${completedHeight}px` }}
-                            className="w-full rounded-xs bg-emerald-500/80 hover:bg-emerald-500 transition-all"
+                            className="w-full rounded-xs bg-emerald-500 hover:bg-emerald-600 transition-all"
                             title={`${d.completedOrders} served (${formatPrice(d.revenue)})`}
                           />
                         )}
                         {cancelledHeight > 0 && (
                           <div
                             style={{ height: `${cancelledHeight}px` }}
-                            className="w-full rounded-xs bg-destructive/80 hover:bg-destructive transition-all"
+                            className="w-full rounded-xs bg-destructive/85 hover:bg-destructive transition-all"
                             title={`${d.cancelledOrders} cancelled`}
                           />
                         )}
@@ -675,17 +675,17 @@ function Dashboard() {
             </div>
 
             {/* Recent Cancelled Orders with Reason */}
-            <div className="rounded-2xl border border-border/70 bg-secondary/20 p-4 space-y-3">
-              <div className="flex items-center justify-between border-b border-border/50 pb-2">
+            <div className="rounded-2xl sm:rounded-3xl border border-border/70 bg-secondary/20 p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-3">
                 <div>
-                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wide flex items-center gap-1.5">
-                    <AlertCircle className="size-3.5 text-destructive" />
-                    Cancellation Reasons &amp; History
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+                    <AlertCircle className="size-4 text-destructive" />
+                    Cancellation History
                   </h3>
-                  <p className="text-[11px] text-muted-foreground">Audit of why orders were cancelled</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Audit log of why orders were cancelled</p>
                 </div>
-                <span className="text-[10px] font-bold font-mono rounded-full bg-destructive/10 text-destructive px-2 py-0.5">
-                  {orderStats?.cancelledCount ?? 0} Total
+                <span className="text-[11px] font-bold font-mono rounded-full bg-destructive/10 text-destructive px-2.5 py-0.5">
+                  {orderStats?.cancelledCount ?? 0} Recorded
                 </span>
               </div>
 
@@ -696,28 +696,31 @@ function Dashboard() {
                   <p className="text-[11px]">All placed orders are being fulfilled cleanly.</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar divide-y divide-border/40 text-xs">
+                <div className="space-y-3 max-h-52 overflow-y-auto no-scrollbar divide-y divide-border/40 text-xs">
                   {orderStats.recentCancelled.map((c) => (
-                    <div key={c.id} className="pt-2 first:pt-0 flex items-start justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-foreground">{c.orderNumber}</span>
-                          <span className="rounded bg-secondary px-1 text-[10px] font-bold">
+                    <div key={c.id} className="pt-3 first:pt-0 flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-foreground text-xs sm:text-sm">{c.orderNumber}</span>
+                          <span className="rounded-md bg-secondary/90 px-2 py-0.5 text-[10px] font-bold text-foreground">
                             Table #{c.tableNumber}
                           </span>
                           {c.customerName && (
-                            <span className="text-muted-foreground text-[11px]">
+                            <span className="text-muted-foreground text-xs truncate">
                               • {c.customerName}
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] font-semibold text-destructive">
-                          Reason: <span className="underline decoration-destructive/40 font-bold">{c.cancelReason}</span>
-                        </p>
+                        <div className="flex items-center gap-1.5 pt-0.5">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-destructive/10 text-destructive text-[11px] font-medium px-2 py-0.5">
+                            <AlertCircle className="size-3 shrink-0" />
+                            {c.cancelReason || "Cancelled"}
+                          </span>
+                        </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="font-black text-foreground">{formatPrice(c.grandTotal)}</span>
-                        <p className="text-[10px] text-muted-foreground">
+                        <span className="font-black text-foreground text-xs sm:text-sm">{formatPrice(c.grandTotal)}</span>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
                           {new Date(c.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
@@ -734,11 +737,11 @@ function Dashboard() {
           {/* Left Column: Weekly Activity Trend + Restaurant Profile Form */}
           <div className="min-w-0 space-y-6">
             {/* Weekly Diner Visits Trend Chart (Clean & Simple) */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-3.5">
+            <div className="rounded-3xl border border-border/80 bg-card p-5 sm:p-7 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/50 pb-4">
                 <div>
                   <h3 className="text-sm font-bold text-foreground">Weekly Diner Scan Activity</h3>
-                  <p className="text-xs text-muted-foreground">Customer menu visits over the last 7 days</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Customer menu visits over the last 7 days</p>
                 </div>
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
@@ -751,13 +754,13 @@ function Dashboard() {
               </div>
 
               {/* Bar Chart Visualization */}
-              <div className="mt-5 flex h-36 items-end justify-between gap-2 sm:gap-3 px-1 pt-2">
+              <div className="mt-5 flex h-40 items-end justify-between gap-2 sm:gap-3 px-1 pt-2">
                 {analytics.weeklyScans.map((d) => (
                   <div key={d.day + (d.date || "")} className="flex flex-1 flex-col items-center gap-1.5 h-full justify-end">
-                    <span className="text-[10px] font-bold text-muted-foreground">{d.scans}</span>
+                    <span className="text-[11px] font-bold text-muted-foreground">{d.scans}</span>
                     <div
                       style={{ height: d.height }}
-                      className="w-full max-w-[36px] rounded-t-md bg-primary/75 hover:bg-primary transition-all duration-200"
+                      className="w-full max-w-[36px] rounded-t-md bg-primary/80 hover:bg-primary transition-all duration-200"
                     />
                     <span className="text-[11px] font-semibold text-foreground">{d.day}</span>
                   </div>

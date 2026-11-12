@@ -26,6 +26,10 @@ import {
   UserCheck,
   Droplets,
   ReceiptText,
+  QrCode,
+  Copy,
+  Download,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,6 +97,178 @@ export function LiveOrdersManager({
   const [cancellingOrder, setCancellingOrder] = useState<StoredOrder | null>(null);
   const [selectedCancelReason, setSelectedCancelReason] = useState("Customer Left / Changed Mind");
   const [customCancelReason, setCustomCancelReason] = useState("");
+  const [viewingTableQr, setViewingTableQr] = useState<{ tableNumber: string; customerName?: string | null } | null>(null);
+  const tableQrRef = useRef<HTMLDivElement>(null);
+
+  const cleanTableNumber = (viewingTableQr?.tableNumber || "").replace(/[^0-9a-zA-Z_-]/g, "");
+  const currentTableUrl = useMemo(() => {
+    if (!cleanTableNumber) return "";
+    const base = typeof window !== "undefined" && window.location.origin
+      ? window.location.origin
+      : "https://menulyindia.online";
+    return `${base}/menu/${restaurantSlug}?table=${encodeURIComponent(cleanTableNumber)}`;
+  }, [cleanTableNumber, restaurantSlug]);
+
+  useEffect(() => {
+    if (!viewingTableQr || !tableQrRef.current || !currentTableUrl) return;
+    let alive = true;
+    import("qr-code-styling").then(({ default: QRCodeStyling }) => {
+      if (!alive || !tableQrRef.current) return;
+      tableQrRef.current.innerHTML = "";
+      const qr = new QRCodeStyling({
+        width: 220,
+        height: 220,
+        data: currentTableUrl,
+        dotsOptions: { color: "#1a1f1c", type: "rounded" },
+        cornersSquareOptions: { color: "#1a1f1c", type: "extra-rounded" },
+        cornersDotOptions: { color: "#1a1f1c", type: "dot" },
+        backgroundOptions: { color: "#ffffff" },
+        margin: 6,
+      });
+      qr.append(tableQrRef.current);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [viewingTableQr, currentTableUrl]);
+
+  const copyTableLink = async () => {
+    if (!currentTableUrl) return;
+    try {
+      await navigator.clipboard.writeText(currentTableUrl);
+      toast.success(`Copied Table #${cleanTableNumber} live menu link!`);
+    } catch {
+      toast.error("Failed to copy link");
+    }
+  };
+
+  const downloadTableQrPng = async () => {
+    if (!currentTableUrl) return;
+    try {
+      const { default: QRCodeStyling } = await import("qr-code-styling");
+      const qr = new QRCodeStyling({
+        width: 1024,
+        height: 1024,
+        data: currentTableUrl,
+        dotsOptions: { color: "#1a1f1c", type: "rounded" },
+        cornersSquareOptions: { color: "#1a1f1c", type: "extra-rounded" },
+        cornersDotOptions: { color: "#1a1f1c", type: "dot" },
+        backgroundOptions: { color: "#ffffff" },
+        margin: 16,
+      });
+      qr.download({ name: `${restaurantSlug}-table-${cleanTableNumber}-qr`, extension: "png" });
+      toast.success(`Downloaded Table #${cleanTableNumber} QR PNG`);
+    } catch {
+      toast.error("Failed to download QR");
+    }
+  };
+
+  const printTableStand = () => {
+    if (!currentTableUrl) return;
+    const printWindow = window.open("", "_blank", "width=600,height=720");
+    if (!printWindow) {
+      toast.error("Please allow popups to print table stand");
+      return;
+    }
+    const canvas = tableQrRef.current?.querySelector("canvas");
+    const dataUrl = canvas ? canvas.toDataURL("image/png") : "";
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Table #${cleanTableNumber} - ${restaurantName}</title>
+          <style>
+            @page { size: A5 portrait; margin: 8mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              background: #ffffff;
+              color: #1a1f1c;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              padding: 20px;
+            }
+            .stand {
+              border: 3px dashed #10b981;
+              border-radius: 24px;
+              padding: 36px 24px;
+              max-width: 420px;
+              width: 100%;
+              text-align: center;
+              background: #ffffff;
+            }
+            .pill {
+              display: inline-block;
+              background: #ecfdf5;
+              color: #047857;
+              font-size: 11px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              padding: 4px 14px;
+              border-radius: 9999px;
+              border: 1px solid #a7f3d0;
+            }
+            h1 { font-size: 28px; font-weight: 900; margin: 16px 0 6px; }
+            .table-badge {
+              font-size: 22px;
+              font-weight: 800;
+              color: #059669;
+              margin-bottom: 20px;
+            }
+            .qr-box {
+              display: inline-block;
+              padding: 12px;
+              border-radius: 18px;
+              border: 2px solid #e5e7eb;
+              background: #ffffff;
+              box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+            }
+            .qr-box img { display: block; width: 220px; height: 220px; }
+            .instruction {
+              font-size: 14px;
+              font-weight: 800;
+              margin-top: 20px;
+              color: #1f2937;
+            }
+            .sub {
+              font-size: 11px;
+              color: #6b7280;
+              margin-top: 4px;
+            }
+            .url {
+              font-family: monospace;
+              font-size: 10px;
+              color: #9ca3af;
+              margin-top: 18px;
+              word-break: break-all;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="stand">
+            <span class="pill">✦ Contactless Dine-In ✦</span>
+            <h1>${restaurantName}</h1>
+            <div class="table-badge">Table #${cleanTableNumber}</div>
+            <div class="qr-box">
+              ${dataUrl ? '<img src="' + dataUrl + '" alt="QR" />' : ''}
+            </div>
+            <p class="instruction">Point camera to view menu &amp; order</p>
+            <p class="sub">No app needed • Instant order to kitchen</p>
+            <p class="url">${currentTableUrl}</p>
+          </div>
+          <script>
+            window.onload = function() { window.print(); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   // Handle Mark Service Call as Attended (Optimistic 0ms instant update via store)
   const handleResolveServiceCall = async (callId: string) => {
@@ -521,6 +697,15 @@ export function LiveOrdersManager({
                         <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted-foreground">
                           {order.orderNumber}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => setViewingTableQr({ tableNumber: order.tableNumber, customerName: order.customerName })}
+                          className="inline-flex items-center gap-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary px-2 py-0.5 text-[10px] font-bold transition-colors cursor-pointer"
+                          title={`View Table #${order.tableNumber} QR & Menu Link`}
+                        >
+                          <QrCode className="size-3" />
+                          <span>QR</span>
+                        </button>
                       </div>
                       <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Clock className="size-3" /> {timeAgo(order.createdAt)}
@@ -700,7 +885,17 @@ export function LiveOrdersManager({
                       {o.orderNumber}
                     </td>
                     <td className="py-2.5 px-3 font-bold text-foreground">
-                      Table #{o.tableNumber}
+                      <div className="flex items-center gap-1.5">
+                        <span>Table #{o.tableNumber}</span>
+                        <button
+                          type="button"
+                          onClick={() => setViewingTableQr({ tableNumber: o.tableNumber, customerName: o.customerName })}
+                          className="inline-flex items-center gap-0.5 rounded bg-secondary hover:bg-secondary/80 text-[10px] px-1.5 py-0.5 text-primary font-semibold transition-colors cursor-pointer"
+                          title={`View Table #${o.tableNumber} QR`}
+                        >
+                          <QrCode className="size-2.5" /> QR
+                        </button>
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-muted-foreground max-w-[200px] truncate">
                       {o.items.map((it) => `${it.quantity}x ${it.name}`).join(", ")}
@@ -928,6 +1123,91 @@ export function LiveOrdersManager({
             >
               Confirm Cancellation
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 8. TABLE QR & DIRECT DINER MENU MODAL                         */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog open={Boolean(viewingTableQr)} onOpenChange={(open) => !open && setViewingTableQr(null)}>
+        <DialogContent className="sm:max-w-md p-6 rounded-3xl border-border bg-card space-y-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground font-serif text-lg">
+              <QrCode className="size-5 text-primary" />
+              <span>Table #{cleanTableNumber} Digital Menu &amp; QR</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-1">
+            {/* Scannable QR Code Canvas Box */}
+            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-secondary/30 border border-border/80">
+              <div
+                ref={tableQrRef}
+                className="size-[220px] flex items-center justify-center rounded-xl bg-white shadow-xs p-2"
+              />
+              <p className="text-[11px] font-semibold text-muted-foreground mt-3 flex items-center gap-1">
+                <span>Direct Diner Order link for Table #{cleanTableNumber}</span>
+              </p>
+            </div>
+
+            {/* Direct URL input with Copy button */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Table Menu URL
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={currentTableUrl}
+                  className="h-9 text-xs font-mono bg-secondary/40 border-border select-all"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={copyTableLink}
+                  className="h-9 px-3 text-xs gap-1 shrink-0 font-bold"
+                  title="Copy Table Link"
+                >
+                  <Copy className="size-3.5" /> Copy
+                </Button>
+              </div>
+            </div>
+
+            {/* Action Buttons: Open, Download PNG, Print Stand */}
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                asChild
+                className="text-xs h-9 font-semibold gap-1"
+              >
+                <a href={currentTableUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-3 text-primary" /> Open Menu
+                </a>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={downloadTableQrPng}
+                className="text-xs h-9 font-semibold gap-1"
+              >
+                <Download className="size-3" /> PNG QR
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={printTableStand}
+                className="text-xs h-9 font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Printer className="size-3" /> Print Stand
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
