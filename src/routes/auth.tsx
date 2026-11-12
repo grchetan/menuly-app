@@ -114,9 +114,6 @@ function AuthPage() {
   // Google One-Click Authentication States
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [showGoogleSetupDialog, setShowGoogleSetupDialog] = useState(false);
-  const [demoGoogleEmail, setDemoGoogleEmail] = useState("");
-  const [demoGoogleName, setDemoGoogleName] = useState("");
 
   // 1. Session & Google Callback Auto-Detection on Mount (With Smooth Skeleton Loading)
   useEffect(() => {
@@ -261,41 +258,7 @@ function AuthPage() {
         window.location.href = "/api/auth/google/redirect";
       }
     } else {
-      setShowGoogleSetupDialog(true);
-    }
-  };
-
-  const handleDemoGoogleAuth = async (emailToUse?: string, nameToUse?: string) => {
-    const targetEmail = (emailToUse || demoGoogleEmail || "demo.chef@gmail.com").trim().toLowerCase();
-    const targetName = (nameToUse || demoGoogleName || "Chef Demo").trim();
-
-    setIsGoogleLoading(true);
-    try {
-      const res = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          demoEmail: targetEmail,
-          demoName: targetName,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Demo Google sign-in failed.");
-      }
-
-      saveAuthSession(data.data.token, data.data.user);
-      toast.success(data.message || `Signed in as ${targetEmail}!`);
-      setShowGoogleSetupDialog(false);
-
-      const destination =
-        data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
-      navigate({ to: destination as any, replace: true });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(msg);
-    } finally {
-      setIsGoogleLoading(false);
+      toast.info("Google Sign-In is being enabled. Please continue with Email & Password or Phone OTP.");
     }
   };
 
@@ -1806,83 +1769,6 @@ function AuthPage() {
           </div>
         </div>
       </div>
-
-      {/* Google Setup & Developer Demo Test Dialog */}
-      <Dialog open={showGoogleSetupDialog} onOpenChange={setShowGoogleSetupDialog}>
-        <DialogContent className="max-w-md rounded-3xl p-6 sm:p-7 border border-border/80 shadow-lift">
-          <DialogHeader className="text-left space-y-2">
-            <div className="flex items-center gap-2.5">
-              <div className="size-10 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shadow-xs border border-border/80 shrink-0">
-                <GoogleIcon className="size-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
-                  Google One-Click Sign-In
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  Instant one-tap login and registration with Google
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="space-y-4 pt-2 text-xs leading-relaxed text-muted-foreground">
-            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3.5 space-y-2 text-foreground">
-              <p className="font-bold text-xs flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
-                <Sparkles className="size-3.5" /> How to connect your live Google Client ID:
-              </p>
-              <ol className="list-decimal pl-4 space-y-1 text-[11px] text-muted-foreground">
-                <li>Go to <strong>Google Cloud Console</strong> &rarr; APIs &amp; Services &rarr; Credentials.</li>
-                <li>Open or Create an <strong>OAuth 2.0 Client ID</strong> (Web Application).</li>
-                <li>Add Authorized JS Origins: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://menulyindia.online</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000</code></li>
-                <li>Add Authorized Redirects: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online/api/auth/google/callback</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://menulyindia.online/api/auth/google/callback</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000/api/auth/google/callback</code></li>
-                <li>In Supabase Dashboard &rarr; Authentication &rarr; URL Configuration: set Site URL to <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online</code> and add <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online/**</code> to Redirect URLs.</li>
-              </ol>
-            </div>
-
-            <div className="border-t border-border/70 pt-3 space-y-2.5">
-              <div>
-                <p className="font-bold text-foreground text-xs">
-                  Instant Development Test:
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Test the one-click Google flow right now. If the email already exists, you will be logged into that account. If new, a verified restaurant owner account will be created instantly.
-                </p>
-              </div>
-
-              <div className="space-y-2 pt-1">
-                <Input
-                  type="email"
-                  value={demoGoogleEmail}
-                  onChange={(e) => setDemoGoogleEmail(e.target.value)}
-                  placeholder="e.g. chef.rajesh@gmail.com (or leave blank for demo)"
-                  className="h-10 rounded-xl text-xs bg-background"
-                />
-                <Input
-                  type="text"
-                  value={demoGoogleName}
-                  onChange={(e) => setDemoGoogleName(e.target.value)}
-                  placeholder="Name (e.g. Rajesh Kumar)"
-                  className="h-10 rounded-xl text-xs bg-background"
-                />
-                <Button
-                  type="button"
-                  onClick={() => handleDemoGoogleAuth()}
-                  disabled={isGoogleLoading}
-                  className="w-full h-10 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-2 cursor-pointer shadow-soft"
-                >
-                  {isGoogleLoading ? (
-                    <RefreshCw className="size-3.5 animate-spin" />
-                  ) : (
-                    <GoogleIcon className="size-4" />
-                  )}
-                  <span>Simulate Instant Google Sign-In</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
