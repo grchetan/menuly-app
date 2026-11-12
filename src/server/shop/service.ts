@@ -794,11 +794,8 @@ export async function verifyPaymentSessionUtr(
     };
   }
 
-  session.status = "PAID";
   session.utr = cleanUtr;
-  session.verifiedVia = "INSTANT_UTR";
-  session.paidAt = new Date().toISOString();
-  session.bankAuditNote = `Customer submitted 12-digit UTR: ${cleanUtr}`;
+  session.bankAuditNote = `UTR submitted: ${cleanUtr} (Pending Bank or Super Admin approval)`;
 
   await prisma.platformSetting.upsert({
     where: { key: SETTING_KEY_PAYMENTS },
@@ -809,18 +806,14 @@ export async function verifyPaymentSessionUtr(
   cachedPaymentSessions = all;
   cacheTimePayments = Date.now();
 
-  // Also update corresponding Order if linked
+  // Also update corresponding Order if linked (mark UTR recorded, remains PENDING until bank/admin verification)
   if (session.orderId || session.orderNumber) {
     const orders = await getShopOrders();
     const ord = orders.find(
       (o) => o.id === session.orderId || o.orderNumber === session.orderNumber
     );
     if (ord) {
-      ord.paymentStatus = "PAID";
       ord.upiUtr = cleanUtr;
-      if (ord.status === "PLACED") {
-        ord.status = "PROCESSING";
-      }
       await prisma.platformSetting.upsert({
         where: { key: SETTING_KEY_ORDERS },
         create: { key: SETTING_KEY_ORDERS, value: orders as any },

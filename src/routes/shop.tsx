@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { cn } from "@/lib/utils";
 import {
   ShoppingCart,
   Package,
@@ -92,6 +93,270 @@ export const FLAT_DELIVERY_FEE = 80;
 // Official Kotak Mahindra Bank Merchant Details
 export const KOTAK_UPI_ID = "9179878521@kotakbank";
 export const KOTAK_ACCOUNT_NAME = "Menuly India";
+
+// 100% Offline Locally Generated Vector SVG UPI QR Code
+function LocalUpiQrCode({ upiUri }: { upiUri: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    if (typeof window === "undefined" || !containerRef.current) return;
+
+    setLoading(true);
+    import("qr-code-styling")
+      .then(({ default: QRCodeStyling }) => {
+        if (!alive || !containerRef.current) return;
+        containerRef.current.innerHTML = "";
+
+        const qr = new QRCodeStyling({
+          width: 220,
+          height: 220,
+          type: "svg",
+          data: upiUri,
+          margin: 6,
+          qrOptions: {
+            typeNumber: 0,
+            mode: "Byte",
+            errorCorrectionLevel: "M",
+          },
+          dotsOptions: {
+            color: "#0a0a0a",
+            type: "square",
+          },
+          backgroundOptions: {
+            color: "#ffffff",
+          },
+          cornersSquareOptions: {
+            color: "#0a0a0a",
+            type: "square",
+          },
+          cornersDotOptions: {
+            color: "#0a0a0a",
+            type: "square",
+          },
+        });
+
+        qr.append(containerRef.current);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [upiUri]);
+
+  return (
+    <div className="relative mx-auto w-56 h-56 border border-neutral-300 p-2 bg-white flex flex-col items-center justify-center shadow-xs">
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-10">
+          <RefreshCw className="size-6 animate-spin text-neutral-400" />
+          <span className="text-[10px] text-neutral-400 mt-2">Generating QR Code...</span>
+        </div>
+      )}
+      <div ref={containerRef} className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full" />
+    </div>
+  );
+}
+
+// Reusable Order Card with Prepaid/Postpaid & 4-Step Tracker
+function ShopOrderCard({
+  order,
+  products,
+  onPayUpi,
+  onReview,
+}: {
+  order: ShopOrder;
+  products: ShopProduct[];
+  onPayUpi: (order: ShopOrder) => void;
+  onReview: (productId: string, orderId: string) => void;
+}) {
+  const stepIndex =
+    order.status === "DELIVERED"
+      ? 3
+      : order.status === "SHIPPED"
+      ? 2
+      : order.status === "PROCESSING"
+      ? 1
+      : 0;
+
+  return (
+    <div className="border border-neutral-300 p-4 space-y-3 bg-white text-xs text-neutral-800 shadow-xs">
+      {/* Header: Order #, Date, Status */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2.5">
+        <div>
+          <span className="font-mono text-sm font-bold text-neutral-900 block">
+            #{order.orderNumber}
+          </span>
+          <span className="text-[10px] text-neutral-500">
+            Placed on{" "}
+            {new Date(order.createdAt).toLocaleString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "px-2.5 py-1 text-[10px] font-bold uppercase rounded-none border",
+              order.status === "DELIVERED"
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : order.status === "SHIPPED"
+                ? "bg-purple-50 text-purple-800 border-purple-200"
+                : order.status === "PROCESSING"
+                ? "bg-blue-50 text-blue-800 border-blue-200"
+                : order.status === "CANCELLED"
+                ? "bg-red-50 text-red-800 border-red-200"
+                : "bg-neutral-100 text-neutral-800 border-neutral-300"
+            )}
+          >
+            {order.status === "PROCESSING"
+              ? "Printing & Customizing"
+              : order.status === "SHIPPED"
+              ? "In Transit (Shipped)"
+              : order.status}
+          </span>
+        </div>
+      </div>
+
+      {/* Payment Details Box (Clear distinction: Prepaid vs COD Postpaid) */}
+      {order.paymentMode === "UPI" ? (
+        order.paymentStatus === "PAID" ? (
+          <div className="flex items-start gap-2.5 p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900">
+            <CheckCircle2 className="size-4 text-emerald-700 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-bold block">PREPAID ORDER — PAID VIA KOTAK UPI (₹{order.grandTotal})</span>
+              <p className="text-[10px] text-emerald-700 mt-0.5">
+                Payment verified &amp; settled directly into Kotak Bank account.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-amber-50 border border-amber-200 text-amber-900">
+            <div className="flex items-start gap-2">
+              <Clock className="size-4 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">PREPAID ORDER — PAYMENT PENDING (₹{order.grandTotal})</span>
+                <p className="text-[10px] text-amber-700 mt-0.5">
+                  Order is saved. Please scan Kotak QR code to complete payment and dispatch.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onPayUpi(order)}
+              className="bg-neutral-900 hover:bg-black text-white px-3 py-1.5 text-xs font-bold uppercase rounded-none cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+            >
+              <CreditCard className="size-3.5" /> Open QR &amp; Pay
+            </button>
+          </div>
+        )
+      ) : (
+        <div className="flex items-start gap-2.5 p-2.5 bg-neutral-100 border border-neutral-200 text-neutral-800">
+          <Truck className="size-4 text-neutral-700 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold block">CASH ON DELIVERY (POSTPAID)</span>
+            <p className="text-[10px] text-neutral-600 mt-0.5">
+              Please pay <strong>₹{order.grandTotal}</strong> in cash to the delivery partner upon arrival at your doorstep.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 4-Step Delivery Progress Line */}
+      <div className="py-2 border-y border-neutral-100">
+        <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
+          {["Placed", "Custom Printing", "Shipped", "Delivered"].map((st, idx) => {
+            const isDone = idx <= stepIndex;
+            const isCurrent = idx === stepIndex;
+            return (
+              <div key={st} className="flex flex-col items-center">
+                <div
+                  className={cn(
+                    "size-5 rounded-full flex items-center justify-center text-[10px] font-bold mb-1",
+                    isDone
+                      ? "bg-neutral-900 text-white"
+                      : "bg-neutral-200 text-neutral-500",
+                    isCurrent && "ring-2 ring-neutral-900 ring-offset-1"
+                  )}
+                >
+                  {idx + 1}
+                </div>
+                <span className={cn("font-medium", isDone ? "text-neutral-900 font-bold" : "text-neutral-400")}>
+                  {st}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Courier & Tracking (if shipped) */}
+      {(order.courierPartner || order.trackingNumber) && (
+        <div className="flex items-center justify-between p-2 bg-neutral-50 border border-neutral-200 text-xs">
+          <span>
+            <strong>Courier Partner:</strong> {order.courierPartner || "Express Courier"}
+          </span>
+          {order.trackingNumber && (
+            <div className="flex items-center gap-1">
+              <span className="text-neutral-500">Tracking:</span>
+              <span className="font-mono font-bold bg-white px-2 py-0.5 border text-neutral-900 select-all">
+                {order.trackingNumber}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delivery Address */}
+      <div className="text-[11px] text-neutral-600 space-y-0.5">
+        <p>
+          <strong>Delivery To:</strong> {order.shippingAddress.fullName} ({order.shippingAddress.phone})
+        </p>
+        <p>
+          {order.shippingAddress.street}, {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}
+          {order.shippingAddress.landmark ? ` (Landmark: ${order.shippingAddress.landmark})` : ""}
+        </p>
+      </div>
+
+      {/* Ordered Items List */}
+      <div className="border-t border-neutral-100 pt-2 space-y-1.5">
+        <p className="text-[11px] font-bold uppercase text-neutral-500">Items Ordered ({order.items.length})</p>
+        {order.items.map((it) => (
+          <div key={it.productId} className="flex items-center justify-between py-1 border-b border-neutral-100 last:border-0">
+            <span className="font-medium truncate max-w-[220px]">
+              {it.productName} × {it.quantity}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-neutral-900">₹{it.price * it.quantity}</span>
+              {order.status === "DELIVERED" ? (
+                <button
+                  type="button"
+                  onClick={() => onReview(it.productId, order.id)}
+                  className="bg-[#c5221f] text-white px-2.5 py-0.5 text-[10px] font-bold uppercase hover:bg-[#a91b18] cursor-pointer"
+                >
+                  ★ Review
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+        <div className="flex items-center justify-between pt-1 text-xs font-bold text-neutral-900">
+          <span>Grand Total (incl. ₹80 Delivery):</span>
+          <span>₹{order.grandTotal}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const INITIAL_FALLBACK_PRODUCTS: (ShopProduct & { sku: string })[] = [
   {
@@ -524,8 +789,6 @@ function ShopPublic() {
   const [upiModalOpen, setUpiModalOpen] = useState(false);
   const [activePaymentSession, setActivePaymentSession] = useState<ShopPaymentSession | null>(null);
   const [pendingUpiOrder, setPendingUpiOrder] = useState<ShopOrder | null>(null);
-  const [manualUtrInput, setManualUtrInput] = useState("");
-  const [submittingManualUtr, setSubmittingManualUtr] = useState(false);
 
   // Order Placement Result
   const [placedOrder, setPlacedOrder] = useState<ShopOrder | null>(null);
@@ -931,53 +1194,10 @@ function ShopPublic() {
           }
         }
       } catch {}
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [upiModalOpen, activePaymentSession, pendingUpiOrder, fetchUserOrders]);
-
-  // Submit UTR manually (Fallback when bank email is delayed)
-  const handleManualUtrSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePaymentSession) return;
-    const cleanUtr = manualUtrInput.trim().replace(/\D/g, "");
-    if (!cleanUtr || cleanUtr.length < 10) {
-      toast.error("Please enter a valid 12-digit UPI UTR from your payment app.");
-      return;
-    }
-
-    setSubmittingManualUtr(true);
-    try {
-      const res = await fetch("/api/shop/payments/submit-utr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: activePaymentSession.id,
-          utr: cleanUtr,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to verify UTR");
-      }
-
-      setActivePaymentSession(data.session);
-      setUpiModalOpen(false);
-      if (pendingUpiOrder) {
-        setPlacedOrder({
-          ...pendingUpiOrder,
-          paymentStatus: "PAID",
-          upiUtr: cleanUtr,
-        });
-      }
-      toast.success("UPI UTR Verified! Order confirmed.");
-      fetchUserOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to verify UTR. Check number and retry.");
-    } finally {
-      setSubmittingManualUtr(false);
-    }
-  };
 
   // Place Order / Start Payment Flow
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -1073,7 +1293,6 @@ function ShopPublic() {
 
       if (paymentMode === "UPI" && (createdSession || paymentSessionId)) {
         setPendingUpiOrder(data.order);
-        setManualUtrInput("");
         setUpiModalOpen(true);
         toast.info("Scan Kotak QR code or use your UPI app to complete payment.");
       } else {
@@ -1125,7 +1344,6 @@ function ShopPublic() {
       if (session) {
         setActivePaymentSession(session);
         setPendingUpiOrder(ord);
-        setManualUtrInput(ord.upiUtr || "");
         setTrackModalOpen(false);
         setUpiModalOpen(true);
       } else {
@@ -2514,18 +2732,10 @@ function ShopPublic() {
                 </p>
               </div>
 
-              {/* Dynamic Real Scannable QR Code */}
-              <div className="mx-auto w-56 h-56 border border-neutral-300 p-2 bg-white flex flex-col items-center justify-center relative shadow-sm">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(
-                    activePaymentSession.upiUri
-                  )}`}
-                  alt="Kotak Dynamic UPI QR Code"
-                  className="w-full h-full object-contain"
-                />
-              </div>
+              {/* Local Vector SVG QR Code (100% Reliable Offline Generation) */}
+              <LocalUpiQrCode upiUri={activePaymentSession.upiUri} />
               <p className="text-[11px] text-neutral-600 font-medium">
-                Scan with Google Pay, PhonePe, Paytm, BHIM, or any UPI app
+                Scan with Google Pay, PhonePe, Paytm, BHIM, CRED or any UPI app
               </p>
 
               {/* Account details & 1-click copy */}
@@ -2549,8 +2759,10 @@ function ShopPublic() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-neutral-500">Txn Ref:</span>
-                  <span className="font-mono text-[10px] text-neutral-700">{activePaymentSession.id}</span>
+                  <span className="text-neutral-500">Order Reference:</span>
+                  <span className="font-mono text-[11px] text-neutral-800 font-semibold">
+                    {activePaymentSession.orderNumber || activePaymentSession.id}
+                  </span>
                 </div>
               </div>
 
@@ -2560,43 +2772,21 @@ function ShopPublic() {
                   href={activePaymentSession.upiUri}
                   className="block w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black transition-colors"
                 >
-                  Pay via GPay / PhonePe / Paytm
+                  Pay via GPay / PhonePe / Paytm App
                 </a>
               </div>
 
-              {/* Live Status Detector Pulse */}
-              <div className="flex items-center justify-center gap-2 text-xs text-neutral-600 pt-1">
-                <RefreshCw className="size-3.5 animate-spin text-emerald-700" />
-                <span>Auto-detecting Kotak Bank credit confirmation...</span>
-              </div>
-
-              {/* Instant UTR Fallback (When bank email is delayed) */}
-              <div className="border-t border-neutral-200 pt-4 text-left space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-neutral-800">
-                    Already paid? Submit 12-Digit UTR to confirm order:
-                  </p>
-                  <span className="text-[10px] text-neutral-500 font-medium">Instant</span>
+              {/* Live Status Detector & Clear Instruction */}
+              <div className="bg-emerald-50/80 border border-emerald-200/80 p-3.5 rounded-none text-left space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                  <RefreshCw className="size-3.5 animate-spin text-emerald-700 shrink-0" />
+                  <span>Auto-detecting payment with Kotak Bank...</span>
                 </div>
-                <form onSubmit={handleManualUtrSubmit} className="flex gap-2">
-                  <Input
-                    required
-                    maxLength={12}
-                    value={manualUtrInput}
-                    onChange={(e) => setManualUtrInput(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Enter 12-digit UPI UTR"
-                    className="rounded-none border-neutral-300 text-xs flex-1 font-mono"
-                  />
-                  <button
-                    type="submit"
-                    disabled={submittingManualUtr || manualUtrInput.length < 10}
-                    className="bg-[#c5221f] text-white px-4 py-1.5 text-xs font-bold uppercase hover:bg-[#a91b18] disabled:opacity-50 cursor-pointer"
-                  >
-                    {submittingManualUtr ? "Verifying..." : "Verify UTR"}
-                  </button>
-                </form>
-                <p className="text-[10px] text-neutral-500">
-                  Open your UPI app transaction receipt and copy the 12-digit UPI Reference / UTR.
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Apne kisi bhi UPI app se ₹{activePaymentSession.amount} pay karein. Jaise hi Kotak Bank mein credit confirm hoga, yeh screen automatically order confirm kar degi.
+                </p>
+                <p className="text-[10px] text-emerald-700/90 font-semibold">
+                  ✓ 100% Automatic • Koi UTR ya Reference number type karne ki zaroorat nahi hai.
                 </p>
               </div>
 
@@ -2607,7 +2797,7 @@ function ShopPublic() {
                   onClick={() => {
                     setUpiModalOpen(false);
                     if (pendingUpiOrder) {
-                      toast.info(`Order #${pendingUpiOrder.orderNumber} saved as Pending Payment. You can pay anytime from Track Orders.`);
+                      toast.info(`Order #${pendingUpiOrder.orderNumber} saved as Pending Payment. You can open and pay anytime from Track Orders.`);
                     }
                   }}
                   className="text-xs text-neutral-500 hover:text-neutral-900 underline cursor-pointer"
@@ -2637,41 +2827,36 @@ function ShopPublic() {
               <div className="border border-neutral-200 p-4 space-y-2 bg-neutral-50/50">
                 <p className="text-neutral-500">Order Number</p>
                 <p className="font-mono text-base font-bold text-neutral-900">
-                  {placedOrder.orderNumber}
+                  #{placedOrder.orderNumber}
                 </p>
                 <p className="text-[11px] text-neutral-500">
                   Save this order number to track your package status.
                 </p>
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <p>
                   <strong>Total Amount:</strong> ₹{placedOrder.grandTotal}
                 </p>
                 <p>
                   <strong>Payment Mode:</strong>{" "}
                   {placedOrder.paymentMode === "UPI" ? (
-                    <span className="text-purple-700 font-bold">
-                      Kotak Direct UPI {placedOrder.paymentStatus === "PAID" ? "(PAID & VERIFIED)" : "(Pending Verification)"}
+                    <span className="text-emerald-700 font-bold">
+                      Prepaid (Kotak Direct UPI) • Verified ✓
                     </span>
                   ) : (
-                    <span className="text-emerald-700 font-bold">Cash on Delivery</span>
+                    <span className="text-neutral-800 font-bold">Cash on Delivery (Postpaid)</span>
                   )}
                 </p>
-                {placedOrder.upiUtr && (
-                  <p>
-                    <strong>12-Digit UTR:</strong> <span className="font-mono font-bold bg-neutral-100 px-1 py-0.5">{placedOrder.upiUtr}</span>
-                  </p>
-                )}
                 <p>
-                  <strong>Delivery To:</strong> {placedOrder.shippingAddress.street},{" "}
-                  {placedOrder.shippingAddress.city}, {placedOrder.shippingAddress.state} -{" "}
-                  {placedOrder.shippingAddress.pincode}
+                  <strong>Delivery To:</strong> {placedOrder.shippingAddress.fullName},{" "}
+                  {placedOrder.shippingAddress.street}, {placedOrder.shippingAddress.city},{" "}
+                  {placedOrder.shippingAddress.state} - {placedOrder.shippingAddress.pincode}
                 </p>
               </div>
 
               <p className="text-[11px] text-neutral-500 pt-2 border-t border-neutral-200">
-                Your order is being custom printed. Once delivered, you can submit your verified product review from the Track Orders tab.
+                Your merchandise order is being custom printed. Once delivered, you can submit your verified product review from the Track Orders tab.
               </p>
             </div>
           )}
@@ -2724,144 +2909,56 @@ function ShopPublic() {
 
             {/* Tracked Order Result */}
             {trackedOrder && (
-              <div className="border border-neutral-300 p-4 space-y-3 bg-neutral-50/50">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-neutral-900">
-                    {trackedOrder.orderNumber}
-                  </span>
-                  <span className="text-[11px] font-bold uppercase bg-neutral-900 text-white px-2 py-0.5">
-                    {trackedOrder.status}
-                  </span>
-                </div>
-
-                <div className="text-xs space-y-1 text-neutral-600">
-                  <p>
-                    <strong>Courier:</strong> {trackedOrder.courierPartner || "Standard Express"}
-                  </p>
-                  {trackedOrder.trackingNumber && (
-                    <p>
-                      <strong>Tracking ID:</strong> {trackedOrder.trackingNumber}
-                    </p>
-                  )}
-                  <p>
-                    <strong>Grand Total:</strong> ₹{trackedOrder.grandTotal} ({trackedOrder.paymentMode})
-                  </p>
-                </div>
-
-                {/* Items and Rate Button if DELIVERED */}
-                <div className="border-t border-neutral-200 pt-3 space-y-2">
-                  <p className="text-xs font-semibold text-neutral-800">Items Ordered:</p>
-                  {trackedOrder.items.map((it) => (
-                    <div
-                      key={it.productId}
-                      className="flex items-center justify-between text-xs border border-neutral-200 p-2 bg-white"
-                    >
-                      <span>
-                        {it.productName} × {it.quantity}
-                      </span>
-                      {trackedOrder.status === "DELIVERED" ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const prod = products.find((p) => p.id === it.productId) || {
-                              id: it.productId,
-                              name: it.productName,
-                              description: "",
-                              price: it.price,
-                              image: it.image,
-                              inStock: true,
-                              createdAt: "",
-                              updatedAt: "",
-                            };
-                            setReviewModalProduct(prod);
-                            setReviewModalOrderId(trackedOrder.id);
-                          }}
-                          className="bg-[#c5221f] text-white px-3 py-1 text-[11px] font-bold hover:bg-[#a91b18] cursor-pointer"
-                        >
-                          ★ Rate &amp; Review
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-neutral-400">Review on delivery</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold uppercase text-neutral-900">Tracked Order Details</h4>
+                <ShopOrderCard
+                  order={trackedOrder}
+                  products={products}
+                  onPayUpi={handlePayOrderUpi}
+                  onReview={(prodId, ordId) => {
+                    const prod = products.find((p) => p.id === prodId) || {
+                      id: prodId,
+                      name: "Product",
+                      description: "",
+                      price: 0,
+                      image: "/assets/shop-stand.png",
+                      inStock: true,
+                      createdAt: "",
+                      updatedAt: "",
+                    };
+                    setReviewModalProduct(prod);
+                    setReviewModalOrderId(ordId);
+                  }}
+                />
               </div>
             )}
 
             {/* My Past Orders List */}
             {userOrders.length > 0 && (
               <div className="space-y-3 border-t border-neutral-200 pt-4">
-                <h4 className="text-xs font-bold uppercase text-neutral-900">Your Past Orders</h4>
+                <h4 className="text-xs font-bold uppercase text-neutral-900">Your Past Orders ({userOrders.length})</h4>
                 <div className="space-y-3">
                   {userOrders.map((ord) => (
-                    <div key={ord.id} className="border border-neutral-200 p-3 space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold">{ord.orderNumber}</span>
-                        <span className="bg-neutral-100 text-neutral-800 font-bold px-2 py-0.5 text-[10px]">
-                          {ord.status}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-neutral-500 text-[11px]">
-                        <span>
-                          Placed on {new Date(ord.createdAt).toLocaleDateString()} • ₹{ord.grandTotal} (
-                          {ord.paymentMode === "UPI" ? "Kotak UPI" : "COD"})
-                        </span>
-                        {ord.paymentMode === "UPI" && ord.paymentStatus !== "PAID" && (
-                          <button
-                            type="button"
-                            onClick={() => handlePayOrderUpi(ord)}
-                            className="bg-neutral-900 hover:bg-black text-white px-2.5 py-1 text-[10px] font-bold uppercase rounded-none cursor-pointer flex items-center gap-1"
-                          >
-                            <CreditCard className="size-3" /> Pay Now via Kotak UPI
-                          </button>
-                        )}
-                        {ord.paymentMode === "UPI" && ord.paymentStatus === "PAID" && (
-                          <span className="text-emerald-700 font-bold text-[10px] flex items-center gap-1">
-                            <CheckCircle2 className="size-3" /> Paid &amp; Verified {ord.upiUtr ? `(UTR: ${ord.upiUtr})` : ""}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Items with review buttons */}
-                      <div className="space-y-1 pt-1">
-                        {ord.items.map((it) => (
-                          <div
-                            key={it.productId}
-                            className="flex items-center justify-between border-t border-neutral-100 pt-1"
-                          >
-                            <span className="truncate max-w-[200px]">
-                              {it.productName} ({it.quantity})
-                            </span>
-                            {ord.status === "DELIVERED" ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const prod = products.find((p) => p.id === it.productId) || {
-                                    id: it.productId,
-                                    name: it.productName,
-                                    description: "",
-                                    price: it.price,
-                                    image: it.image,
-                                    inStock: true,
-                                    createdAt: "",
-                                    updatedAt: "",
-                                  };
-                                  setReviewModalProduct(prod);
-                                  setReviewModalOrderId(ord.id);
-                                }}
-                                className="text-[#c5221f] hover:underline font-bold text-[11px] cursor-pointer"
-                              >
-                                ★ Review Item
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-neutral-400">Delivering soon</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <ShopOrderCard
+                      key={ord.id}
+                      order={ord}
+                      products={products}
+                      onPayUpi={handlePayOrderUpi}
+                      onReview={(prodId, ordId) => {
+                        const prod = products.find((p) => p.id === prodId) || {
+                          id: prodId,
+                          name: "Product",
+                          description: "",
+                          price: 0,
+                          image: "/assets/shop-stand.png",
+                          inStock: true,
+                          createdAt: "",
+                          updatedAt: "",
+                        };
+                        setReviewModalProduct(prod);
+                        setReviewModalOrderId(ordId);
+                      }}
+                    />
                   ))}
                 </div>
               </div>
