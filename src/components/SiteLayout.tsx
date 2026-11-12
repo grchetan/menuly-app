@@ -10,14 +10,20 @@ import { AnnouncementMarquee } from "./AnnouncementMarquee";
 import { APP_NAME, SUPPORT_EMAIL, SUPPORT_WHATSAPP, whatsappLink, INSTAGRAM_URL, FACEBOOK_URL } from "@/lib/config";
 import { isDemoMode } from "@/lib/restaurant";
 
-const publicLinks = [
+interface NavLinkItem {
+  to: string;
+  label: string;
+  soon?: boolean;
+}
+
+const publicLinks: NavLinkItem[] = [
   { to: "/", label: "Home" },
   { to: "/how-to-use", label: "How to use" },
   { to: "/restaurants", label: "Community" },
-  { to: "/shop", label: "Shop", soon: true },
+  { to: "/shop", label: "Shop" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
-] as const;
+];
 
 const authenticatedLinks = [
   { to: "/dashboard", label: "Dashboard" },
@@ -206,11 +212,11 @@ export function SiteHeader() {
                   )}
                 >
                   {l.label}
-                  {"soon" in l && l.soon && (
+                  {l.soon ? (
                     <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-foreground">
                       soon
                     </span>
-                  )}
+                  ) : null}
                 </Link>
               );
             })}
@@ -320,11 +326,11 @@ export function SiteHeader() {
             >
               <span className="flex items-center gap-2">
                 {l.label}
-                {"soon" in l && l.soon && (
+                {l.soon ? (
                   <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-sans font-bold uppercase tracking-wider text-accent-foreground">
                     soon
                   </span>
-                )}
+                ) : null}
               </span>
               <ArrowRight className="size-5 opacity-60" />
             </Link>

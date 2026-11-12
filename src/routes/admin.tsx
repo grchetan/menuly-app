@@ -68,7 +68,12 @@ import {
   Image as ImageIcon,
   Edit3,
   Upload,
+  ShoppingBag,
+  Truck,
+  Package,
+  Tag,
 } from "lucide-react";
+import type { ShopProduct, ShopOrder, ShopOrderStatus } from "@/lib/shop-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -392,7 +397,7 @@ function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "starter-packs" | "settings" | "trash">("restaurants");
+  const [activeTab, setActiveTab] = useState<"restaurants" | "plans" | "users" | "tickets" | "feedbacks" | "analytics" | "starter-packs" | "settings" | "shop" | "trash">("restaurants");
   const [restaurants, setRestaurants] = useState<AdminRestaurant[]>([]);
   const [plans, setPlans] = useState<AdminPlan[]>(DEFAULT_ADMIN_PLANS);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -402,6 +407,18 @@ function AdminPage() {
   const [banningUserId, setBanningUserId] = useState<string | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Merch Shop Admin State
+  const [shopProducts, setShopProducts] = useState<ShopProduct[]>([]);
+  const [shopOrders, setShopOrders] = useState<ShopOrder[]>([]);
+  const [shopSubTab, setShopSubTab] = useState<"products" | "orders">("products");
+  const [editingShopProduct, setEditingShopProduct] = useState<Partial<ShopProduct> | null>(null);
+  const [savingShopProduct, setSavingShopProduct] = useState(false);
+  const [statusDialogOrder, setStatusDialogOrder] = useState<ShopOrder | null>(null);
+  const [selectedShopStatus, setSelectedShopStatus] = useState<ShopOrderStatus>("PLACED");
+  const [courierPartnerInput, setCourierPartnerInput] = useState("");
+  const [trackingNumberInput, setTrackingNumberInput] = useState("");
+  const [updatingShopStatus, setUpdatingShopStatus] = useState(false);
 
   // Starter Menu Packs Admin State
   const [adminPresets, setAdminPresets] = useState<PresetTemplate[]>(STARTER_PRESETS);
@@ -653,8 +670,18 @@ function AdminPage() {
       })
         .then((res) => res.json())
         .catch(() => ({ success: false })),
+      fetch("/api/admin/shop/products", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
+      fetch("/api/admin/shop/orders", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
     ])
-      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData, trashData]) => {
+      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData, trashData, shopProductsData, shopOrdersData]) => {
         // Auto-detect expired token or authorization error
         const isAuthError =
           Boolean(userData?.error && (userData.error.includes("Unauthorized") || userData.error.includes("Forbidden") || userData.error.includes("token"))) ||
@@ -670,6 +697,12 @@ function AdminPage() {
 
         if (trashData?.success && Array.isArray(trashData.trash)) {
           setTrashItems(trashData.trash);
+        }
+        if (shopProductsData?.success && Array.isArray(shopProductsData.products)) {
+          setShopProducts(shopProductsData.products);
+        }
+        if (shopOrdersData?.success && Array.isArray(shopOrdersData.orders)) {
+          setShopOrders(shopOrdersData.orders);
         }
         if (pendingData?.success && Array.isArray(pendingData.pending)) {
           setPendingSignups(pendingData.pending);
@@ -1232,6 +1265,125 @@ function AdminPage() {
       toast.success("Abandoned registration lead removed.");
     } catch (err: any) {
       toast.error(err.message || "Failed to remove record");
+    }
+  };
+
+  // Merch Shop Admin Handlers
+  const fetchAdminShopData = useCallback(async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+    try {
+      const [pRes, oRes] = await Promise.all([
+        fetch("/api/admin/shop/products", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then((r) => r.json()),
+        fetch("/api/admin/shop/orders", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then((r) => r.json()),
+      ]);
+      if (pRes?.success && Array.isArray(pRes.products)) setShopProducts(pRes.products);
+      if (oRes?.success && Array.isArray(oRes.orders)) setShopOrders(oRes.orders);
+    } catch {}
+  }, []);
+
+  const handleSaveShopProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingShopProduct?.name?.trim() || editingShopProduct.price === undefined) {
+      toast.error("Product name and price are required");
+      return;
+    }
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+
+    setSavingShopProduct(true);
+    try {
+      const res = await fetch("/api/admin/shop/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editingShopProduct),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save product");
+      }
+      toast.success("Merchandise product saved successfully!");
+      setEditingShopProduct(null);
+      fetchAdminShopData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save product");
+    } finally {
+      setSavingShopProduct(false);
+    }
+  };
+
+  const handleDeleteShopProduct = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this merchandise product?")) return;
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/admin/shop/products?id=${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete product");
+      }
+      toast.success("Product deleted successfully");
+      setShopProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete product");
+    }
+  };
+
+  const handleShopProductImageUpload = async (file: File) => {
+    try {
+      setIsCompressingImage(true);
+      const res = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.74 });
+      setEditingShopProduct((prev) => (prev ? { ...prev, image: res.dataUrl } : { image: res.dataUrl }));
+      toast.success(`Image uploaded & compressed (${res.summary})`);
+    } catch {
+      toast.error("Failed to process product image");
+    } finally {
+      setIsCompressingImage(false);
+    }
+  };
+
+  const handleUpdateShopOrderStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statusDialogOrder) return;
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+
+    setUpdatingShopStatus(true);
+    try {
+      const res = await fetch("/api/admin/shop/orders/status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: statusDialogOrder.id,
+          status: selectedShopStatus,
+          courierPartner: courierPartnerInput.trim() || undefined,
+          trackingNumber: trackingNumberInput.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update order status");
+      }
+      toast.success(`Order ${statusDialogOrder.orderNumber} updated to ${selectedShopStatus}!`);
+      setStatusDialogOrder(null);
+      fetchAdminShopData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update order status");
+    } finally {
+      setUpdatingShopStatus(false);
     }
   };
 
@@ -2010,6 +2162,26 @@ function AdminPage() {
               <Settings className="size-4 shrink-0" />
               <span className="hidden sm:inline">Platform Settings</span>
               <span className="sm:hidden">Settings</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => handleTabSelect("shop", e)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none",
+                activeTab === "shop"
+                  ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                  : "bg-secondary/90 text-foreground/85 hover:bg-secondary hover:text-foreground border border-border/40"
+              )}
+            >
+              <ShoppingBag className="size-4 shrink-0 text-amber-500" />
+              <span className="hidden sm:inline">Merch Shop</span>
+              <span className="sm:hidden">Shop</span>
+              {shopOrders.length > 0 && (
+                <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold">
+                  {shopOrders.length}
+                </span>
+              )}
             </button>
 
             <button
@@ -4336,6 +4508,315 @@ function AdminPage() {
           </div>
         )}
 
+        {/* TAB: MERCHANDISE SHOP & CUSTOMER ORDERS */}
+        {activeTab === "shop" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <ShoppingBag className="size-4" />
+                  </div>
+                  <h2 className="text-xl font-bold font-display text-foreground">
+                    Physical Merchandise &amp; Print Shop
+                  </h2>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Manage printed QR stands, posters, sticker packs, offer discounts, prices, and fulfill customer Cash on Delivery orders.
+                </p>
+              </div>
+
+              {/* Sub-tab toggle */}
+              <div className="flex rounded-xl bg-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => setShopSubTab("products")}
+                  className={cn(
+                    "rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    shopSubTab === "products"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Products Catalog ({shopProducts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShopSubTab("orders")}
+                  className={cn(
+                    "rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    shopSubTab === "orders"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Customer Orders ({shopOrders.length})
+                </button>
+              </div>
+            </div>
+
+            {/* SUB-TAB 1: PRODUCTS CATALOG */}
+            {shopSubTab === "products" && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">Active Merchandise Items</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Edit product pricing, special offer discounts, badges, stock availability or add new printed merchandise.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() =>
+                      setEditingShopProduct({
+                        name: "",
+                        description: "",
+                        price: 399,
+                        originalPrice: 599,
+                        badge: "NEW ARRIVAL",
+                        image: "/assets/shop-stand.png",
+                        inStock: true,
+                        features: ["Custom laser printing", "UV & water resistant"],
+                      })
+                    }
+                    size="sm"
+                    className="rounded-xl font-bold text-xs gap-1.5 shadow-soft"
+                  >
+                    <Plus className="size-3.5" /> Add Product
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {shopProducts.map((p) => {
+                    const discount =
+                      p.originalPrice && p.originalPrice > p.price
+                        ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+                        : 0;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className="rounded-2xl border border-border/80 bg-card p-4 shadow-soft space-y-3 flex flex-col justify-between"
+                      >
+                        <div className="flex gap-3 items-start">
+                          <img
+                            src={p.image.startsWith("data:") ? p.image : p.image}
+                            alt={p.name}
+                            className="size-16 rounded-xl object-cover bg-muted shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {p.badge && (
+                                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-extrabold text-primary uppercase">
+                                  {p.badge}
+                                </span>
+                              )}
+                              {discount > 0 && (
+                                <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-700 dark:text-amber-300">
+                                  {discount}% OFF
+                                </span>
+                              )}
+                              <span
+                                className={`text-[10px] font-bold ml-auto ${
+                                  p.inStock ? "text-veg" : "text-destructive"
+                                }`}
+                              >
+                                {p.inStock ? "In Stock" : "Out of Stock"}
+                              </span>
+                            </div>
+
+                            <h4 className="font-bold text-xs text-foreground mt-1 truncate">
+                              {p.name}
+                            </h4>
+                            <div className="flex items-baseline gap-1.5 mt-0.5">
+                              <span className="font-display text-base font-extrabold text-foreground">
+                                ₹{p.price}
+                              </span>
+                              {p.originalPrice && p.originalPrice > p.price && (
+                                <span className="text-xs text-muted-foreground line-through">
+                                  ₹{p.originalPrice}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-amber-500 mt-1">
+                              <Star className="size-3 fill-amber-500" />
+                              <span>{p.rating || 5.0}</span>
+                              <span className="text-muted-foreground">({p.reviewsCount || 0} reviews)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-muted-foreground line-clamp-2">
+                          {p.description}
+                        </p>
+
+                        <div className="border-t border-border/60 pt-2.5 flex items-center justify-between gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingShopProduct({ ...p })}
+                            className="flex-1 rounded-xl text-xs font-semibold h-8"
+                          >
+                            <Edit3 className="size-3 mr-1" /> Edit Product
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteShopProduct(p.id)}
+                            className="rounded-xl text-destructive hover:bg-destructive/10 h-8 px-2.5"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 2: CUSTOMER ORDERS */}
+            {shopSubTab === "orders" && (
+              <div className="space-y-6">
+                {/* Orders Metrics Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-2xl border border-border/80 bg-card p-3.5">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase">Total Orders</span>
+                    <p className="font-display text-2xl font-black text-foreground mt-1">{shopOrders.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3.5">
+                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold uppercase">Placed / Pending</span>
+                    <p className="font-display text-2xl font-black text-amber-600 mt-1">
+                      {shopOrders.filter((o) => o.status === "PLACED" || o.status === "PROCESSING").length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-3.5">
+                    <span className="text-[10px] text-purple-700 dark:text-purple-300 font-bold uppercase">Shipped / In Transit</span>
+                    <p className="font-display text-2xl font-black text-purple-600 mt-1">
+                      {shopOrders.filter((o) => o.status === "SHIPPED").length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-veg/30 bg-veg/5 p-3.5">
+                    <span className="text-[10px] text-veg font-bold uppercase">Delivered</span>
+                    <p className="font-display text-2xl font-black text-veg mt-1">
+                      {shopOrders.filter((o) => o.status === "DELIVERED").length}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Orders Table */}
+                {shopOrders.length === 0 ? (
+                  <div className="py-12 text-center rounded-2xl border border-dashed border-border p-8">
+                    <ShoppingBag className="size-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm font-bold text-foreground">No merchandise orders yet</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Customer orders placed from /shop will appear here with shipping addresses and COD totals.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-soft">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-muted/40 border-b border-border/80 text-[10px] uppercase font-bold text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-3">Order # &amp; Date</th>
+                            <th className="px-4 py-3">Customer &amp; Contact</th>
+                            <th className="px-4 py-3">Delivery Address</th>
+                            <th className="px-4 py-3">Items Ordered</th>
+                            <th className="px-4 py-3">Total (COD)</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {shopOrders.map((o) => (
+                            <tr key={o.id} className="hover:bg-muted/20">
+                              <td className="px-4 py-3 font-medium">
+                                <span className="font-mono font-bold text-primary">{o.orderNumber}</span>
+                                <span className="block text-[10px] text-muted-foreground mt-0.5">
+                                  {new Date(o.createdAt).toLocaleDateString()}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-bold text-foreground block">{o.customerName}</span>
+                                <span className="text-muted-foreground font-mono text-[11px]">{o.customerPhone}</span>
+                                {o.customerEmail && (
+                                  <span className="block text-[10px] text-muted-foreground">{o.customerEmail}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 max-w-[200px]">
+                                <p className="text-[11px] text-foreground font-medium truncate">{o.shippingAddress.street}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {o.shippingAddress.city}, {o.shippingAddress.state} - {o.shippingAddress.pincode}
+                                </p>
+                                {o.shippingAddress.landmark && (
+                                  <p className="text-[9px] text-muted-foreground italic">Landmark: {o.shippingAddress.landmark}</p>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 max-w-[180px]">
+                                {o.items.map((it, idx) => (
+                                  <div key={idx} className="text-[11px] text-foreground leading-tight">
+                                    {it.quantity}x {it.productName} (₹{it.price})
+                                  </div>
+                                ))}
+                                <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                                  Incl. ₹80 Delivery
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-black text-foreground text-sm">₹{o.grandTotal}</span>
+                                <span className="block text-[10px] text-veg font-bold uppercase">COD</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={cn(
+                                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                                    o.status === "DELIVERED"
+                                      ? "bg-veg/10 text-veg"
+                                      : o.status === "SHIPPED"
+                                      ? "bg-purple-500/10 text-purple-700"
+                                      : o.status === "PROCESSING"
+                                      ? "bg-blue-500/10 text-blue-700"
+                                      : o.status === "CANCELLED"
+                                      ? "bg-destructive/10 text-destructive"
+                                      : "bg-amber-500/10 text-amber-700"
+                                  )}
+                                >
+                                  {o.status}
+                                </span>
+                                {o.courierPartner && (
+                                  <span className="block text-[9px] text-muted-foreground mt-1">
+                                    {o.courierPartner} {o.trackingNumber ? `(${o.trackingNumber})` : ""}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setStatusDialogOrder(o);
+                                    setSelectedShopStatus(o.status);
+                                    setCourierPartnerInput(o.courierPartner || "");
+                                    setTrackingNumberInput(o.trackingNumber || "");
+                                  }}
+                                  className="rounded-xl text-xs font-semibold h-7 px-2.5"
+                                >
+                                  Update Status
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB: TRASH / RECYCLE BIN (30-DAY AUTO PURGE) */}
         {activeTab === "trash" && (
           <div className="space-y-6">
@@ -4998,6 +5479,267 @@ function AdminPage() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit / Add Merchandise Product Dialog */}
+        <Dialog
+          open={Boolean(editingShopProduct)}
+          onOpenChange={(open) => !open && setEditingShopProduct(null)}
+        >
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+                <ShoppingBag className="size-5 text-primary" />
+                {editingShopProduct?.id ? "Edit Merchandise Product" : "Add New Merchandise Product"}
+              </DialogTitle>
+            </DialogHeader>
+
+            {editingShopProduct && (
+              <form onSubmit={handleSaveShopProduct} className="space-y-4 pt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Product Title / Name *</Label>
+                  <Input
+                    value={editingShopProduct.name || ""}
+                    onChange={(e) =>
+                      setEditingShopProduct({ ...editingShopProduct, name: e.target.value })
+                    }
+                    placeholder="e.g. Acrylic Table Stand"
+                    required
+                    className="text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Description *</Label>
+                  <Textarea
+                    value={editingShopProduct.description || ""}
+                    onChange={(e) =>
+                      setEditingShopProduct({ ...editingShopProduct, description: e.target.value })
+                    }
+                    placeholder="Describe material, look, durability..."
+                    rows={2}
+                    className="text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Selling Price (₹) *</Label>
+                    <Input
+                      type="number"
+                      value={editingShopProduct.price ?? ""}
+                      onChange={(e) =>
+                        setEditingShopProduct({
+                          ...editingShopProduct,
+                          price: Number(e.target.value),
+                        })
+                      }
+                      placeholder="499"
+                      required
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Original Price / MRP (₹)</Label>
+                    <Input
+                      type="number"
+                      value={editingShopProduct.originalPrice ?? ""}
+                      onChange={(e) =>
+                        setEditingShopProduct({
+                          ...editingShopProduct,
+                          originalPrice: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                      placeholder="799"
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Badge / Offer Tag</Label>
+                    <Input
+                      value={editingShopProduct.badge || ""}
+                      onChange={(e) =>
+                        setEditingShopProduct({ ...editingShopProduct, badge: e.target.value })
+                      }
+                      placeholder="e.g. MOST POPULAR, 35% OFF"
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Stock Availability</Label>
+                    <select
+                      value={editingShopProduct.inStock ? "true" : "false"}
+                      onChange={(e) =>
+                        setEditingShopProduct({
+                          ...editingShopProduct,
+                          inStock: e.target.value === "true",
+                        })
+                      }
+                      className="w-full h-9 rounded-xl border border-input bg-background px-3 text-xs"
+                    >
+                      <option value="true">In Stock (Available)</option>
+                      <option value="false">Out of Stock</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Image Upload / URL */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold">Product Image</Label>
+                  <div className="flex items-center gap-3">
+                    {editingShopProduct.image && (
+                      <img
+                        src={editingShopProduct.image}
+                        alt="Preview"
+                        className="size-14 rounded-xl object-cover bg-muted border border-border"
+                      />
+                    )}
+                    <div className="flex-1 space-y-1.5">
+                      <label className="cursor-pointer inline-block">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleShopProductImageUpload(file);
+                          }}
+                        />
+                        <span className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold hover:bg-secondary">
+                          <Upload className="size-3 text-primary" />
+                          {isCompressingImage ? "Compressing WebP..." : "Upload & Compress Image"}
+                        </span>
+                      </label>
+                      <Input
+                        value={editingShopProduct.image?.startsWith("data:") ? "" : (editingShopProduct.image || "")}
+                        onChange={(e) =>
+                          setEditingShopProduct({ ...editingShopProduct, image: e.target.value })
+                        }
+                        placeholder="Or paste image URL (/assets/... or https://...)"
+                        className="text-xs h-8 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-border/70">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingShopProduct(null)}
+                    className="rounded-xl text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={savingShopProduct}
+                    size="sm"
+                    className="rounded-xl text-xs font-bold shadow-soft"
+                  >
+                    {savingShopProduct ? (
+                      <>
+                        <RotateCw className="size-3.5 animate-spin mr-1" /> Saving...
+                      </>
+                    ) : (
+                      "Save Product"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Update Order Status & Courier Details Dialog */}
+        <Dialog
+          open={Boolean(statusDialogOrder)}
+          onOpenChange={(open) => !open && setStatusDialogOrder(null)}
+        >
+          <DialogContent className="sm:max-w-md p-6 rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+                <Truck className="size-5 text-primary" /> Update Order #{statusDialogOrder?.orderNumber}
+              </DialogTitle>
+            </DialogHeader>
+
+            {statusDialogOrder && (
+              <form onSubmit={handleUpdateShopOrderStatus} className="space-y-4 pt-2">
+                <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs space-y-1">
+                  <p><strong>Customer:</strong> {statusDialogOrder.customerName} ({statusDialogOrder.customerPhone})</p>
+                  <p><strong>Address:</strong> {statusDialogOrder.shippingAddress.street}, {statusDialogOrder.shippingAddress.city}</p>
+                  <p><strong>Grand Total:</strong> ₹{statusDialogOrder.grandTotal} (COD: flat ₹80 included)</p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">New Order Status *</Label>
+                  <select
+                    value={selectedShopStatus}
+                    onChange={(e) => setSelectedShopStatus(e.target.value as ShopOrderStatus)}
+                    className="w-full h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold"
+                  >
+                    <option value="PLACED">PLACED (Order Received)</option>
+                    <option value="PROCESSING">PROCESSING (In Custom Print / Fabrication)</option>
+                    <option value="SHIPPED">SHIPPED (In-Transit with Courier)</option>
+                    <option value="DELIVERED">DELIVERED (Completed)</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Courier Partner Name (Optional)</Label>
+                  <Input
+                    value={courierPartnerInput}
+                    onChange={(e) => setCourierPartnerInput(e.target.value)}
+                    placeholder="e.g. BlueDart Express / Delhivery / DTDC"
+                    className="rounded-xl text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Courier Tracking Number / AWB (Optional)</Label>
+                  <Input
+                    value={trackingNumberInput}
+                    onChange={(e) => setTrackingNumberInput(e.target.value)}
+                    placeholder="e.g. BD-982183109"
+                    className="rounded-xl text-xs font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-border/70">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setStatusDialogOrder(null)}
+                    className="rounded-xl text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updatingShopStatus}
+                    size="sm"
+                    className="rounded-xl text-xs font-bold shadow-soft"
+                  >
+                    {updatingShopStatus ? (
+                      <>
+                        <RotateCw className="size-3.5 animate-spin mr-1" /> Updating...
+                      </>
+                    ) : (
+                      "Save Status & Update Tracking"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
         </>

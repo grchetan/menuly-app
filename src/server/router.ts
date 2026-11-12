@@ -67,6 +67,17 @@ import {
   applyScannedMenuToRestaurant,
 } from "./ai/menu-scanner";
 import {
+  getShopProducts,
+  saveShopProduct,
+  deleteShopProduct,
+  getShopOrders,
+  getShopOrderByIdOrNumber,
+  createShopOrder,
+  updateShopOrderStatus,
+  getShopReviews,
+  createShopReview,
+} from "./shop/service";
+import {
   sanitizeObject,
   sanitizeText,
   sanitizePrice,
@@ -93,10 +104,11 @@ function isOriginAllowed(origin: string | null): boolean {
 function getCorsHeaders(req: Request, pathname: string): Record<string, string> {
   const origin = req.headers.get("origin");
 
-  // Public read-only endpoints allow any origin (QR customer menu, presets, community, version, health)
+  // Public read-only endpoints allow any origin (QR customer menu, presets, community, version, health, shop)
   if (
     pathname.startsWith("/api/public/") ||
     pathname.startsWith("/api/community/") ||
+    pathname.startsWith("/api/shop/") ||
     pathname === "/api/starter-presets" ||
     pathname === "/api/version" ||
     pathname === "/api/health"
@@ -1326,6 +1338,143 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // 8.5. E-COMMERCE MERCHANDISE SHOP APIS
+    // --------------------------------------------------------------------------
+    // GET /api/shop/products
+    if (pathname === "/api/shop/products" && request.method === "GET") {
+      const products = await getShopProducts();
+      return json({ success: true, products });
+    }
+
+    // GET /api/shop/reviews
+    if (pathname === "/api/shop/reviews" && request.method === "GET") {
+      const productId = url.searchParams.get("productId") || undefined;
+      const reviews = await getShopReviews(productId);
+      return json({ success: true, reviews });
+    }
+
+    // GET /api/shop/orders/track
+    if (pathname === "/api/shop/orders/track" && request.method === "GET") {
+      const orderNumber = url.searchParams.get("orderNumber") || url.searchParams.get("id") || "";
+      if (!orderNumber) {
+        return json({ error: "Order number or ID is required" }, 400);
+      }
+      const order = await getShopOrderByIdOrNumber(orderNumber);
+      if (!order) {
+        return json({ error: "Order not found. Check your order number and try again." }, 404);
+      }
+      return json({ success: true, order });
+    }
+
+    // POST /api/shop/orders (Requires Login/Registration)
+    if (pathname === "/api/shop/orders" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json(
+          {
+            error: "Authentication required. Please login or register before placing your order.",
+            code: "AUTH_REQUIRED",
+          },
+          401
+        );
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json(
+          {
+            error: "Invalid or expired session. Please log in again.",
+            code: "AUTH_REQUIRED",
+          },
+          401
+        );
+      }
+
+      const body = await request.json().catch(() => ({}));
+      const orderRes = await createShopOrder({
+        userId: payload.userId,
+        customerName: sanitizeText(body.customerName || payload.fullName || "", 100),
+        customerPhone: sanitizePhone(body.customerPhone || payload.phone || "") || String(body.customerPhone || payload.phone || ""),
+        customerEmail: sanitizeEmail(payload.email || body.customerEmail || "") || undefined,
+        shippingAddress: {
+          fullName: sanitizeText(body.shippingAddress?.fullName || body.customerName || "", 100),
+          phone: sanitizePhone(body.shippingAddress?.phone || body.customerPhone || "") || String(body.shippingAddress?.phone || body.customerPhone || ""),
+          street: sanitizeText(body.shippingAddress?.street || "", 250),
+          city: sanitizeText(body.shippingAddress?.city || "", 100),
+          state: sanitizeText(body.shippingAddress?.state || "", 100),
+          pincode: sanitizeText(body.shippingAddress?.pincode || "", 20),
+          landmark: body.shippingAddress?.landmark
+            ? sanitizeText(body.shippingAddress.landmark, 150)
+            : undefined,
+        },
+        items: Array.isArray(body.items) ? body.items : [],
+        paymentMode: "COD",
+        notes: body.notes ? sanitizeText(body.notes, 500) : undefined,
+      });
+
+      if (!orderRes.success) {
+        return json({ error: orderRes.error || "Failed to place order" }, 400);
+      }
+
+      return json({
+        success: true,
+        message: "Order placed successfully! Cash on Delivery confirmed.",
+        order: orderRes.order,
+      });
+    }
+
+    // GET /api/shop/orders/my (Customer orders)
+    if (pathname === "/api/shop/orders/my" && request.method === "GET") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Unauthorized", code: "AUTH_REQUIRED" }, 401);
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json({ error: "Unauthorized", code: "AUTH_REQUIRED" }, 401);
+      }
+
+      const orders = await getShopOrders(payload.userId);
+      return json({ success: true, orders });
+    }
+
+    // POST /api/shop/reviews (Customer review submission)
+    if (pathname === "/api/shop/reviews" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Please log in to submit a review.", code: "AUTH_REQUIRED" }, 401);
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json({ error: "Please log in to submit a review.", code: "AUTH_REQUIRED" }, 401);
+      }
+
+      const body = await request.json().catch(() => ({}));
+      if (!body.productId || !body.comment) {
+        return json({ error: "Product ID and comment are required." }, 400);
+      }
+
+      const reviewRes = await createShopReview({
+        productId: String(body.productId),
+        orderId: body.orderId ? String(body.orderId) : undefined,
+        userId: payload.userId,
+        userName: sanitizeText(payload.fullName || body.userName || "Customer", 80),
+        rating: Number(body.rating) || 5,
+        title: body.title ? sanitizeText(body.title, 120) : undefined,
+        comment: sanitizeText(body.comment, 1000),
+      });
+
+      if (!reviewRes.success) {
+        return json({ error: reviewRes.error || "Failed to submit review" }, 400);
+      }
+
+      return json({
+        success: true,
+        message: "Thank you! Your verified review has been published.",
+        review: reviewRes.review,
+      });
+    }
+
+    // --------------------------------------------------------------------------
     // 9. SUPER ADMIN SEED & PROTECTED APIS
     // --------------------------------------------------------------------------
     // POST /api/admin/seed (Bootstrap/seed Super Admin)
@@ -1836,6 +1985,55 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         }
         await saveStarterPresets(body.presets, body.defaultPresetId);
         return json({ success: true, message: "Starter menu presets updated successfully" });
+      }
+
+      // GET /api/admin/shop/products
+      if (pathname === "/api/admin/shop/products" && request.method === "GET") {
+        const products = await getShopProducts();
+        return json({ success: true, products });
+      }
+
+      // POST /api/admin/shop/products (Create / Update Product)
+      if (pathname === "/api/admin/shop/products" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.name || body.price === undefined) {
+          return json({ error: "Product name and price are required." }, 400);
+        }
+        const saved = await saveShopProduct(body);
+        return json({ success: true, product: saved });
+      }
+
+      // DELETE /api/admin/shop/products
+      if (pathname === "/api/admin/shop/products" && request.method === "DELETE") {
+        const body = await request.json().catch(() => ({}));
+        const id = body.id || url.searchParams.get("id");
+        if (!id) return json({ error: "Product id is required" }, 400);
+        await deleteShopProduct(id);
+        return json({ success: true, message: "Product deleted" });
+      }
+
+      // GET /api/admin/shop/orders
+      if (pathname === "/api/admin/shop/orders" && request.method === "GET") {
+        const orders = await getShopOrders();
+        return json({ success: true, orders });
+      }
+
+      // POST /api/admin/shop/orders/status
+      if (pathname === "/api/admin/shop/orders/status" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.orderId || !body.status) {
+          return json({ error: "Order ID and new status are required" }, 400);
+        }
+        const res = await updateShopOrderStatus(
+          body.orderId,
+          body.status,
+          body.courierPartner,
+          body.trackingNumber
+        );
+        if (!res.success) {
+          return json({ error: res.error || "Failed to update order status" }, 400);
+        }
+        return json({ success: true, order: res.order });
       }
 
       // Default Admin Route
