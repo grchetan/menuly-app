@@ -2132,7 +2132,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           body.orderId,
           body.status,
           body.courierPartner,
-          body.trackingNumber
+          body.trackingNumber,
+          body.paymentStatus
         );
         if (!res.success) {
           return json({ error: res.error || "Failed to update order status" }, 400);

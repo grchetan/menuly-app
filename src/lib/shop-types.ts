@@ -11,9 +11,14 @@ export interface ShopProduct {
   badge?: string | undefined;
   image: string;
   inStock: boolean;
+  stock?: number | undefined; // Inventory units remaining (decrements automatically on order)
   rating?: number | undefined;
   reviewsCount?: number | undefined;
   features?: string[] | undefined;
+  whatsInside?: string[] | undefined;
+  specifications?: Record<string, string> | undefined;
+  howToUse?: { step: number; title: string; desc: string }[] | undefined;
+  deliveryInfo?: string | undefined;
   createdAt: string;
   updatedAt: string;
 }

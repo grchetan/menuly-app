@@ -1687,7 +1687,9 @@ function ShopPublic() {
                       activeProduct.inStock ? "text-emerald-700" : "text-red-600"
                     }`}
                   >
-                    {activeProduct.inStock ? "● In Stock" : "● Out of Stock"}
+                    {activeProduct.inStock
+                      ? `● In Stock (${activeProduct.stock ?? 100} available)`
+                      : "● Out of Stock"}
                   </span>
                 </div>
 
@@ -1887,7 +1889,9 @@ function ShopPublic() {
                     <h3 className="font-bold text-neutral-900 text-base">What's Inside</h3>
                     <ul className="space-y-2 list-disc pl-5">
                       {(
-                        PRODUCT_RICH_GUIDES[activeProduct.id]?.whatsInside || [
+                        (activeProduct.whatsInside && activeProduct.whatsInside.length > 0
+                          ? activeProduct.whatsInside
+                          : PRODUCT_RICH_GUIDES[activeProduct.id]?.whatsInside) || [
                           "1x Custom printed high-resolution merchandise unit",
                           "1x Restaurant setup & instant QR scan instruction card",
                         ]
@@ -1901,7 +1905,11 @@ function ShopPublic() {
                   <div className="space-y-4 pt-4 border-t border-neutral-200">
                     <h3 className="font-bold text-neutral-900 text-base">Technical Specifications</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {(PRODUCT_RICH_GUIDES[activeProduct.id]?.specs || []).map((s, idx) => (
+                      {(
+                        (activeProduct.specifications && Object.keys(activeProduct.specifications).length > 0
+                          ? Object.entries(activeProduct.specifications).map(([label, value]) => ({ label, value }))
+                          : PRODUCT_RICH_GUIDES[activeProduct.id]?.specs) || []
+                      ).map((s, idx) => (
                         <div key={idx} className="border border-neutral-200 p-3">
                           <p className="text-xs uppercase text-neutral-400 font-semibold">{s.label}</p>
                           <p className="font-medium text-neutral-900 mt-1">{s.value}</p>
@@ -1917,7 +1925,9 @@ function ShopPublic() {
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {(
-                        PRODUCT_RICH_GUIDES[activeProduct.id]?.howToUse || [
+                        (activeProduct.howToUse && activeProduct.howToUse.length > 0
+                          ? activeProduct.howToUse
+                          : PRODUCT_RICH_GUIDES[activeProduct.id]?.howToUse) || [
                           { step: 1, title: "Unpack", desc: "Arrives pre-assembled with your custom QR code." },
                           { step: 2, title: "Place on Tables", desc: "Position at center of dining table." },
                           { step: 3, title: "Guests Scan", desc: "Guests scan with phone camera to order." },
@@ -1943,8 +1953,8 @@ function ShopPublic() {
                       <Truck className="size-4 text-neutral-800" /> Pan-India Express Delivery: Flat ₹80
                     </h3>
                     <p>
-                      All physical merchandise is custom printed with your restaurant branding and dispatched
-                      via verified courier partners (BlueDart, Delhivery, DTDC) within 24 to 48 hours of order confirmation.
+                      {activeProduct.deliveryInfo ||
+                        "All physical merchandise is custom printed with your restaurant branding and dispatched via verified courier partners (BlueDart, Delhivery, DTDC) within 24 to 48 hours of order confirmation."}
                     </p>
                   </div>
 
@@ -2176,6 +2186,26 @@ function ShopPublic() {
                         <h2 className="text-sm font-medium text-neutral-800 line-clamp-2 hover:text-black">
                           {p.name}
                         </h2>
+                        <div className="flex items-center justify-between text-[11px] pt-0.5">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              p.inStock ? "text-emerald-700" : "text-red-600"
+                            )}
+                          >
+                            {p.inStock
+                              ? (p.stock ?? 100) <= 10
+                                ? `Only ${p.stock ?? 100} left!`
+                                : `In Stock (${p.stock ?? 100} available)`
+                              : "Out of Stock"}
+                          </span>
+                          {p.reviewsCount && p.reviewsCount > 0 ? (
+                            <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                              <Star className="size-3 fill-amber-500 text-amber-500" />
+                              {p.rating} ({p.reviewsCount})
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="flex items-baseline gap-2 pt-1">
                           <span className="text-base font-bold text-neutral-900">
                             ₹{p.price}

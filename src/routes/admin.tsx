@@ -422,6 +422,31 @@ function AdminPage() {
   const [trackingNumberInput, setTrackingNumberInput] = useState("");
   const [updatingShopStatus, setUpdatingShopStatus] = useState(false);
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
+  const [stockInput, setStockInput] = useState<number>(100);
+  const [whatsInsideText, setWhatsInsideText] = useState("");
+  const [specificationsText, setSpecificationsText] = useState("");
+  const [howToUseText, setHowToUseText] = useState("");
+  const [deliveryInfoText, setDeliveryInfoText] = useState("");
+
+  useEffect(() => {
+    if (editingShopProduct) {
+      setStockInput(typeof editingShopProduct.stock === "number" ? editingShopProduct.stock : 100);
+      setWhatsInsideText((editingShopProduct.whatsInside || []).join("\n"));
+      setSpecificationsText(
+        editingShopProduct.specifications
+          ? Object.entries(editingShopProduct.specifications)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join("\n")
+          : ""
+      );
+      setHowToUseText(
+        editingShopProduct.howToUse
+          ? editingShopProduct.howToUse.map((s) => `${s.title}: ${s.desc}`).join("\n")
+          : ""
+      );
+      setDeliveryInfoText(editingShopProduct.deliveryInfo || "");
+    }
+  }, [editingShopProduct]);
 
   // Starter Menu Packs Admin State
   const [adminPresets, setAdminPresets] = useState<PresetTemplate[]>(STARTER_PRESETS);
@@ -1310,6 +1335,55 @@ function AdminPage() {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token) return;
 
+    // Parse What's Inside (one line per bullet)
+    const whatsInside = whatsInsideText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    // Parse Specifications (lines formatted as "Key: Value")
+    const specifications: Record<string, string> = {};
+    for (const line of specificationsText.split("\n")) {
+      const idx = line.indexOf(":");
+      if (idx > 0) {
+        const k = line.substring(0, idx).trim();
+        const v = line.substring(idx + 1).trim();
+        if (k && v) specifications[k] = v;
+      }
+    }
+
+    // Parse How to Use (lines formatted as "Title: Description" or "Title | Description")
+    const howToUse = howToUseText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line, idx) => {
+        let title = `Step 0${idx + 1}`;
+        let desc = line;
+        if (line.includes(":")) {
+          const parts = line.split(":");
+          title = parts[0]?.trim() || title;
+          desc = parts.slice(1).join(":").trim();
+        } else if (line.includes("|")) {
+          const parts = line.split("|");
+          title = parts[0]?.trim() || title;
+          desc = parts.slice(1).join("|").trim();
+        }
+        return { step: idx + 1, title, desc };
+      });
+
+    const parsedStock = Math.max(0, Number(stockInput) || 0);
+
+    const payload = {
+      ...editingShopProduct,
+      stock: parsedStock,
+      inStock: editingShopProduct.inStock !== undefined ? editingShopProduct.inStock : parsedStock > 0,
+      whatsInside,
+      specifications,
+      howToUse,
+      deliveryInfo: deliveryInfoText.trim() || undefined,
+    };
+
     setSavingShopProduct(true);
     try {
       const res = await fetch("/api/admin/shop/products", {
@@ -1318,7 +1392,7 @@ function AdminPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editingShopProduct),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -1331,6 +1405,48 @@ function AdminPage() {
       toast.error(err.message || "Failed to save product");
     } finally {
       setSavingShopProduct(false);
+    }
+  };
+
+  const handleApproveOrderPayment = async (order: ShopOrder) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+    try {
+      if (order.paymentSessionId) {
+        await fetch("/api/admin/shop/payments/status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            sessionId: order.paymentSessionId,
+            status: "PAID",
+            note: "Approved by Admin in Orders Management",
+          }),
+        });
+      }
+
+      const res = await fetch("/api/admin/shop/orders/status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          status: order.status === "PLACED" ? "PROCESSING" : order.status,
+          paymentStatus: "PAID",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to approve payment");
+      }
+      toast.success(`Order #${order.orderNumber} marked as PAID & Verified!`);
+      fetchAdminShopData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve payment");
     }
   };
 
@@ -4654,7 +4770,10 @@ function AdminPage() {
                           <img
                             src={p.image.startsWith("data:") ? p.image : p.image}
                             alt={p.name}
-                            className="size-16 rounded-xl object-cover bg-muted shrink-0"
+                            className="size-16 rounded-xl object-contain bg-muted p-1 border shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/assets/menuly-logo.png";
+                            }}
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -4680,6 +4799,9 @@ function AdminPage() {
                             <h4 className="font-bold text-xs text-foreground mt-1 truncate">
                               {p.name}
                             </h4>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              Inventory: <strong className="text-foreground">{p.stock ?? 100} units</strong>
+                            </div>
                             <div className="flex items-baseline gap-1.5 mt-0.5">
                               <span className="font-display text-base font-extrabold text-foreground">
                                 ₹{p.price}
@@ -4785,16 +4907,41 @@ function AdminPage() {
                           {shopOrders.map((o) => (
                             <tr key={o.id} className="hover:bg-muted/20">
                               <td className="px-4 py-3 font-medium">
-                                <span className="font-mono font-bold text-primary">{o.orderNumber}</span>
+                                <span className="font-mono font-bold text-primary text-xs">{o.orderNumber}</span>
                                 <span className="block text-[10px] text-muted-foreground mt-0.5">
-                                  {new Date(o.createdAt).toLocaleDateString()}
+                                  {new Date(o.createdAt).toLocaleString("en-IN", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
                                 </span>
                               </td>
                               <td className="px-4 py-3">
                                 <span className="font-bold text-foreground block">{o.customerName}</span>
-                                <span className="text-muted-foreground font-mono text-[11px]">{o.customerPhone}</span>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <a
+                                    href={`https://wa.me/91${o.customerPhone.replace(/\D/g, "")}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-600 hover:text-emerald-700 hover:underline"
+                                    title="Open WhatsApp chat with customer"
+                                  >
+                                    <span>📱 {o.customerPhone}</span>
+                                  </a>
+                                  <a
+                                    href={`tel:${o.customerPhone}`}
+                                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                                    title="Call customer directly"
+                                  >
+                                    (Call)
+                                  </a>
+                                </div>
                                 {o.customerEmail && (
-                                  <span className="block text-[10px] text-muted-foreground">{o.customerEmail}</span>
+                                  <span className="block text-[10px] text-muted-foreground truncate max-w-[150px]">
+                                    {o.customerEmail}
+                                  </span>
                                 )}
                               </td>
                               <td className="px-4 py-3 max-w-[200px]">
@@ -4809,27 +4956,54 @@ function AdminPage() {
                               <td className="px-4 py-3 max-w-[180px]">
                                 {o.items.map((it, idx) => (
                                   <div key={idx} className="text-[11px] text-foreground leading-tight">
-                                    {it.quantity}x {it.productName} (₹{it.price})
+                                    <strong>{it.quantity}x</strong> {it.productName} (₹{it.price})
                                   </div>
                                 ))}
                                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                                  Incl. ₹80 Delivery
+                                  Subtotal ₹{o.subtotal} + ₹{o.deliveryFee} Deliv.
                                 </span>
                               </td>
                               <td className="px-4 py-3">
                                 <span className="font-black text-foreground text-sm">₹{o.grandTotal}</span>
-                                <span
-                                  className={cn(
-                                    "block text-[10px] font-bold uppercase",
-                                    o.paymentMode === "UPI" ? "text-purple-600" : "text-veg"
-                                  )}
-                                >
-                                  {o.paymentMode || "COD"} {o.paymentStatus ? `• ${o.paymentStatus}` : ""}
-                                </span>
-                                {o.upiUtr && (
-                                  <span className="text-[9px] font-mono text-muted-foreground block truncate max-w-[120px]">
-                                    UTR: {o.upiUtr}
-                                  </span>
+                                {o.paymentMode === "UPI" ? (
+                                  <div className="mt-1 space-y-1">
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-500/10 text-purple-700 border border-purple-500/20">
+                                      PREPAID (KOTAK UPI)
+                                    </span>
+                                    {o.paymentStatus === "PAID" ? (
+                                      <span className="block text-[10px] font-bold text-emerald-600">
+                                        ✓ PAID &amp; VERIFIED
+                                      </span>
+                                    ) : (
+                                      <div>
+                                        <span className="block text-[10px] font-bold text-amber-600">
+                                          ⏳ PAYMENT PENDING
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleApproveOrderPayment(o)}
+                                          className="mt-1 inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                          title="1-click mark order payment as verified and received in Kotak Bank"
+                                        >
+                                          ✓ Mark as Paid
+                                        </button>
+                                      </div>
+                                    )}
+                                    {o.upiUtr && (
+                                      <span className="text-[9px] font-mono text-muted-foreground block truncate max-w-[120px]">
+                                        UTR: {o.upiUtr}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="mt-1">
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-neutral-100 text-neutral-800 border border-neutral-300">
+                                      POSTPAID (COD)
+                                    </span>
+                                    <span className="block text-[10px] text-muted-foreground mt-0.5">
+                                      Cash at Doorstep
+                                    </span>
+                                  </div>
                                 )}
                               </td>
                               <td className="px-4 py-3">
@@ -5911,7 +6085,28 @@ function AdminPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Stock Count (Units) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stockInput}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setStockInput(val);
+                        setEditingShopProduct({
+                          ...editingShopProduct,
+                          stock: val,
+                          inStock: val > 0,
+                        });
+                      }}
+                      placeholder="100"
+                      required
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+
                   <div className="space-y-1">
                     <Label className="text-xs font-bold">Badge / Offer Tag</Label>
                     <Input
@@ -5919,13 +6114,13 @@ function AdminPage() {
                       onChange={(e) =>
                         setEditingShopProduct({ ...editingShopProduct, badge: e.target.value })
                       }
-                      placeholder="e.g. MOST POPULAR, 35% OFF"
+                      placeholder="e.g. MOST POPULAR"
                       className="text-xs rounded-xl"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold">Stock Availability</Label>
+                    <Label className="text-xs font-bold">Stock Status</Label>
                     <select
                       value={editingShopProduct.inStock ? "true" : "false"}
                       onChange={(e) =>
@@ -5942,6 +6137,59 @@ function AdminPage() {
                   </div>
                 </div>
 
+                {/* What's Inside */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">
+                    What's Inside Box <span className="text-muted-foreground font-normal">(One item per line)</span>
+                  </Label>
+                  <Textarea
+                    value={whatsInsideText}
+                    onChange={(e) => setWhatsInsideText(e.target.value)}
+                    placeholder="1x High-grade 3mm optical cast acrylic self-standing display&#10;1x Custom dual-sided UV laser printed restaurant QR insert&#10;1x Anti-scratch protective transit peel film"
+                    rows={3}
+                    className="text-xs rounded-xl font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Technical Specifications */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">
+                    Technical Specifications <span className="text-muted-foreground font-normal">(Format: Key: Value per line)</span>
+                  </Label>
+                  <Textarea
+                    value={specificationsText}
+                    onChange={(e) => setSpecificationsText(e.target.value)}
+                    placeholder="Material: 3mm Optical-Grade Cast Acrylic&#10;Dimensions: A6 Size (105mm × 148mm)&#10;Base Design: T-Shape Anti-Tumble Foot&#10;Print Finish: UV-Cured Direct Micro-Pigment Ink&#10;Waterproof: 100% Sanitizer &amp; Spray Proof"
+                    rows={4}
+                    className="text-xs rounded-xl font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* How to Use Steps */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">
+                    How to Use in Restaurant <span className="text-muted-foreground font-normal">(Format: Title: Description per line)</span>
+                  </Label>
+                  <Textarea
+                    value={howToUseText}
+                    onChange={(e) => setHowToUseText(e.target.value)}
+                    placeholder="Unpack: Arrives pre-assembled with your custom QR menu insert&#10;Place on Tables: Position at center of dining table&#10;Guests Scan: Diners open phone camera to browse dishes&#10;Wipe Clean Daily: 100% sanitizer and alcohol wipe safe"
+                    rows={3}
+                    className="text-xs rounded-xl font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Delivery Information */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Delivery Information Timeline</Label>
+                  <Input
+                    value={deliveryInfoText}
+                    onChange={(e) => setDeliveryInfoText(e.target.value)}
+                    placeholder="Dispatched within 24 to 48 hours via BlueDart / Delhivery / DTDC. Flat ₹80 Pan-India."
+                    className="text-xs rounded-xl"
+                  />
+                </div>
+
                 {/* Image Upload / URL */}
                 <div className="space-y-2">
                   <Label className="text-xs font-bold">Product Image</Label>
@@ -5950,7 +6198,10 @@ function AdminPage() {
                       <img
                         src={editingShopProduct.image}
                         alt="Preview"
-                        className="size-14 rounded-xl object-cover bg-muted border border-border"
+                        className="size-14 rounded-xl object-contain bg-muted border border-border p-1"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/assets/menuly-logo.png";
+                        }}
                       />
                     )}
                     <div className="flex-1 space-y-1.5">

@@ -25,12 +25,13 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     id: "stand-acrylic",
     name: "Acrylic Table Stand",
     description:
-      "Clear premium acrylic stand holding your QR card at table height. Wipes clean, stands sturdy, looks elegant on any dining table.",
+      "Clear premium optical-grade cast acrylic stand holding your QR menu at dining table height. Wipes clean, stands sturdy under high-speed ceiling fans, looks ultra elegant on every dining table.",
     price: 499,
     originalPrice: 799,
     badge: "MOST POPULAR",
     image: "/assets/shop-stand.png",
     inStock: true,
+    stock: 100,
     rating: 0,
     reviewsCount: 0,
     features: [
@@ -39,6 +40,43 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
       "Heavyweight T-shape anti-tumble table base",
       "Easy wipe-clean daily sanitization (100% waterproof)",
     ],
+    whatsInside: [
+      "1x High-grade 3mm optical cast acrylic self-standing display",
+      "1x Custom dual-sided UV laser printed restaurant QR insert",
+      "1x Anti-scratch protective transit peel film",
+      "1x Restaurant setup & instant scan instruction card",
+    ],
+    specifications: {
+      Material: "3mm Optical-Grade Cast Acrylic",
+      Dimensions: "A6 Size (105mm × 148mm)",
+      "Base Design": "T-Shape Anti-Tumble Heavyweight Foot",
+      "Print Finish": "UV-Cured Direct Micro-Pigment Ink",
+      Waterproof: "100% Sanitizer & Spray Proof",
+      Compatibility: "iOS Camera, Android Camera, Google Lens, Paytm, PhonePe",
+    },
+    howToUse: [
+      {
+        step: 1,
+        title: "Unpack Pre-Assembled Stand",
+        desc: "Each stand arrives carefully packaged with your high-res vector QR menu insert already inserted inside.",
+      },
+      {
+        step: 2,
+        title: "Place at Center of Dining Tables",
+        desc: "Place one acrylic stand on each table or billing desk at comfortable eye-level height.",
+      },
+      {
+        step: 3,
+        title: "Guests Scan & Order",
+        desc: "Diners open their phone camera, scan the code, and browse dishes with zero app download.",
+      },
+      {
+        step: 4,
+        title: "Wipe Clean Daily",
+        desc: "Wipe down with damp cloth or sanitizer spray between guests — ink will never smear or fade.",
+      },
+    ],
+    deliveryInfo: "Dispatched within 24 to 48 hours via BlueDart / Delhivery / DTDC express courier. Flat ₹80 Pan-India delivery.",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -52,6 +90,7 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     badge: "HIGH VISIBILITY",
     image: "/assets/shop-poster.png",
     inStock: true,
+    stock: 100,
     rating: 0,
     reviewsCount: 0,
     features: [
@@ -60,6 +99,42 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
       "Custom brand logo & restaurant name header",
       "Dual-sided 3M mounting foam tape included",
     ],
+    whatsInside: [
+      "1x Heavyweight 300 GSM velvet matte A3 poster",
+      "4x Pre-applied 3M high-bond double-sided foam mounting tape pads",
+      "1x High-durability waterproof postal delivery tube",
+    ],
+    specifications: {
+      Cardstock: "300 GSM Heavyweight Velvet Matte Cardstock",
+      Dimensions: "A3 Size (297mm × 420mm)",
+      Lamination: "Anti-Glare Spotlight Resistant Satin Coating",
+      "Mounting Tape": "Dual-Sided 3M High-Bonding Foam Tape Included",
+      "Scan Range": "Long-Range Scanning up to 8–10 Feet Away",
+      Usage: "Indoor / Covered Entrance, Counter & Waiting Areas",
+    },
+    howToUse: [
+      {
+        step: 1,
+        title: "Select High-Footfall Area",
+        desc: "Ideal for restaurant entryways, pillar walls, pickup counters, or waiting line areas.",
+      },
+      {
+        step: 2,
+        title: "Peel Protective Tape",
+        desc: "Peel off the protective film from the pre-applied 3M foam tape on the reverse side.",
+      },
+      {
+        step: 3,
+        title: "Press Firmly at Eye-Level",
+        desc: "Mount approximately 5 feet from the floor for comfortable scanning while diners stand.",
+      },
+      {
+        step: 4,
+        title: "Clear Walk-In Queues",
+        desc: "Walk-in customers scan from a distance to decide their orders before reaching the cashier.",
+      },
+    ],
+    deliveryInfo: "Dispatched within 24 to 48 hours via BlueDart / Delhivery / DTDC express courier. Flat ₹80 Pan-India delivery.",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -73,6 +148,7 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     badge: "PACK OF 12",
     image: "/assets/shop-sticker.png",
     inStock: true,
+    stock: 100,
     rating: 0,
     reviewsCount: 0,
     features: [
@@ -81,6 +157,37 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
       "12 individual die-cut scannable stickers",
       "Pre-tested for instant smartphone camera scanning",
     ],
+    whatsInside: [
+      "12x Individual die-cut scannable QR vinyl stickers",
+      "1x Surface cleaning alcohol prep wipe",
+      "1x Sticker application alignment guide",
+    ],
+    specifications: {
+      Material: "High-Density Self-Adhesive Cast Vinyl",
+      Dimensions: "75mm × 75mm Circular Die-Cut",
+      Finish: "High-Gloss UV Protective Topcoat",
+      Adhesive: "Waterproof High-Tack Adhesive (Clean Peel Off)",
+      Durability: "Resistant to hot oil, curry spills, detergents, and UV sun",
+      Quantity: "12 Stickers per pack",
+    },
+    howToUse: [
+      {
+        step: 1,
+        title: "Clean Surface",
+        desc: "Wipe dining table, bar counter, or payment glass with the included alcohol wipe.",
+      },
+      {
+        step: 2,
+        title: "Peel & Stick",
+        desc: "Peel off back liner and firmly press from center to edges to prevent air bubbles.",
+      },
+      {
+        step: 3,
+        title: "Immediate Use",
+        desc: "Ready for guest scanning right away. Withstands hot plates and daily sanitizers.",
+      },
+    ],
+    deliveryInfo: "Dispatched within 24 to 48 hours via BlueDart / Delhivery / DTDC express courier. Flat ₹80 Pan-India delivery.",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -94,6 +201,7 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     badge: "ECO-FRIENDLY",
     image: "/assets/shop-stand.png",
     inStock: true,
+    stock: 100,
     rating: 0,
     reviewsCount: 0,
     features: [
@@ -102,6 +210,37 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
       "Rustic cafe & fine-dine aesthetic",
       "Compact space-saving dining table footprint",
     ],
+    whatsInside: [
+      "1x Premium moisture-sealed engineered hardwood tent card",
+      "2x Pre-mounted high-resolution matte printed QR facets",
+      "1x Soft microfiber surface buffing cloth",
+    ],
+    specifications: {
+      Material: "Engineered Hardwood with Natural Teak Veneer",
+      Dimensions: "A6 Portrait (105mm × 148mm × 65mm Base Spread)",
+      Finish: "Semi-Matte Natural Wood Grain Protective Lacquer",
+      Design: "Self-Standing Dual-Sided A-Frame Tent Structure",
+      Maintenance: "Easy damp cloth cleaning; moisture resistant",
+      Aesthetic: "Rustic Cafe, Artisanal Bistro & Fine Dining Atmosphere",
+    },
+    howToUse: [
+      {
+        step: 1,
+        title: "Unpack Wooden Tent",
+        desc: "Arrives pre-assembled with smooth chamfered edges and clear double-sided QR prints.",
+      },
+      {
+        step: 2,
+        title: "Position on Table",
+        desc: "Place on center of cafe or dining table. The A-frame shape prevents tumbling under fans.",
+      },
+      {
+        step: 3,
+        title: "Dual Direction Scan",
+        desc: "Guests seated on either side of the table can scan without turning the stand around.",
+      },
+    ],
+    deliveryInfo: "Dispatched within 24 to 48 hours via BlueDart / Delhivery / DTDC express courier. Flat ₹80 Pan-India delivery.",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -152,9 +291,26 @@ export async function getShopProducts(): Promise<ShopProduct[]> {
       products = row.value as unknown as ShopProduct[];
     }
 
-    // Synchronize real review ratings (clearing any old hardcoded fake values)
+    // Synchronize real review ratings & defaults for stock / rich specs
     const allReviews = await getShopReviews();
     for (const p of products) {
+      const defaultProd = INITIAL_SHOP_PRODUCTS.find((init) => init.id === p.id);
+      if (p.stock === undefined || p.stock === null) {
+        p.stock = defaultProd?.stock ?? 100;
+      }
+      if (!p.whatsInside && defaultProd?.whatsInside) {
+        p.whatsInside = defaultProd.whatsInside;
+      }
+      if (!p.specifications && defaultProd?.specifications) {
+        p.specifications = defaultProd.specifications;
+      }
+      if (!p.howToUse && defaultProd?.howToUse) {
+        p.howToUse = defaultProd.howToUse;
+      }
+      if (!p.deliveryInfo && defaultProd?.deliveryInfo) {
+        p.deliveryInfo = defaultProd.deliveryInfo;
+      }
+
       const prodRevs = allReviews.filter((r) => r.productId === p.id);
       p.reviewsCount = prodRevs.length;
       if (prodRevs.length === 0) {
@@ -182,6 +338,11 @@ export async function saveShopProduct(
 
   let target: ShopProduct;
 
+  const stockValue =
+    productData.stock !== undefined ? Math.max(0, Number(productData.stock)) : 100;
+  const inStockValue =
+    productData.inStock !== undefined ? Boolean(productData.inStock) : stockValue > 0;
+
   if (productData.id) {
     const existingIndex = products.findIndex((p) => p.id === productData.id);
     if (existingIndex >= 0 && products[existingIndex]) {
@@ -198,7 +359,15 @@ export async function saveShopProduct(
             : prev.originalPrice,
         badge: productData.badge !== undefined ? productData.badge : prev.badge,
         image: productData.image ?? prev.image,
-        inStock: productData.inStock !== undefined ? Boolean(productData.inStock) : prev.inStock,
+        stock: productData.stock !== undefined ? stockValue : (prev.stock ?? 100),
+        inStock:
+          productData.inStock !== undefined
+            ? inStockValue
+            : (productData.stock !== undefined ? stockValue > 0 : prev.inStock),
+        whatsInside: productData.whatsInside !== undefined ? productData.whatsInside : prev.whatsInside,
+        specifications: productData.specifications !== undefined ? productData.specifications : prev.specifications,
+        howToUse: productData.howToUse !== undefined ? productData.howToUse : prev.howToUse,
+        deliveryInfo: productData.deliveryInfo !== undefined ? productData.deliveryInfo : prev.deliveryInfo,
         updatedAt: now,
       };
       products[existingIndex] = target;
@@ -211,10 +380,15 @@ export async function saveShopProduct(
         originalPrice: productData.originalPrice ? Number(productData.originalPrice) : null,
         badge: productData.badge || "",
         image: productData.image || "/assets/shop-stand.png",
-        inStock: productData.inStock !== undefined ? Boolean(productData.inStock) : true,
-        rating: 5.0,
+        stock: stockValue,
+        inStock: inStockValue,
+        rating: 0,
         reviewsCount: 0,
         features: productData.features || [],
+        whatsInside: productData.whatsInside || [],
+        specifications: productData.specifications || {},
+        howToUse: productData.howToUse || [],
+        deliveryInfo: productData.deliveryInfo || "",
         createdAt: now,
         updatedAt: now,
       };
@@ -229,10 +403,15 @@ export async function saveShopProduct(
       originalPrice: productData.originalPrice ? Number(productData.originalPrice) : null,
       badge: productData.badge || "",
       image: productData.image || "/assets/shop-stand.png",
-      inStock: productData.inStock !== undefined ? Boolean(productData.inStock) : true,
-      rating: 5.0,
+      stock: stockValue,
+      inStock: inStockValue,
+      rating: 0,
       reviewsCount: 0,
       features: productData.features || [],
+      whatsInside: productData.whatsInside || [],
+      specifications: productData.specifications || {},
+      howToUse: productData.howToUse || [],
+      deliveryInfo: productData.deliveryInfo || "",
       createdAt: now,
       updatedAt: now,
     };
@@ -369,6 +548,8 @@ export async function createShopOrder(
   const orderItems: ShopOrderItem[] = [];
   let subtotal = 0;
 
+  // Dynamic stock reduction
+  let stockUpdated = false;
   for (const item of input.items) {
     const qty = Math.max(1, Math.floor(item.quantity || 1));
     const prod = productMap.get(item.productId);
@@ -378,6 +559,15 @@ export async function createShopOrder(
     if (!prod.inStock) {
       return { success: false, error: `Product "${prod.name}" is currently out of stock.` };
     }
+
+    // Decrement stock count
+    const currentStock = typeof prod.stock === "number" ? prod.stock : 100;
+    const remainingStock = Math.max(0, currentStock - qty);
+    prod.stock = remainingStock;
+    if (remainingStock <= 0) {
+      prod.inStock = false;
+    }
+    stockUpdated = true;
 
     const itemTotal = prod.price * qty;
     subtotal += itemTotal;
@@ -389,6 +579,26 @@ export async function createShopOrder(
       image: prod.image,
       total: itemTotal,
     });
+  }
+
+  // Persist updated product stock to database
+  if (stockUpdated) {
+    try {
+      await prisma.platformSetting.upsert({
+        where: { key: SETTING_KEY_PRODUCTS },
+        create: {
+          key: SETTING_KEY_PRODUCTS,
+          value: products as any,
+        },
+        update: {
+          value: products as any,
+        },
+      });
+      cachedProducts = products;
+      cacheTimeProducts = Date.now();
+    } catch (stockErr) {
+      console.error("[createShopOrder Stock Update Error]", stockErr);
+    }
   }
 
   // Flat ₹80 Cash on Delivery / Express Courier charge as specified
@@ -453,7 +663,8 @@ export async function updateShopOrderStatus(
   orderId: string,
   status: ShopOrderStatus,
   courierPartner?: string,
-  trackingNumber?: string
+  trackingNumber?: string,
+  paymentStatus?: "PAID" | "PENDING" | "FAILED"
 ): Promise<{ success: boolean; order?: ShopOrder; error?: string }> {
   const allOrders = await getShopOrders();
   const orderIndex = allOrders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
@@ -468,9 +679,17 @@ export async function updateShopOrderStatus(
   }
   const now = new Date().toISOString();
 
+  const nextPaymentStatus =
+    paymentStatus !== undefined
+      ? paymentStatus
+      : status === "DELIVERED" && existing.paymentMode === "COD"
+      ? "PAID"
+      : existing.paymentStatus;
+
   const updated: ShopOrder = {
     ...existing,
     status,
+    paymentStatus: nextPaymentStatus,
     updatedAt: now,
     courierPartner: courierPartner !== undefined ? courierPartner : existing.courierPartner,
     trackingNumber: trackingNumber !== undefined ? trackingNumber : existing.trackingNumber,
