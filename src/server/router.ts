@@ -82,6 +82,7 @@ import {
   getShopPaymentSessions,
   verifyPaymentSessionUtr,
   processBankCreditWebhook,
+  handlePhonePeWebhook,
   adminUpdatePaymentSession,
 } from "./shop/service";
 import {
@@ -1576,6 +1577,20 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         sender: body.sender || undefined,
       });
       return json(res);
+    }
+
+    // POST /api/shop/payments/phonepe-webhook (PhonePe Merchant Webhook Callback)
+    if (pathname === "/api/shop/payments/phonepe-webhook" && request.method === "POST") {
+      const xVerify = request.headers.get("x-verify") || "";
+      const body = await request.json().catch(() => ({}));
+      const base64Response = body.response || "";
+
+      const res = await handlePhonePeWebhook({
+        base64Response,
+        xVerifyHeader: xVerify,
+      });
+
+      return json(res, res.success ? 200 : 400);
     }
 
     // --------------------------------------------------------------------------

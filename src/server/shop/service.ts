@@ -8,6 +8,13 @@ import type {
   ShopOrderItem,
   ShopPaymentSession,
 } from "../../lib/shop-types";
+import {
+  parseKotak811CreditAlert,
+  calculateDynamicPaiseOffset,
+  verifyPhonePeWebhookSignature,
+  getMenulyPayConfig,
+  PHONEPE_SANDBOX_SALT_KEY,
+} from "../payments/menuly-pay";
 
 // Key constants for PlatformSetting JSON storage
 const SETTING_KEY_PRODUCTS = "shop_products";
@@ -942,7 +949,16 @@ export async function createShopPaymentSession(params: {
   const sessionId = `MNL-TXN-${Date.now()}-${randomSuffix}`;
   const orderNum = params.orderNumber || `MNL-ORD-${randomSuffix}`;
 
-  const cleanAmount = Number(params.amount.toFixed(2));
+  // Find other recent pending amounts within 15 minutes to avoid collision on identical amounts
+  const recentPendingAmounts = allSessions
+    .filter(
+      (s) =>
+        s.status === "PENDING" &&
+        now.getTime() - new Date(s.createdAt).getTime() < 15 * 60 * 1000
+    )
+    .map((s) => s.amount);
+
+  const cleanAmount = calculateDynamicPaiseOffset(params.amount, recentPendingAmounts);
   const upiUri = `upi://pay?pa=${KOTAK_UPI_ID}&pn=${encodeURIComponent(
     KOTAK_ACCOUNT_NAME
   )}&am=${cleanAmount}&cu=INR&tr=${sessionId}&tn=${encodeURIComponent(
@@ -1068,10 +1084,16 @@ export async function processBankCreditWebhook(payload: {
 
   let extractedAmount = payload.amount;
   let extractedUtr = payload.utr?.trim().replace(/\D/g, "");
+  let extractedSender = payload.sender?.trim();
 
   if (payload.text) {
-    // Regex matching Kotak Bank credit email / SMS notifications:
-    // e.g. "INR 579.00 credited to a/c ...", "Rs. 579 deposited", "UPI/439281920192"
+    // 1. First attempt exact Kotak 811 transaction alert parsing
+    const parsed811 = parseKotak811CreditAlert(payload.text);
+    if (parsed811.amount) extractedAmount = parsed811.amount;
+    if (parsed811.rrn) extractedUtr = parsed811.rrn;
+    if (parsed811.sender) extractedSender = parsed811.sender;
+
+    // 2. Generic regex fallback if Kotak 811 alert didn't match
     if (!extractedAmount) {
       const amtMatch = payload.text.match(/(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);
       if (amtMatch && amtMatch[1]) {
@@ -1079,7 +1101,7 @@ export async function processBankCreditWebhook(payload: {
       }
     }
     if (!extractedUtr) {
-      const utrMatch = payload.text.match(/(?:UPI|Ref|UTR|rrn|txn)[/:\s-]*(\d{10,12})/i);
+      const utrMatch = payload.text.match(/(?:UPI|Ref|UTR|rrn|txn)[/:\s-]*(\d{10,14})/i);
       if (utrMatch && utrMatch[1]) {
         extractedUtr = utrMatch[1];
       }
@@ -1100,7 +1122,17 @@ export async function processBankCreditWebhook(payload: {
     const isRecent = now - new Date(s.createdAt).getTime() < 2 * 60 * 60 * 1000;
     if (!isRecent) return false;
     if (extractedUtr && s.utr === extractedUtr) return true;
-    if (extractedAmount && Math.abs(s.amount - extractedAmount) < 0.01) return true;
+    if (extractedAmount && Math.abs(s.amount - extractedAmount) < 0.01) {
+      // If sender was extracted, verify name similarity if available
+      if (extractedSender && s.customerName) {
+        const sFirst = s.customerName.toLowerCase().split(/\s+/)[0] || "";
+        const eFirst = extractedSender.toLowerCase().split(/\s+/)[0] || "";
+        if (sFirst && eFirst && (sFirst.includes(eFirst) || eFirst.includes(sFirst))) {
+          return true;
+        }
+      }
+      return true;
+    }
     return false;
   });
 
@@ -1109,7 +1141,7 @@ export async function processBankCreditWebhook(payload: {
       success: false,
       message: `Kotak credit received (₹${extractedAmount || "N/A"}${
         extractedUtr ? ` UTR:${extractedUtr}` : ""
-      }), but no matching pending checkout session found. Logged in audit history.`,
+      }${extractedSender ? ` Sender:${extractedSender}` : ""}), but no matching pending checkout session found. Logged in audit history.`,
     };
   }
 
@@ -1117,7 +1149,9 @@ export async function processBankCreditWebhook(payload: {
   if (extractedUtr) matchedSession.utr = extractedUtr;
   matchedSession.verifiedVia = "EMAIL_WEBHOOK";
   matchedSession.paidAt = new Date().toISOString();
-  matchedSession.bankAuditNote = `Auto-verified via Kotak credit email webhook. Amount: ₹${extractedAmount}`;
+  matchedSession.bankAuditNote = `Auto-verified via Kotak credit email webhook. Amount: ₹${extractedAmount}${
+    extractedSender ? ` | Sender: ${extractedSender}` : ""
+  }`;
 
   await prisma.platformSetting.upsert({
     where: { key: SETTING_KEY_PAYMENTS },
@@ -1147,13 +1181,125 @@ export async function processBankCreditWebhook(payload: {
         create: { key: SETTING_KEY_ORDERS, value: orders as any },
         update: { value: orders as any },
       });
+      cachedOrders = orders;
+      cacheTimeOrders = Date.now();
     }
   }
 
   return {
     success: true,
     matchedSession,
-    message: `Payment auto-verified for Order ${matchedSession.orderNumber}`,
+    message: `Payment auto-verified for Order ${matchedSession.orderNumber || matchedSession.id}`,
+  };
+}
+
+/**
+ * Handle PhonePe Merchant Callback Webhook
+ * Verifies SHA256 X-VERIFY signature and confirms matching order instantly
+ */
+export async function handlePhonePeWebhook(params: {
+  base64Response: string;
+  xVerifyHeader: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  orderNumber?: string | undefined;
+  session?: ShopPaymentSession | undefined;
+}> {
+  const config = getMenulyPayConfig();
+  const saltKey = config.phonepeSaltKey || PHONEPE_SANDBOX_SALT_KEY;
+  const saltIndex = config.phonepeSaltIndex || 1;
+
+  const isValid = verifyPhonePeWebhookSignature(
+    params.base64Response,
+    params.xVerifyHeader,
+    saltKey,
+    saltIndex
+  );
+
+  if (!isValid) {
+    return { success: false, message: "Invalid PhonePe webhook signature" };
+  }
+
+  let decoded: any;
+  try {
+    const jsonStr = Buffer.from(params.base64Response, "base64").toString("utf-8");
+    decoded = JSON.parse(jsonStr);
+  } catch {
+    return { success: false, message: "Failed to decode base64 payload" };
+  }
+
+  if (decoded.code !== "PAYMENT_SUCCESS") {
+    return {
+      success: false,
+      message: `PhonePe reported non-success status: ${decoded.code}`,
+    };
+  }
+
+  const txnId = decoded.data?.merchantTransactionId;
+  const providerRef =
+    decoded.data?.providerReferenceId ||
+    decoded.data?.paymentInstrument?.utr ||
+    decoded.data?.paymentInstrument?.bankTransactionId;
+  const amount = decoded.data?.amount ? decoded.data.amount / 100 : undefined;
+
+  const all = await getShopPaymentSessions();
+  const matchedSession = all.find((s) => s.id === txnId);
+
+  if (!matchedSession) {
+    return {
+      success: false,
+      message: `Transaction ${txnId} not found in Menuly payment sessions.`,
+    };
+  }
+
+  matchedSession.status = "PAID";
+  if (providerRef) matchedSession.utr = providerRef;
+  matchedSession.verifiedVia = "PHONEPE_WEBHOOK" as any;
+  matchedSession.paidAt = new Date().toISOString();
+  matchedSession.bankAuditNote = `Verified via PhonePe Merchant Webhook. Amount: ₹${
+    amount || matchedSession.amount
+  }, UTR: ${providerRef || "N/A"}`;
+
+  await prisma.platformSetting.upsert({
+    where: { key: SETTING_KEY_PAYMENTS },
+    create: { key: SETTING_KEY_PAYMENTS, value: all as any },
+    update: { value: all as any },
+  });
+
+  cachedPaymentSessions = all;
+  cacheTimePayments = Date.now();
+
+  // Also update corresponding order
+  if (matchedSession.orderId || matchedSession.orderNumber) {
+    const orders = await getShopOrders();
+    const ord = orders.find(
+      (o) =>
+        o.id === matchedSession.orderId ||
+        o.orderNumber === matchedSession.orderNumber
+    );
+    if (ord) {
+      ord.paymentStatus = "PAID";
+      if (providerRef) ord.upiUtr = providerRef;
+      if (ord.status === "PLACED") {
+        ord.status = "PROCESSING";
+      }
+      ord.updatedAt = new Date().toISOString();
+      await prisma.platformSetting.upsert({
+        where: { key: SETTING_KEY_ORDERS },
+        create: { key: SETTING_KEY_ORDERS, value: orders as any },
+        update: { value: orders as any },
+      });
+      cachedOrders = orders;
+      cacheTimeOrders = Date.now();
+    }
+  }
+
+  return {
+    success: true,
+    message: "PhonePe payment verified successfully!",
+    orderNumber: matchedSession.orderNumber,
+    session: matchedSession,
   };
 }
 
