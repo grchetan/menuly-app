@@ -1833,10 +1833,10 @@ function AuthPage() {
               </p>
               <ol className="list-decimal pl-4 space-y-1 text-[11px] text-muted-foreground">
                 <li>Go to <strong>Google Cloud Console</strong> &rarr; APIs &amp; Services &rarr; Credentials.</li>
-                <li>Create an <strong>OAuth 2.0 Client ID</strong> (Web Application).</li>
-                <li>Add Authorized JS Origin: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000</code></li>
-                <li>Add Authorized Redirect: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000/api/auth/google/callback</code></li>
-                <li>Add to your <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">.env</code> file: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">GOOGLE_CLIENT_ID="..."</code></li>
+                <li>Open or Create an <strong>OAuth 2.0 Client ID</strong> (Web Application).</li>
+                <li>Add Authorized JS Origins: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://menulyindia.online</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000</code></li>
+                <li>Add Authorized Redirects: <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online/api/auth/google/callback</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://menulyindia.online/api/auth/google/callback</code>, <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">http://localhost:3000/api/auth/google/callback</code></li>
+                <li>In Supabase Dashboard &rarr; Authentication &rarr; URL Configuration: set Site URL to <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online</code> and add <code className="bg-background px-1.5 py-0.5 rounded text-[10px] text-foreground font-mono">https://www.menulyindia.online/**</code> to Redirect URLs.</li>
               </ol>
             </div>
 

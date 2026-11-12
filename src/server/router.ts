@@ -94,6 +94,7 @@ function isOriginAllowed(origin: string | null): boolean {
     if (host === "localhost" || host === "127.0.0.1") return true;
     if (host === "menuly.app" || host.endsWith(".menuly.app")) return true;
     if (host === "menuly.in" || host.endsWith(".menuly.in")) return true;
+    if (host === "menulyindia.online" || host.endsWith(".menulyindia.online")) return true;
     if (host.endsWith(".vercel.app")) return true;
     return false;
   } catch {
