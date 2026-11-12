@@ -40,6 +40,25 @@ export type ShopOrderStatus = "PLACED" | "PROCESSING" | "SHIPPED" | "DELIVERED" 
 
 export type ShopPaymentMode = "COD" | "UPI" | "ONLINE";
 
+export interface ShopPaymentSession {
+  id: string; // e.g. "MNL-TXN-1718293049"
+  orderId?: string | undefined;
+  orderNumber?: string | undefined;
+  userId: string;
+  customerName: string;
+  customerPhone: string;
+  amount: number;
+  upiId: string;
+  upiUri: string;
+  status: "PENDING" | "PAID" | "FAILED" | "EXPIRED";
+  utr?: string | undefined;
+  verifiedVia?: "EMAIL_WEBHOOK" | "INSTANT_UTR" | "ADMIN_APPROVAL" | undefined;
+  bankAuditNote?: string | undefined;
+  createdAt: string;
+  expiresAt: string;
+  paidAt?: string | undefined;
+}
+
 export interface ShopShippingAddress {
   fullName: string;
   phone: string;
@@ -72,6 +91,8 @@ export interface ShopOrder {
   deliveryFee: number; // Flat ₹80 COD / Delivery fee
   grandTotal: number;
   paymentMode: ShopPaymentMode;
+  paymentStatus?: "PENDING" | "PAID" | "FAILED" | "REFUNDED" | undefined;
+  paymentSessionId?: string | undefined;
   upiUtr?: string | undefined;
   status: ShopOrderStatus;
   trackingNumber?: string | undefined;

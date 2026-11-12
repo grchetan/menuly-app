@@ -77,6 +77,12 @@ import {
   getShopReviews,
   createShopReview,
   canUserReviewProduct,
+  createShopPaymentSession,
+  getShopPaymentSessionById,
+  getShopPaymentSessions,
+  verifyPaymentSessionUtr,
+  processBankCreditWebhook,
+  adminUpdatePaymentSession,
 } from "./shop/service";
 import {
   sanitizeObject,
@@ -1499,6 +1505,80 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // 8.6. KOTAK MAHINDRA BANK DYNAMIC UPI PAYMENT GATEWAY & WEBHOOK APIS
+    // --------------------------------------------------------------------------
+    // POST /api/shop/payments/create-session
+    if (pathname === "/api/shop/payments/create-session" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Authentication required", code: "AUTH_REQUIRED" }, 401);
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json({ error: "Invalid session", code: "AUTH_REQUIRED" }, 401);
+      }
+
+      const body = await request.json().catch(() => ({}));
+      const amount = Number(body.amount);
+      if (!amount || amount <= 0) {
+        return json({ error: "Valid amount is required" }, 400);
+      }
+
+      const session = await createShopPaymentSession({
+        userId: payload.userId,
+        customerName: sanitizeText(body.customerName || payload.fullName || "Customer", 100),
+        customerPhone: sanitizePhone(body.customerPhone || payload.phone || "") || String(body.customerPhone || ""),
+        amount,
+        orderNumber: body.orderNumber ? sanitizeText(body.orderNumber, 50) : undefined,
+        orderId: body.orderId ? sanitizeText(body.orderId, 50) : undefined,
+      });
+
+      return json({ success: true, session });
+    }
+
+    // GET /api/shop/payments/status?sessionId=...
+    if (pathname === "/api/shop/payments/status" && request.method === "GET") {
+      const sessionId = url.searchParams.get("sessionId");
+      if (!sessionId) {
+        return json({ error: "Session ID is required" }, 400);
+      }
+      const session = await getShopPaymentSessionById(sessionId);
+      if (!session) {
+        return json({ error: "Payment session not found or expired" }, 404);
+      }
+      return json({ success: true, status: session.status, session });
+    }
+
+    // POST /api/shop/payments/submit-utr (Instant manual UTR submission fallback)
+    if (pathname === "/api/shop/payments/submit-utr" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      if (!body.sessionId || !body.utr) {
+        return json({ error: "Session ID and 12-digit UTR are required" }, 400);
+      }
+      const res = await verifyPaymentSessionUtr(String(body.sessionId), String(body.utr));
+      if (!res.success) {
+        return json({ error: res.error || "Failed to verify UTR" }, 400);
+      }
+      return json({
+        success: true,
+        message: "UPI UTR verified! Order payment confirmed.",
+        session: res.session,
+      });
+    }
+
+    // POST /api/shop/payments/bank-webhook (Kotak Bank Credit Email / Observer Webhook)
+    if (pathname === "/api/shop/payments/bank-webhook" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      const res = await processBankCreditWebhook({
+        amount: body.amount !== undefined ? Number(body.amount) : undefined,
+        utr: body.utr ? String(body.utr) : undefined,
+        text: body.text || body.body || body.subject || undefined,
+        sender: body.sender || undefined,
+      });
+      return json(res);
+    }
+
+    // --------------------------------------------------------------------------
     // 9. SUPER ADMIN SEED & PROTECTED APIS
     // --------------------------------------------------------------------------
     // POST /api/admin/seed (Bootstrap/seed Super Admin)
@@ -2058,6 +2138,29 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           return json({ error: res.error || "Failed to update order status" }, 400);
         }
         return json({ success: true, order: res.order });
+      }
+
+      // GET /api/admin/shop/payments (Kotak UPI transactions audit log)
+      if (pathname === "/api/admin/shop/payments" && request.method === "GET") {
+        const payments = await getShopPaymentSessions();
+        return json({ success: true, payments });
+      }
+
+      // POST /api/admin/shop/payments/status (Admin manual verification/approval)
+      if (pathname === "/api/admin/shop/payments/status" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (!body.sessionId || !body.status) {
+          return json({ error: "Session ID and status are required" }, 400);
+        }
+        const res = await adminUpdatePaymentSession(
+          String(body.sessionId),
+          body.status,
+          body.note ? String(body.note) : undefined
+        );
+        if (!res.success) {
+          return json({ error: res.error || "Failed to update payment status" }, 400);
+        }
+        return json({ success: true, session: res.session });
       }
 
       // Default Admin Route

@@ -6,12 +6,18 @@ import type {
   ShopReview,
   ShopShippingAddress,
   ShopOrderItem,
+  ShopPaymentSession,
 } from "../../lib/shop-types";
 
 // Key constants for PlatformSetting JSON storage
 const SETTING_KEY_PRODUCTS = "shop_products";
 const SETTING_KEY_ORDERS = "shop_orders";
 const SETTING_KEY_REVIEWS = "shop_reviews";
+const SETTING_KEY_PAYMENTS = "shop_payment_sessions";
+
+// Official Kotak Mahindra Bank Merchant Details
+export const KOTAK_UPI_ID = "9179878521@kotakbank";
+export const KOTAK_ACCOUNT_NAME = "Menuly India";
 
 // Default initial 4 merchandise products with 0 initial reviews/ratings (populated only via real customer feedback)
 export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
@@ -331,6 +337,7 @@ export interface CreateShopOrderInput {
   shippingAddress: ShopShippingAddress;
   items: Array<{ productId: string; quantity: number }>;
   paymentMode?: "COD" | "UPI" | "ONLINE" | undefined;
+  paymentSessionId?: string | undefined;
   upiUtr?: string | undefined;
   notes?: string | undefined;
 }
@@ -413,8 +420,10 @@ export async function createShopOrder(
     deliveryFee,
     grandTotal,
     paymentMode: input.paymentMode || "COD",
+    paymentStatus: input.paymentMode === "UPI" ? (input.upiUtr ? "PAID" : "PENDING") : undefined,
+    paymentSessionId: input.paymentSessionId || undefined,
     upiUtr: input.upiUtr?.trim() || undefined,
-    status: "PLACED",
+    status: input.paymentMode === "UPI" && input.upiUtr ? "PROCESSING" : "PLACED",
     notes: input.notes?.trim() || undefined,
     createdAt: now,
     updatedAt: now,
@@ -662,4 +671,314 @@ export async function createShopReview(
   }
 
   return { success: true, review: newReview };
+}
+
+// -----------------------------------------------------------------------------
+// KOTAK MAHINDRA BANK DYNAMIC UPI PAYMENT GATEWAY ENGINE
+// -----------------------------------------------------------------------------
+
+let cachedPaymentSessions: ShopPaymentSession[] | null = null;
+let cacheTimePayments = 0;
+
+export async function getShopPaymentSessions(): Promise<ShopPaymentSession[]> {
+  const now = Date.now();
+  if (cachedPaymentSessions && now - cacheTimePayments < CACHE_TTL_MS) {
+    return cachedPaymentSessions;
+  }
+
+  try {
+    const row = await prisma.platformSetting.findUnique({
+      where: { key: SETTING_KEY_PAYMENTS },
+    });
+    if (!row || !Array.isArray(row.value)) {
+      cachedPaymentSessions = [];
+      cacheTimePayments = now;
+      return [];
+    }
+    const sessions = row.value as unknown as ShopPaymentSession[];
+    sessions.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    cachedPaymentSessions = sessions;
+    cacheTimePayments = now;
+    return sessions;
+  } catch (err) {
+    console.error("[getShopPaymentSessions Error]", err);
+    return [];
+  }
+}
+
+export async function createShopPaymentSession(params: {
+  userId: string;
+  customerName: string;
+  customerPhone: string;
+  amount: number;
+  orderNumber?: string | undefined;
+  orderId?: string | undefined;
+}): Promise<ShopPaymentSession> {
+  const allSessions = await getShopPaymentSessions();
+  const now = new Date();
+  const expires = new Date(now.getTime() + 15 * 60 * 1000); // 15 mins expiry
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const sessionId = `MNL-TXN-${Date.now()}-${randomSuffix}`;
+  const orderNum = params.orderNumber || `MNL-ORD-${randomSuffix}`;
+
+  const cleanAmount = Number(params.amount.toFixed(2));
+  const upiUri = `upi://pay?pa=${KOTAK_UPI_ID}&pn=${encodeURIComponent(
+    KOTAK_ACCOUNT_NAME
+  )}&am=${cleanAmount}&cu=INR&tr=${sessionId}&tn=${encodeURIComponent(
+    `Order_${orderNum}`
+  )}`;
+
+  const session: ShopPaymentSession = {
+    id: sessionId,
+    orderId: params.orderId,
+    orderNumber: orderNum,
+    userId: params.userId,
+    customerName: params.customerName.trim(),
+    customerPhone: params.customerPhone.trim(),
+    amount: cleanAmount,
+    upiId: KOTAK_UPI_ID,
+    upiUri,
+    status: "PENDING",
+    createdAt: now.toISOString(),
+    expiresAt: expires.toISOString(),
+  };
+
+  allSessions.unshift(session);
+  await prisma.platformSetting.upsert({
+    where: { key: SETTING_KEY_PAYMENTS },
+    create: { key: SETTING_KEY_PAYMENTS, value: allSessions as any },
+    update: { value: allSessions as any },
+  });
+
+  cachedPaymentSessions = allSessions;
+  cacheTimePayments = Date.now();
+
+  return session;
+}
+
+export async function getShopPaymentSessionById(
+  sessionId: string
+): Promise<ShopPaymentSession | null> {
+  const all = await getShopPaymentSessions();
+  return all.find((s) => s.id === sessionId) || null;
+}
+
+export async function verifyPaymentSessionUtr(
+  sessionId: string,
+  utr: string
+): Promise<{ success: boolean; session?: ShopPaymentSession; error?: string }> {
+  const cleanUtr = utr.trim().replace(/\D/g, "");
+  if (!cleanUtr || cleanUtr.length < 10) {
+    return {
+      success: false,
+      error: "Please enter a valid 12-digit UPI UTR / Reference number from your payment app.",
+    };
+  }
+
+  const all = await getShopPaymentSessions();
+  const session = all.find((s) => s.id === sessionId);
+  if (!session) {
+    return { success: false, error: "Payment session not found or expired." };
+  }
+
+  // Prevent duplicate UTR usage across other paid sessions
+  const duplicate = all.find(
+    (s) => s.id !== sessionId && s.utr === cleanUtr && s.status === "PAID"
+  );
+  if (duplicate) {
+    return {
+      success: false,
+      error: "This 12-digit UTR has already been submitted for another transaction.",
+    };
+  }
+
+  session.status = "PAID";
+  session.utr = cleanUtr;
+  session.verifiedVia = "INSTANT_UTR";
+  session.paidAt = new Date().toISOString();
+  session.bankAuditNote = `Customer submitted 12-digit UTR: ${cleanUtr}`;
+
+  await prisma.platformSetting.upsert({
+    where: { key: SETTING_KEY_PAYMENTS },
+    create: { key: SETTING_KEY_PAYMENTS, value: all as any },
+    update: { value: all as any },
+  });
+
+  cachedPaymentSessions = all;
+  cacheTimePayments = Date.now();
+
+  // Also update corresponding Order if linked
+  if (session.orderId || session.orderNumber) {
+    const orders = await getShopOrders();
+    const ord = orders.find(
+      (o) => o.id === session.orderId || o.orderNumber === session.orderNumber
+    );
+    if (ord) {
+      ord.paymentStatus = "PAID";
+      ord.upiUtr = cleanUtr;
+      if (ord.status === "PLACED") {
+        ord.status = "PROCESSING";
+      }
+      await prisma.platformSetting.upsert({
+        where: { key: SETTING_KEY_ORDERS },
+        create: { key: SETTING_KEY_ORDERS, value: orders as any },
+        update: { value: orders as any },
+      });
+    }
+  }
+
+  return { success: true, session };
+}
+
+export async function processBankCreditWebhook(payload: {
+  amount?: number | undefined;
+  utr?: string | undefined;
+  text?: string | undefined;
+  sender?: string | undefined;
+}): Promise<{
+  success: boolean;
+  matchedSession?: ShopPaymentSession;
+  message: string;
+}> {
+  const all = await getShopPaymentSessions();
+
+  let extractedAmount = payload.amount;
+  let extractedUtr = payload.utr?.trim().replace(/\D/g, "");
+
+  if (payload.text) {
+    // Regex matching Kotak Bank credit email / SMS notifications:
+    // e.g. "INR 579.00 credited to a/c ...", "Rs. 579 deposited", "UPI/439281920192"
+    if (!extractedAmount) {
+      const amtMatch = payload.text.match(/(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);
+      if (amtMatch && amtMatch[1]) {
+        extractedAmount = parseFloat(amtMatch[1].replace(/,/g, ""));
+      }
+    }
+    if (!extractedUtr) {
+      const utrMatch = payload.text.match(/(?:UPI|Ref|UTR|rrn|txn)[/:\s-]*(\d{10,12})/i);
+      if (utrMatch && utrMatch[1]) {
+        extractedUtr = utrMatch[1];
+      }
+    }
+  }
+
+  if (!extractedAmount && !extractedUtr) {
+    return {
+      success: false,
+      message: "Could not parse credit amount or UTR from incoming bank notification.",
+    };
+  }
+
+  // Find matching PENDING session created within last 2 hours
+  const now = Date.now();
+  const matchedSession = all.find((s) => {
+    if (s.status === "PAID") return false;
+    const isRecent = now - new Date(s.createdAt).getTime() < 2 * 60 * 60 * 1000;
+    if (!isRecent) return false;
+    if (extractedUtr && s.utr === extractedUtr) return true;
+    if (extractedAmount && Math.abs(s.amount - extractedAmount) < 0.01) return true;
+    return false;
+  });
+
+  if (!matchedSession) {
+    return {
+      success: false,
+      message: `Kotak credit received (₹${extractedAmount || "N/A"}${
+        extractedUtr ? ` UTR:${extractedUtr}` : ""
+      }), but no matching pending checkout session found. Logged in audit history.`,
+    };
+  }
+
+  matchedSession.status = "PAID";
+  if (extractedUtr) matchedSession.utr = extractedUtr;
+  matchedSession.verifiedVia = "EMAIL_WEBHOOK";
+  matchedSession.paidAt = new Date().toISOString();
+  matchedSession.bankAuditNote = `Auto-verified via Kotak credit email webhook. Amount: ₹${extractedAmount}`;
+
+  await prisma.platformSetting.upsert({
+    where: { key: SETTING_KEY_PAYMENTS },
+    create: { key: SETTING_KEY_PAYMENTS, value: all as any },
+    update: { value: all as any },
+  });
+
+  cachedPaymentSessions = all;
+  cacheTimePayments = Date.now();
+
+  // Also update corresponding Order
+  if (matchedSession.orderId || matchedSession.orderNumber) {
+    const orders = await getShopOrders();
+    const ord = orders.find(
+      (o) =>
+        o.id === matchedSession.orderId ||
+        o.orderNumber === matchedSession.orderNumber
+    );
+    if (ord) {
+      ord.paymentStatus = "PAID";
+      if (extractedUtr) ord.upiUtr = extractedUtr;
+      if (ord.status === "PLACED") {
+        ord.status = "PROCESSING";
+      }
+      await prisma.platformSetting.upsert({
+        where: { key: SETTING_KEY_ORDERS },
+        create: { key: SETTING_KEY_ORDERS, value: orders as any },
+        update: { value: orders as any },
+      });
+    }
+  }
+
+  return {
+    success: true,
+    matchedSession,
+    message: `Payment auto-verified for Order ${matchedSession.orderNumber}`,
+  };
+}
+
+export async function adminUpdatePaymentSession(
+  sessionId: string,
+  status: "PAID" | "FAILED" | "PENDING",
+  note?: string
+): Promise<{ success: boolean; session?: ShopPaymentSession; error?: string }> {
+  const all = await getShopPaymentSessions();
+  const session = all.find((s) => s.id === sessionId);
+  if (!session) return { success: false, error: "Payment session not found." };
+
+  session.status = status;
+  if (status === "PAID") {
+    session.paidAt = session.paidAt || new Date().toISOString();
+    session.verifiedVia = "ADMIN_APPROVAL";
+  }
+  if (note) session.bankAuditNote = note.trim();
+
+  await prisma.platformSetting.upsert({
+    where: { key: SETTING_KEY_PAYMENTS },
+    create: { key: SETTING_KEY_PAYMENTS, value: all as any },
+    update: { value: all as any },
+  });
+
+  cachedPaymentSessions = all;
+  cacheTimePayments = Date.now();
+
+  // Sync with order
+  if (session.orderId || session.orderNumber) {
+    const orders = await getShopOrders();
+    const ord = orders.find(
+      (o) => o.id === session.orderId || o.orderNumber === session.orderNumber
+    );
+    if (ord) {
+      ord.paymentStatus =
+        status === "PAID" ? "PAID" : status === "FAILED" ? "FAILED" : "PENDING";
+      if (status === "PAID" && ord.status === "PLACED") {
+        ord.status = "PROCESSING";
+      }
+      await prisma.platformSetting.upsert({
+        where: { key: SETTING_KEY_ORDERS },
+        create: { key: SETTING_KEY_ORDERS, value: orders as any },
+        update: { value: orders as any },
+      });
+    }
+  }
+
+  return { success: true, session };
 }

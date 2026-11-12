@@ -38,6 +38,7 @@ import {
   Copy,
   CreditCard,
   Building2,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SitePage } from "@/components/SiteLayout";
@@ -62,6 +63,7 @@ import type {
   ShopCartItem,
   ShopOrderStatus,
   ShopPaymentMode,
+  ShopPaymentSession,
 } from "@/lib/shop-types";
 
 export const Route = createFileRoute("/shop")({
@@ -87,9 +89,9 @@ export const Route = createFileRoute("/shop")({
 // Flat ₹80 Courier Delivery Fee Pan-India
 export const FLAT_DELIVERY_FEE = 80;
 
-// Kotak Mahindra Bank UPI Details for direct transfers
-export const KOTAK_UPI_ID = "menuly@kotak";
-export const KOTAK_ACCOUNT_NAME = "Menuly Smart Systems (Kotak Mahindra Bank)";
+// Official Kotak Mahindra Bank Merchant Details
+export const KOTAK_UPI_ID = "9179878521@kotakbank";
+export const KOTAK_ACCOUNT_NAME = "Menuly India";
 
 const INITIAL_FALLBACK_PRODUCTS: (ShopProduct & { sku: string })[] = [
   {
@@ -370,6 +372,7 @@ interface AuthUser {
   fullName?: string | null;
   phone?: string | null;
   role?: string;
+  phoneVerified?: boolean;
 }
 
 function getInitialProductFromUrl(): string | null {
@@ -416,6 +419,37 @@ function ShopPublic() {
       setFloatingCartDismissed(false);
     }
   }, [cart]);
+
+  // Wishlist state persisted in localStorage
+  const [wishlist, setWishlist] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem("menuly_shop_wishlist");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [wishlistOpen, setWishlistOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("menuly_shop_wishlist", JSON.stringify(wishlist));
+    } catch {}
+  }, [wishlist]);
+
+  const toggleWishlist = (productId: string) => {
+    setWishlist((prev) => {
+      const exists = prev.includes(productId);
+      if (exists) {
+        toast.info("Removed from Wishlist");
+        return prev.filter((id) => id !== productId);
+      } else {
+        toast.success("Saved to Wishlist!");
+        return [...prev, productId];
+      }
+    });
+  };
 
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -475,10 +509,22 @@ function ShopPublic() {
   const [shippingPincode, setShippingPincode] = useState("");
   const [shippingLandmark, setShippingLandmark] = useState("");
   const [shippingNotes, setShippingNotes] = useState("");
-  const [paymentMode, setPaymentMode] = useState<ShopPaymentMode>("COD");
-  const [upiUtr, setUpiUtr] = useState("");
+  const [paymentMode, setPaymentMode] = useState<ShopPaymentMode>("UPI");
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
+
+  // WhatsApp OTP Phone Verification state
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  // Kotak Dynamic UPI Payment Gateway Modal State
+  const [upiModalOpen, setUpiModalOpen] = useState(false);
+  const [activePaymentSession, setActivePaymentSession] = useState<ShopPaymentSession | null>(null);
+  const [manualUtrInput, setManualUtrInput] = useState("");
+  const [submittingManualUtr, setSubmittingManualUtr] = useState(false);
 
   // Order Placement Result
   const [placedOrder, setPlacedOrder] = useState<ShopOrder | null>(null);
@@ -535,7 +581,10 @@ function ShopPublic() {
           };
           setCurrentUser(u);
           if (u.fullName) setShippingName(u.fullName);
-          if (u.phone) setShippingPhone(u.phone);
+          if (u.phone) {
+            setShippingPhone(u.phone);
+            setPhoneVerified(true);
+          }
         }
       }
     } catch {}
@@ -554,10 +603,16 @@ function ShopPublic() {
             fullName: u.fullName || u.name || null,
             phone: u.phone || null,
             role: u.role,
+            phoneVerified: Boolean(u.phoneVerified),
           };
           setCurrentUser(freshUser);
           if (freshUser.fullName) setShippingName(freshUser.fullName);
-          if (freshUser.phone) setShippingPhone(freshUser.phone);
+          if (freshUser.phone) {
+            setShippingPhone(freshUser.phone);
+            if (freshUser.phoneVerified) {
+              setPhoneVerified(true);
+            }
+          }
         }
       }
     } catch {} finally {
@@ -615,7 +670,6 @@ function ShopPublic() {
       setLoadingReviews(false);
     }
 
-    // Check review eligibility if user is logged in
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (token) {
       try {
@@ -758,7 +812,79 @@ function ShopPublic() {
       return;
     }
     setCartOpen(false);
+    setWishlistOpen(false);
     setCheckoutOpen(true);
+  };
+
+  // WhatsApp OTP Send & Verify handlers
+  const handleSendPhoneOtp = async () => {
+    const clean = shippingPhone.replace(/\D/g, "");
+    if (!clean || clean.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/auth/send-phone-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: currentUser?.email || "customer@menuly.app",
+          phone: clean,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send WhatsApp OTP");
+      }
+      setOtpSent(true);
+      toast.success("WhatsApp verification OTP sent to +91 " + clean);
+      if (data.data?.devOtp) {
+        toast.info(`Demo WhatsApp OTP: ${data.data.devOtp}`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send WhatsApp OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
+      toast.error("Please enter the 6-digit WhatsApp OTP.");
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      const token = localStorage.getItem("menuly_token");
+      const res = await fetch("/api/auth/verify-phone-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: currentUser?.email || "customer@menuly.app",
+          phone: shippingPhone.replace(/\D/g, ""),
+          otp: otpCode.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Invalid OTP");
+      }
+      setPhoneVerified(true);
+      setOtpSent(false);
+      toast.success("Mobile number verified via WhatsApp!");
+    } catch (err: any) {
+      toast.error(err.message || "Invalid WhatsApp OTP");
+    } finally {
+      setVerifyingOtp(false);
+    }
   };
 
   // Pincode validation
@@ -780,7 +906,65 @@ function ShopPublic() {
     });
   };
 
-  // Place Order
+  // Real-time Kotak UPI Payment Session status polling
+  useEffect(() => {
+    if (!upiModalOpen || !activePaymentSession || activePaymentSession.status === "PAID") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/shop/payments/status?sessionId=${activePaymentSession.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.status === "PAID") {
+            setActivePaymentSession(data.session);
+            setUpiModalOpen(false);
+            toast.success("Payment Received! Kotak Bank credit verified.");
+            fetchUserOrders();
+          }
+        }
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [upiModalOpen, activePaymentSession, fetchUserOrders]);
+
+  // Submit UTR manually (Fallback when bank email is delayed)
+  const handleManualUtrSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePaymentSession) return;
+    const cleanUtr = manualUtrInput.trim().replace(/\D/g, "");
+    if (!cleanUtr || cleanUtr.length < 10) {
+      toast.error("Please enter a valid 12-digit UPI UTR from your payment app.");
+      return;
+    }
+
+    setSubmittingManualUtr(true);
+    try {
+      const res = await fetch("/api/shop/payments/submit-utr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: activePaymentSession.id,
+          utr: cleanUtr,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to verify UTR");
+      }
+
+      setActivePaymentSession(data.session);
+      setUpiModalOpen(false);
+      toast.success("UPI UTR Verified! Order confirmed.");
+      fetchUserOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to verify UTR. Check number and retry.");
+    } finally {
+      setSubmittingManualUtr(false);
+    }
+  };
+
+  // Place Order / Start Payment Flow
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) {
@@ -795,8 +979,10 @@ function ShopPublic() {
       toast.error("Complete delivery address with PIN code is required.");
       return;
     }
-    if (paymentMode === "UPI" && !upiUtr.trim()) {
-      toast.error("Please enter your 12-digit UPI UTR / Transaction Reference number after making payment.");
+
+    // Enforce WhatsApp Phone Verification
+    if (!phoneVerified) {
+      toast.error("Please verify your mobile number via WhatsApp OTP before confirming order.");
       return;
     }
 
@@ -809,6 +995,29 @@ function ShopPublic() {
 
     setOrderSubmitting(true);
     try {
+      // 1. If Kotak UPI, first create dynamic payment session
+      let paymentSessionId: string | undefined = undefined;
+      if (paymentMode === "UPI") {
+        const sessRes = await fetch("/api/shop/payments/create-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            amount: cartGrandTotal,
+            customerName: shippingName.trim(),
+            customerPhone: shippingPhone.trim(),
+          }),
+        });
+        const sessData = await sessRes.json();
+        if (sessRes.ok && sessData.success && sessData.session) {
+          setActivePaymentSession(sessData.session);
+          paymentSessionId = sessData.session.id;
+        }
+      }
+
+      // 2. Create the Order
       const res = await fetch("/api/shop/orders", {
         method: "POST",
         headers: {
@@ -829,7 +1038,7 @@ function ShopPublic() {
           },
           items: cart.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
           paymentMode,
-          upiUtr: paymentMode === "UPI" ? upiUtr.trim() : undefined,
+          paymentSessionId,
           notes: shippingNotes.trim() || undefined,
         }),
       });
@@ -842,11 +1051,14 @@ function ShopPublic() {
       setPlacedOrder(data.order);
       setCart([]);
       setCheckoutOpen(false);
-      toast.success(
-        paymentMode === "UPI"
-          ? `Order ${data.order.orderNumber} placed! Kotak UPI reference saved.`
-          : `Order ${data.order.orderNumber} placed! Cash on Delivery confirmed.`
-      );
+
+      if (paymentMode === "UPI" && activePaymentSession) {
+        setUpiModalOpen(true);
+        toast.info("Scan dynamic Kotak QR code to complete payment.");
+      } else {
+        toast.success(`Order ${data.order.orderNumber} placed! Cash on Delivery confirmed.`);
+      }
+
       fetchUserOrders();
     } catch (err: any) {
       toast.error(err.message || "Failed to place order. Please try again.");
@@ -1009,7 +1221,7 @@ function ShopPublic() {
               <button
                 type="button"
                 onClick={handleBackToAllProducts}
-                className="hover:text-neutral-900 transition-colors font-medium text-neutral-800"
+                className="hover:text-neutral-900 transition-colors font-medium text-neutral-800 cursor-pointer"
               >
                 Merchandise
               </button>
@@ -1023,15 +1235,35 @@ function ShopPublic() {
               )}
             </nav>
 
-            {/* Quick Actions (Track & Cart) */}
+            {/* Quick Actions (Wishlist, Track & Cart) */}
             <div className="flex items-center gap-3">
+              {/* Wishlist Button */}
+              <button
+                type="button"
+                onClick={() => setWishlistOpen(true)}
+                className="inline-flex items-center gap-1.5 border border-neutral-300 bg-white px-3.5 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50 transition-colors cursor-pointer"
+              >
+                <Heart
+                  className={`size-4 ${
+                    wishlist.length > 0 ? "fill-red-500 text-red-500" : "text-neutral-600"
+                  }`}
+                />
+                <span>Wishlist</span>
+                {wishlist.length > 0 && (
+                  <span className="ml-1 bg-red-100 text-red-700 px-1.5 py-0.2 text-[10px] font-bold">
+                    {wishlist.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Track Orders Button */}
               <button
                 type="button"
                 onClick={() => {
                   setTrackModalOpen(true);
                   if (currentUser) fetchUserOrders();
                 }}
-                className="inline-flex items-center gap-2 border border-neutral-300 bg-white px-4 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50 transition-colors"
+                className="inline-flex items-center gap-2 border border-neutral-300 bg-white px-4 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50 transition-colors cursor-pointer"
               >
                 <Truck className="size-4 text-neutral-700" />
                 <span>Track Orders</span>
@@ -1042,10 +1274,11 @@ function ShopPublic() {
                 )}
               </button>
 
+              {/* Shopping Cart Button */}
               <button
                 type="button"
                 onClick={() => setCartOpen(true)}
-                className="inline-flex items-center gap-2 bg-neutral-900 text-white px-4 py-2 text-xs font-semibold hover:bg-black transition-colors"
+                className="inline-flex items-center gap-2 bg-neutral-900 text-white px-4 py-2 text-xs font-semibold hover:bg-black transition-colors cursor-pointer"
               >
                 <ShoppingCart className="size-4" />
                 <span>Cart</span>
@@ -1061,7 +1294,7 @@ function ShopPublic() {
       </header>
 
       {/* ===================================================================== */}
-      {/* VIEW A: FULL-SCREEN PRODUCT DETAIL PAGE (Matching Sample Image 4 & 5) */}
+      {/* VIEW A: FULL-SCREEN PRODUCT DETAIL PAGE (Sample Images 4 & 5 Design)   */}
       {/* ===================================================================== */}
       {activeProduct ? (
         <main className="bg-white text-neutral-900 py-10">
@@ -1071,7 +1304,7 @@ function ShopPublic() {
               <button
                 type="button"
                 onClick={handleBackToAllProducts}
-                className="inline-flex items-center gap-1.5 text-xs text-neutral-600 hover:text-black font-medium transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-neutral-600 hover:text-black font-medium transition-colors cursor-pointer"
               >
                 <ChevronLeft className="size-4" />
                 <span>Back to All Products</span>
@@ -1093,6 +1326,20 @@ function ShopPublic() {
                       {activeProduct.badge}
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => toggleWishlist(activeProduct.id)}
+                    className="absolute top-4 right-4 p-2 border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors"
+                    title="Toggle Wishlist"
+                  >
+                    <Heart
+                      className={`size-4 ${
+                        wishlist.includes(activeProduct.id)
+                          ? "fill-red-500 text-red-500"
+                          : "text-neutral-400"
+                      }`}
+                    />
+                  </button>
                 </div>
 
                 {/* Trust Highlights under image */}
@@ -1210,11 +1457,17 @@ function ShopPublic() {
 
                     <button
                       type="button"
-                      onClick={() => toast.info("Added to your wishlist")}
+                      onClick={() => toggleWishlist(activeProduct.id)}
                       className="border border-neutral-300 p-2 text-neutral-600 hover:text-black hover:border-black transition-colors"
                       title="Wishlist"
                     >
-                      <Heart className="size-4" />
+                      <Heart
+                        className={`size-4 ${
+                          wishlist.includes(activeProduct.id)
+                            ? "fill-red-500 text-red-500"
+                            : "text-neutral-600"
+                        }`}
+                      />
                     </button>
 
                     <button
@@ -1251,7 +1504,7 @@ function ShopPublic() {
                     />
                     <button
                       type="submit"
-                      className="border border-neutral-800 bg-neutral-900 text-white px-5 py-2 text-xs font-semibold uppercase hover:bg-black transition-colors"
+                      className="border border-neutral-800 bg-neutral-900 text-white px-5 py-2 text-xs font-semibold uppercase hover:bg-black transition-colors cursor-pointer"
                     >
                       Check
                     </button>
@@ -1276,7 +1529,7 @@ function ShopPublic() {
                     onClick={() => handleBuyNow(activeProduct, detailQuantity)}
                     className="w-full bg-[#c5221f] text-white py-3.5 px-8 text-sm font-bold uppercase tracking-wider hover:bg-[#a91b18] transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    Buy Now
+                    Buy Now (₹{activeProduct.price * detailQuantity + FLAT_DELIVERY_FEE})
                   </button>
 
                   <button
@@ -1300,7 +1553,7 @@ function ShopPublic() {
                 <button
                   type="button"
                   onClick={() => setProductTab("description")}
-                  className={`pb-3 border-b-2 transition-colors ${
+                  className={`pb-3 border-b-2 transition-colors cursor-pointer ${
                     productTab === "description"
                       ? "border-[#c5221f] text-neutral-900"
                       : "border-transparent text-neutral-500 hover:text-neutral-800"
@@ -1311,7 +1564,7 @@ function ShopPublic() {
                 <button
                   type="button"
                   onClick={() => setProductTab("delivery")}
-                  className={`pb-3 border-b-2 transition-colors ${
+                  className={`pb-3 border-b-2 transition-colors cursor-pointer ${
                     productTab === "delivery"
                       ? "border-[#c5221f] text-neutral-900"
                       : "border-transparent text-neutral-500 hover:text-neutral-800"
@@ -1322,7 +1575,7 @@ function ShopPublic() {
                 <button
                   type="button"
                   onClick={() => setProductTab("reviews")}
-                  className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+                  className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
                     productTab === "reviews"
                       ? "border-[#c5221f] text-neutral-900"
                       : "border-transparent text-neutral-500 hover:text-neutral-800"
@@ -1410,16 +1663,16 @@ function ShopPublic() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="border border-neutral-200 p-4 space-y-2">
-                      <h4 className="font-semibold text-neutral-900">Cash on Delivery (COD)</h4>
+                      <h4 className="font-semibold text-neutral-900">Direct Kotak UPI Payment (Instant)</h4>
                       <p className="text-xs text-neutral-600">
-                        Pay cash or UPI upon delivery at your doorstep when the courier executive arrives.
+                        Scan dynamic QR code via Google Pay, PhonePe, Paytm, or BHIM. Zero payment gateway fees, instant confirmation.
                       </p>
                     </div>
 
                     <div className="border border-neutral-200 p-4 space-y-2">
-                      <h4 className="font-semibold text-neutral-900">Direct Kotak UPI Transfer</h4>
+                      <h4 className="font-semibold text-neutral-900">Cash on Delivery (COD)</h4>
                       <p className="text-xs text-neutral-600">
-                        Pay instantly via any UPI app (GPay, PhonePe, Paytm, BHIM) to our Kotak Mahindra Bank account and provide your 12-digit UTR.
+                        Pay cash or UPI upon delivery at your restaurant doorstep when the courier executive arrives.
                       </p>
                     </div>
                   </div>
@@ -1448,7 +1701,7 @@ function ShopPublic() {
                           setReviewModalProduct(activeProduct);
                           setReviewModalOrderId(reviewEligibility.orderId);
                         }}
-                        className="bg-neutral-900 text-white px-5 py-2 text-xs font-semibold uppercase hover:bg-black transition-colors"
+                        className="bg-neutral-900 text-white px-5 py-2 text-xs font-semibold uppercase hover:bg-black transition-colors cursor-pointer"
                       >
                         Write a Verified Review
                       </button>
@@ -1562,7 +1815,7 @@ function ShopPublic() {
         </main>
       ) : (
         /* ===================================================================== */
-        /* VIEW B: CLEAN 4-CARD CATALOG GRID (Matching Sample Image 3)           */
+        /* VIEW B: CLEAN 4-CARD CATALOG GRID (Sample Image 3 Design)             */
         /* ===================================================================== */
         <main className="bg-white text-neutral-900 py-12">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-10">
@@ -1580,7 +1833,7 @@ function ShopPublic() {
               <div className="text-xs text-neutral-600 border border-neutral-200 px-4 py-2 bg-neutral-50">
                 <span>Pan-India Courier: <strong>₹80</strong></span>
                 <span className="mx-2">•</span>
-                <span className="text-emerald-700 font-semibold">COD &amp; Kotak UPI Available</span>
+                <span className="text-emerald-700 font-semibold">Kotak Direct UPI &amp; COD Available</span>
               </div>
             </div>
 
@@ -1588,6 +1841,8 @@ function ShopPublic() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {products.map((p) => {
                 const inCart = cart.find((i) => i.product.id === p.id);
+                const isWishlisted = wishlist.includes(p.id);
+
                 return (
                   <article
                     key={p.id}
@@ -1612,12 +1867,16 @@ function ShopPublic() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          toast.info("Added to wishlist");
+                          toggleWishlist(p.id);
                         }}
-                        className="absolute top-3 right-3 text-neutral-400 hover:text-black transition-colors"
-                        title="Wishlist"
+                        className="absolute top-3 right-3 p-1.5 bg-white/90 border border-neutral-200 hover:border-black transition-colors"
+                        title={isWishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
                       >
-                        <Heart className="size-4" />
+                        <Heart
+                          className={`size-3.5 ${
+                            isWishlisted ? "fill-red-500 text-red-500" : "text-neutral-400"
+                          }`}
+                        />
                       </button>
                     </div>
 
@@ -1647,7 +1906,7 @@ function ShopPublic() {
                         <button
                           type="button"
                           onClick={() => handleSelectProduct(p)}
-                          className="flex-1 border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors"
+                          className="flex-1 border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
                         >
                           View Details
                         </button>
@@ -1657,7 +1916,7 @@ function ShopPublic() {
                             <button
                               type="button"
                               onClick={() => updateQuantity(p.id, inCart.quantity - 1)}
-                              className="px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100"
+                              className="px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 cursor-pointer"
                             >
                               -
                             </button>
@@ -1667,7 +1926,7 @@ function ShopPublic() {
                             <button
                               type="button"
                               onClick={() => updateQuantity(p.id, inCart.quantity + 1)}
-                              className="px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100"
+                              className="px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 cursor-pointer"
                             >
                               +
                             </button>
@@ -1676,7 +1935,7 @@ function ShopPublic() {
                           <button
                             type="button"
                             onClick={() => addToCart(p)}
-                            className="bg-neutral-900 text-white px-3 py-1.5 text-xs font-semibold hover:bg-black transition-colors"
+                            className="bg-neutral-900 text-white px-3 py-1.5 text-xs font-semibold hover:bg-black transition-colors cursor-pointer"
                           >
                             Add
                           </button>
@@ -1714,7 +1973,7 @@ function ShopPublic() {
           <button
             type="button"
             onClick={() => setCartOpen(true)}
-            className="bg-white text-neutral-900 px-3 py-1.5 text-xs font-bold hover:bg-neutral-100 transition-colors"
+            className="bg-white text-neutral-900 px-3 py-1.5 text-xs font-bold hover:bg-neutral-100 transition-colors cursor-pointer"
           >
             Checkout
           </button>
@@ -1722,7 +1981,7 @@ function ShopPublic() {
           <button
             type="button"
             onClick={() => setFloatingCartDismissed(true)}
-            className="text-neutral-400 hover:text-white p-1"
+            className="text-neutral-400 hover:text-white p-1 cursor-pointer"
             title="Dismiss"
           >
             <X className="size-4" />
@@ -1772,7 +2031,7 @@ function ShopPublic() {
                     <button
                       type="button"
                       onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                      className="px-2 py-1 text-xs hover:bg-neutral-100"
+                      className="px-2 py-1 text-xs hover:bg-neutral-100 cursor-pointer"
                     >
                       -
                     </button>
@@ -1780,7 +2039,7 @@ function ShopPublic() {
                     <button
                       type="button"
                       onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                      className="px-2 py-1 text-xs hover:bg-neutral-100"
+                      className="px-2 py-1 text-xs hover:bg-neutral-100 cursor-pointer"
                     >
                       +
                     </button>
@@ -1789,7 +2048,7 @@ function ShopPublic() {
                   <button
                     type="button"
                     onClick={() => removeFromCart(item.product.id)}
-                    className="text-neutral-400 hover:text-red-600 p-1"
+                    className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
                     title="Remove item"
                   >
                     <Trash2 className="size-4" />
@@ -1820,7 +2079,7 @@ function ShopPublic() {
               <button
                 type="button"
                 onClick={clearCart}
-                className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50"
+                className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50 cursor-pointer"
               >
                 Clear Cart
               </button>
@@ -1829,7 +2088,7 @@ function ShopPublic() {
               type="button"
               disabled={cart.length === 0}
               onClick={handleProceedToCheckout}
-              className="flex-1 bg-neutral-900 text-white py-2 px-4 text-xs font-bold uppercase tracking-wider hover:bg-black disabled:opacity-50"
+              className="flex-1 bg-neutral-900 text-white py-2 px-4 text-xs font-bold uppercase tracking-wider hover:bg-black disabled:opacity-50 cursor-pointer"
             >
               Proceed to Checkout
             </button>
@@ -1838,18 +2097,105 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 2. CHECKOUT DIALOG: COD + KOTAK MAHINDRA BANK UPI (Custom Payment)   */}
+      {/* 2. WISHLIST DIALOG (Saved Items Manager)                              */}
+      {/* ===================================================================== */}
+      <Dialog open={wishlistOpen} onOpenChange={setWishlistOpen}>
+        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+          <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
+            <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+              <Heart className="size-5 text-red-500 fill-red-500" />
+              <span>Your Wishlist ({wishlist.length} items)</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {wishlist.length === 0 ? (
+            <div className="py-12 text-center space-y-2">
+              <p className="text-sm font-semibold text-neutral-800">Your wishlist is empty</p>
+              <p className="text-xs text-neutral-500">
+                Click the heart icon on any product card to save it for later.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
+              {wishlist.map((id) => {
+                const prod = products.find((p) => p.id === id);
+                if (!prod) return null;
+
+                return (
+                  <div
+                    key={prod.id}
+                    className="flex items-center justify-between gap-3 border border-neutral-200 p-3"
+                  >
+                    <img
+                      src={resolveProductImage(prod.image)}
+                      alt={prod.name}
+                      className="size-12 object-contain border border-neutral-100 p-1"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-neutral-900 truncate">{prod.name}</p>
+                      <p className="text-xs font-bold text-neutral-800">₹{prod.price}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addToCart(prod);
+                          toggleWishlist(prod.id);
+                        }}
+                        className="bg-neutral-900 text-white px-2.5 py-1 text-xs font-semibold hover:bg-black cursor-pointer"
+                      >
+                        Move to Cart
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleWishlist(prod.id)}
+                        className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
+                        title="Remove"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <DialogFooter className="border-t border-neutral-200 pt-4 flex gap-2">
+            {wishlist.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setWishlist([])}
+                className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50 cursor-pointer"
+              >
+                Clear Wishlist
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setWishlistOpen(false)}
+              className="flex-1 bg-neutral-900 text-white py-2 px-4 text-xs font-bold uppercase hover:bg-black cursor-pointer"
+            >
+              Continue Shopping
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===================================================================== */}
+      {/* 3. CHECKOUT DIALOG: Address + WhatsApp OTP Phone Verification         */}
       {/* ===================================================================== */}
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="sm:max-w-lg p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none max-h-[90vh] overflow-y-auto">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900">
-              Delivery Address &amp; Payment
+              Delivery Address &amp; Verification
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handlePlaceOrder} className="space-y-4 py-2">
-            {/* Customer Details */}
+            {/* Customer Details & WhatsApp Phone Verification */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Full Name *</Label>
@@ -1863,17 +2209,68 @@ function ShopPublic() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Phone Number *</Label>
-                <Input
-                  required
-                  type="tel"
-                  value={shippingPhone}
-                  onChange={(e) => setShippingPhone(e.target.value)}
-                  placeholder="10-digit mobile"
-                  className="rounded-none border-neutral-300 text-xs"
-                />
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Mobile Number *</Label>
+                  {phoneVerified && (
+                    <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-1">
+                      <CheckCircle2 className="size-3" /> WhatsApp Verified
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    required
+                    type="tel"
+                    maxLength={10}
+                    value={shippingPhone}
+                    onChange={(e) => {
+                      setShippingPhone(e.target.value.replace(/\D/g, ""));
+                      if (phoneVerified) setPhoneVerified(false);
+                    }}
+                    placeholder="10-digit mobile"
+                    className="rounded-none border-neutral-300 text-xs flex-1"
+                  />
+                  {!phoneVerified && (
+                    <button
+                      type="button"
+                      disabled={sendingOtp || shippingPhone.length < 10}
+                      onClick={handleSendPhoneOtp}
+                      className="border border-neutral-800 bg-neutral-900 text-white px-3 py-1.5 text-[11px] font-bold uppercase hover:bg-black disabled:opacity-50 whitespace-nowrap cursor-pointer"
+                    >
+                      {sendingOtp ? "Sending..." : "Verify via OTP"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* OTP Verification Prompt (if OTP sent & not yet verified) */}
+            {!phoneVerified && otpSent && (
+              <div className="border border-amber-300 bg-amber-50 p-3 space-y-2 text-xs">
+                <p className="font-semibold text-neutral-900 flex items-center gap-1.5">
+                  <Smartphone className="size-4 text-emerald-700" />
+                  Enter 6-digit WhatsApp OTP sent to +91 {shippingPhone}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="6-digit OTP"
+                    className="rounded-none border-neutral-300 text-xs bg-white flex-1"
+                  />
+                  <button
+                    type="button"
+                    disabled={verifyingOtp || otpCode.length < 6}
+                    onClick={handleVerifyPhoneOtp}
+                    className="bg-emerald-800 text-white px-4 py-1.5 text-xs font-bold hover:bg-emerald-900 disabled:opacity-50 cursor-pointer"
+                  >
+                    {verifyingOtp ? "Verifying..." : "Confirm OTP"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Street Address */}
             <div className="space-y-1 text-xs">
@@ -1935,7 +2332,7 @@ function ShopPublic() {
               />
             </div>
 
-            {/* Payment Mode Selector: COD vs Direct Kotak Bank UPI */}
+            {/* Payment Mode Selector: Kotak Direct UPI vs Cash on Delivery */}
             <div className="border-t border-neutral-200 pt-4 space-y-3">
               <Label className="text-xs font-bold uppercase tracking-wider block">
                 Select Payment Method
@@ -1944,73 +2341,42 @@ function ShopPublic() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setPaymentMode("COD")}
-                  className={`border p-3 text-left transition-colors ${
-                    paymentMode === "COD"
-                      ? "border-neutral-900 bg-neutral-900 text-white font-semibold"
-                      : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"
-                  }`}
-                >
-                  <p className="text-xs font-bold">Cash on Delivery</p>
-                  <p className="text-[10px] opacity-80 mt-0.5">Pay upon delivery</p>
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => setPaymentMode("UPI")}
-                  className={`border p-3 text-left transition-colors ${
+                  className={`border p-3 text-left transition-colors cursor-pointer ${
                     paymentMode === "UPI"
                       ? "border-neutral-900 bg-neutral-900 text-white font-semibold"
                       : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"
                   }`}
                 >
                   <p className="text-xs font-bold">Kotak Direct UPI</p>
-                  <p className="text-[10px] opacity-80 mt-0.5">Pay via GPay / PhonePe</p>
+                  <p className="text-[10px] opacity-80 mt-0.5">Pay via GPay / PhonePe / Paytm</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("COD")}
+                  className={`border p-3 text-left transition-colors cursor-pointer ${
+                    paymentMode === "COD"
+                      ? "border-neutral-900 bg-neutral-900 text-white font-semibold"
+                      : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"
+                  }`}
+                >
+                  <p className="text-xs font-bold">Cash on Delivery</p>
+                  <p className="text-[10px] opacity-80 mt-0.5">Pay at doorstep</p>
                 </button>
               </div>
 
-              {/* Kotak Bank UPI Transfer Details */}
               {paymentMode === "UPI" && (
-                <div className="border border-neutral-300 bg-neutral-50 p-4 space-y-3 text-xs">
-                  <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+                <div className="border border-neutral-300 bg-neutral-50 p-3 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
                     <span className="font-bold text-neutral-900 flex items-center gap-1.5">
                       <Building2 className="size-4" /> Kotak Mahindra Bank UPI
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleCopyUpi}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-700 hover:text-black border border-neutral-300 bg-white px-2 py-0.5"
-                    >
-                      <Copy className="size-3" />
-                      <span>{copiedUpi ? "Copied" : "Copy UPI ID"}</span>
-                    </button>
+                    <span className="font-mono text-neutral-800">{KOTAK_UPI_ID}</span>
                   </div>
-
-                  <div className="space-y-1 text-[11px] text-neutral-600">
-                    <p>
-                      <strong>UPI ID:</strong> <span className="font-mono text-neutral-900">{KOTAK_UPI_ID}</span>
-                    </p>
-                    <p>
-                      <strong>Account Name:</strong> {KOTAK_ACCOUNT_NAME}
-                    </p>
-                    <p>
-                      <strong>Payable Amount:</strong> ₹{cartGrandTotal}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1 pt-1">
-                    <Label className="text-xs font-bold">Enter 12-Digit UPI Transaction ID (UTR) *</Label>
-                    <Input
-                      required
-                      value={upiUtr}
-                      onChange={(e) => setUpiUtr(e.target.value.trim())}
-                      placeholder="e.g. 439281920192"
-                      className="rounded-none border-neutral-300 text-xs bg-white"
-                    />
-                    <p className="text-[10px] text-neutral-500">
-                      Submit the UTR number generated in your Google Pay, PhonePe, Paytm, or BHIM app after sending payment.
-                    </p>
-                  </div>
+                  <p className="text-[11px] text-neutral-600">
+                    A dynamic QR code with exact amount (₹{cartGrandTotal}) will be generated for you to scan or pay via any UPI app.
+                  </p>
                 </div>
               )}
             </div>
@@ -2035,16 +2401,22 @@ function ShopPublic() {
               <button
                 type="button"
                 onClick={() => setCheckoutOpen(false)}
-                className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50"
+                className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={orderSubmitting}
-                className="flex-1 bg-[#c5221f] text-white py-2.5 px-6 text-xs font-bold uppercase tracking-wider hover:bg-[#a91b18] disabled:opacity-50"
+                disabled={orderSubmitting || (!phoneVerified && shippingPhone.length >= 10)}
+                className="flex-1 bg-[#c5221f] text-white py-2.5 px-6 text-xs font-bold uppercase tracking-wider hover:bg-[#a91b18] disabled:opacity-50 cursor-pointer"
               >
-                {orderSubmitting ? "Placing Order..." : `Confirm Order (₹${cartGrandTotal})`}
+                {orderSubmitting
+                  ? "Processing..."
+                  : !phoneVerified
+                  ? "Verify Mobile to Continue"
+                  : paymentMode === "UPI"
+                  ? `Proceed to Kotak UPI (₹${cartGrandTotal})`
+                  : `Confirm Order with COD (₹${cartGrandTotal})`}
               </button>
             </DialogFooter>
           </form>
@@ -2052,7 +2424,106 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 3. ORDER CONFIRMATION MODAL                                           */}
+      {/* 4. DYNAMIC KOTAK UPI PAYMENT MODAL (Auto-Detector & Instant UTR)     */}
+      {/* ===================================================================== */}
+      <Dialog open={upiModalOpen} onOpenChange={setUpiModalOpen}>
+        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+          <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
+            <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+              <Building2 className="size-5 text-neutral-800" />
+              <span>Kotak Bank UPI Payment</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {activePaymentSession && (
+            <div className="space-y-5 py-3 text-center">
+              {/* Amount badge */}
+              <div>
+                <p className="text-xs uppercase text-neutral-500 font-semibold">Amount to Pay</p>
+                <p className="text-3xl font-extrabold text-neutral-900 mt-0.5">
+                  ₹{activePaymentSession.amount}
+                </p>
+              </div>
+
+              {/* Dynamic QR Code */}
+              <div className="mx-auto w-48 h-48 border border-neutral-300 p-2 bg-white flex flex-col items-center justify-center relative">
+                {/* Visual SVG QR preview */}
+                <div className="w-full h-full bg-neutral-900 p-3 flex flex-col items-center justify-center text-white">
+                  <QrCode className="size-32 text-white stroke-[1.5]" />
+                  <span className="text-[10px] text-neutral-300 mt-1 uppercase font-mono tracking-wider">
+                    SCAN VIA ANY UPI APP
+                  </span>
+                </div>
+              </div>
+
+              {/* Account details & 1-click copy */}
+              <div className="border border-neutral-200 p-3 bg-neutral-50 text-xs space-y-1 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-500">Payee Name:</span>
+                  <span className="font-semibold text-neutral-900">{KOTAK_ACCOUNT_NAME}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-500">Kotak UPI ID:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-neutral-900">{KOTAK_UPI_ID}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyUpi}
+                      className="text-neutral-500 hover:text-black p-0.5 cursor-pointer"
+                      title="Copy UPI ID"
+                    >
+                      <Copy className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1-Click Mobile Intent Button */}
+              <div>
+                <a
+                  href={activePaymentSession.upiUri}
+                  className="block w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black transition-colors"
+                >
+                  Pay via GPay / PhonePe / Paytm
+                </a>
+              </div>
+
+              {/* Live Status Detector Pulse */}
+              <div className="flex items-center justify-center gap-2 text-xs text-neutral-600 pt-1">
+                <RefreshCw className="size-3.5 animate-spin text-emerald-700" />
+                <span>Waiting for Kotak Bank credit confirmation...</span>
+              </div>
+
+              {/* Instant UTR Fallback (When bank email is delayed) */}
+              <div className="border-t border-neutral-200 pt-4 text-left space-y-2">
+                <p className="text-xs font-semibold text-neutral-800">
+                  Bank email taking time? Submit 12-Digit UTR to confirm immediately:
+                </p>
+                <form onSubmit={handleManualUtrSubmit} className="flex gap-2">
+                  <Input
+                    required
+                    maxLength={12}
+                    value={manualUtrInput}
+                    onChange={(e) => setManualUtrInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="12-digit UPI Ref / UTR"
+                    className="rounded-none border-neutral-300 text-xs flex-1"
+                  />
+                  <button
+                    type="submit"
+                    disabled={submittingManualUtr || manualUtrInput.length < 10}
+                    className="bg-[#c5221f] text-white px-4 py-1.5 text-xs font-bold uppercase hover:bg-[#a91b18] disabled:opacity-50 cursor-pointer"
+                  >
+                    {submittingManualUtr ? "Verifying..." : "Verify"}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ===================================================================== */}
+      {/* 5. ORDER CONFIRMATION MODAL                                           */}
       {/* ===================================================================== */}
       <Dialog open={Boolean(placedOrder)} onOpenChange={() => setPlacedOrder(null)}>
         <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
@@ -2080,11 +2551,13 @@ function ShopPublic() {
                   <strong>Total Amount:</strong> ₹{placedOrder.grandTotal}
                 </p>
                 <p>
-                  <strong>Payment Mode:</strong> {placedOrder.paymentMode === "UPI" ? "Kotak Direct UPI" : "Cash on Delivery"}
+                  <strong>Payment Mode:</strong>{" "}
+                  {placedOrder.paymentMode === "UPI" ? "Kotak Direct UPI" : "Cash on Delivery"}
                 </p>
                 <p>
-                  <strong>Delivery To:</strong> {placedOrder.shippingAddress.street}, {placedOrder.shippingAddress.city},{" "}
-                  {placedOrder.shippingAddress.state} - {placedOrder.shippingAddress.pincode}
+                  <strong>Delivery To:</strong> {placedOrder.shippingAddress.street},{" "}
+                  {placedOrder.shippingAddress.city}, {placedOrder.shippingAddress.state} -{" "}
+                  {placedOrder.shippingAddress.pincode}
                 </p>
               </div>
 
@@ -2098,7 +2571,7 @@ function ShopPublic() {
             <button
               type="button"
               onClick={() => setPlacedOrder(null)}
-              className="w-full bg-neutral-900 text-white py-2 text-xs font-bold uppercase hover:bg-black"
+              className="w-full bg-neutral-900 text-white py-2 text-xs font-bold uppercase hover:bg-black cursor-pointer"
             >
               Done
             </button>
@@ -2107,7 +2580,7 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 4. TRACK ORDER / MY ORDERS DIALOG (Rate & Review DELIVERED Orders)    */}
+      {/* 6. TRACK ORDER / MY ORDERS DIALOG (Rate & Review DELIVERED Orders)    */}
       {/* ===================================================================== */}
       <Dialog open={trackModalOpen} onOpenChange={setTrackModalOpen}>
         <DialogContent className="sm:max-w-lg p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none max-h-[90vh] overflow-y-auto">
@@ -2133,7 +2606,7 @@ function ShopPublic() {
                   type="button"
                   onClick={() => handleTrackOrder()}
                   disabled={trackLoading}
-                  className="bg-neutral-900 text-white px-4 py-2 text-xs font-semibold hover:bg-black disabled:opacity-50"
+                  className="bg-neutral-900 text-white px-4 py-2 text-xs font-semibold hover:bg-black disabled:opacity-50 cursor-pointer"
                 >
                   {trackLoading ? "Searching..." : "Track"}
                 </button>
@@ -2194,7 +2667,7 @@ function ShopPublic() {
                             setReviewModalProduct(prod);
                             setReviewModalOrderId(trackedOrder.id);
                           }}
-                          className="bg-[#c5221f] text-white px-3 py-1 text-[11px] font-bold hover:bg-[#a91b18]"
+                          className="bg-[#c5221f] text-white px-3 py-1 text-[11px] font-bold hover:bg-[#a91b18] cursor-pointer"
                         >
                           ★ Rate &amp; Review
                         </button>
@@ -2252,7 +2725,7 @@ function ShopPublic() {
                                   setReviewModalProduct(prod);
                                   setReviewModalOrderId(ord.id);
                                 }}
-                                className="text-[#c5221f] hover:underline font-bold text-[11px]"
+                                className="text-[#c5221f] hover:underline font-bold text-[11px] cursor-pointer"
                               >
                                 ★ Review Item
                               </button>
@@ -2272,7 +2745,7 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 5. WRITE A REVIEW MODAL (Strictly for Delivered Orders)              */}
+      {/* 7. WRITE A REVIEW MODAL (Strictly for Delivered Orders)              */}
       {/* ===================================================================== */}
       <Dialog
         open={Boolean(reviewModalProduct)}
@@ -2313,7 +2786,7 @@ function ShopPublic() {
                       type="button"
                       key={s}
                       onClick={() => setReviewRating(s)}
-                      className="p-1 focus:outline-none"
+                      className="p-1 focus:outline-none cursor-pointer"
                     >
                       <Star
                         className={`size-6 ${
@@ -2361,14 +2834,14 @@ function ShopPublic() {
                     setReviewModalProduct(null);
                     setReviewModalOrderId(undefined);
                   }}
-                  className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50"
+                  className="border border-neutral-300 px-4 py-2 text-xs font-semibold hover:bg-neutral-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReview}
-                  className="flex-1 bg-neutral-900 text-white py-2 px-4 text-xs font-bold uppercase hover:bg-black disabled:opacity-50"
+                  className="flex-1 bg-neutral-900 text-white py-2 px-4 text-xs font-bold uppercase hover:bg-black disabled:opacity-50 cursor-pointer"
                 >
                   {submittingReview ? "Publishing..." : "Submit Review"}
                 </button>
@@ -2379,7 +2852,7 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 6. AUTHENTICATION MODAL (Login / Signup for Shop Order)               */}
+      {/* 8. AUTHENTICATION MODAL (Login / Signup for Shop Order)               */}
       {/* ===================================================================== */}
       <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
         <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
@@ -2443,7 +2916,7 @@ function ShopPublic() {
               <button
                 type="submit"
                 disabled={authSubmitting}
-                className="w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black disabled:opacity-50"
+                className="w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black disabled:opacity-50 cursor-pointer"
               >
                 {authSubmitting
                   ? "Please wait..."
@@ -2457,7 +2930,7 @@ function ShopPublic() {
                 <button
                   type="button"
                   onClick={() => setAuthMode((m) => (m === "signup" ? "login" : "signup"))}
-                  className="font-bold text-neutral-900 hover:underline"
+                  className="font-bold text-neutral-900 hover:underline cursor-pointer"
                 >
                   {authMode === "signup" ? "Sign In" : "Register Now"}
                 </button>

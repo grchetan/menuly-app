@@ -72,8 +72,9 @@ import {
   Truck,
   Package,
   Tag,
+  XCircle,
 } from "lucide-react";
-import type { ShopProduct, ShopOrder, ShopOrderStatus } from "@/lib/shop-types";
+import type { ShopProduct, ShopOrder, ShopOrderStatus, ShopPaymentSession } from "@/lib/shop-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -411,7 +412,8 @@ function AdminPage() {
   // Merch Shop Admin State
   const [shopProducts, setShopProducts] = useState<ShopProduct[]>([]);
   const [shopOrders, setShopOrders] = useState<ShopOrder[]>([]);
-  const [shopSubTab, setShopSubTab] = useState<"products" | "orders">("products");
+  const [shopPayments, setShopPayments] = useState<ShopPaymentSession[]>([]);
+  const [shopSubTab, setShopSubTab] = useState<"products" | "orders" | "payments">("products");
   const [editingShopProduct, setEditingShopProduct] = useState<Partial<ShopProduct> | null>(null);
   const [savingShopProduct, setSavingShopProduct] = useState(false);
   const [statusDialogOrder, setStatusDialogOrder] = useState<ShopOrder | null>(null);
@@ -419,6 +421,7 @@ function AdminPage() {
   const [courierPartnerInput, setCourierPartnerInput] = useState("");
   const [trackingNumberInput, setTrackingNumberInput] = useState("");
   const [updatingShopStatus, setUpdatingShopStatus] = useState(false);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
 
   // Starter Menu Packs Admin State
   const [adminPresets, setAdminPresets] = useState<PresetTemplate[]>(STARTER_PRESETS);
@@ -680,8 +683,13 @@ function AdminPage() {
       })
         .then((res) => res.json())
         .catch(() => ({ success: false })),
+      fetch("/api/admin/shop/payments", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .catch(() => ({ success: false })),
     ])
-      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData, trashData, shopProductsData, shopOrdersData]) => {
+      .then(([userData, restData, ticketData, settingsData, feedbackData, analyticsDataRes, presetsData, pendingData, trashData, shopProductsData, shopOrdersData, shopPaymentsData]) => {
         // Auto-detect expired token or authorization error
         const isAuthError =
           Boolean(userData?.error && (userData.error.includes("Unauthorized") || userData.error.includes("Forbidden") || userData.error.includes("token"))) ||
@@ -703,6 +711,9 @@ function AdminPage() {
         }
         if (shopOrdersData?.success && Array.isArray(shopOrdersData.orders)) {
           setShopOrders(shopOrdersData.orders);
+        }
+        if (shopPaymentsData?.success && Array.isArray(shopPaymentsData.payments)) {
+          setShopPayments(shopPaymentsData.payments);
         }
         if (pendingData?.success && Array.isArray(pendingData.pending)) {
           setPendingSignups(pendingData.pending);
@@ -1273,16 +1284,20 @@ function AdminPage() {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token) return;
     try {
-      const [pRes, oRes] = await Promise.all([
+      const [pRes, oRes, payRes] = await Promise.all([
         fetch("/api/admin/shop/products", {
           headers: { Authorization: `Bearer ${token}` },
         }).then((r) => r.json()),
         fetch("/api/admin/shop/orders", {
           headers: { Authorization: `Bearer ${token}` },
         }).then((r) => r.json()),
+        fetch("/api/admin/shop/payments", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then((r) => r.json()),
       ]);
       if (pRes?.success && Array.isArray(pRes.products)) setShopProducts(pRes.products);
       if (oRes?.success && Array.isArray(oRes.orders)) setShopOrders(oRes.orders);
+      if (payRes?.success && Array.isArray(payRes.payments)) setShopPayments(payRes.payments);
     } catch {}
   }, []);
 
@@ -1384,6 +1399,32 @@ function AdminPage() {
       toast.error(err.message || "Failed to update order status");
     } finally {
       setUpdatingShopStatus(false);
+    }
+  };
+
+  const handleUpdatePaymentStatus = async (sessionId: string, status: "PAID" | "FAILED", note?: string) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+    setUpdatingPaymentId(sessionId);
+    try {
+      const res = await fetch("/api/admin/shop/payments/status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sessionId, status, note }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update payment status");
+      }
+      toast.success(status === "PAID" ? "Payment approved and marked PAID!" : "Payment marked as FAILED");
+      fetchAdminShopData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update payment status");
+    } finally {
+      setUpdatingPaymentId(null);
     }
   };
 
@@ -4552,6 +4593,18 @@ function AdminPage() {
                 >
                   Customer Orders ({shopOrders.length})
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShopSubTab("payments")}
+                  className={cn(
+                    "rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    shopSubTab === "payments"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  UPI Payments &amp; Audit ({shopPayments.length})
+                </button>
               </div>
             </div>
 
@@ -4765,7 +4818,19 @@ function AdminPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <span className="font-black text-foreground text-sm">₹{o.grandTotal}</span>
-                                <span className="block text-[10px] text-veg font-bold uppercase">COD</span>
+                                <span
+                                  className={cn(
+                                    "block text-[10px] font-bold uppercase",
+                                    o.paymentMode === "UPI" ? "text-purple-600" : "text-veg"
+                                  )}
+                                >
+                                  {o.paymentMode || "COD"} {o.paymentStatus ? `• ${o.paymentStatus}` : ""}
+                                </span>
+                                {o.upiUtr && (
+                                  <span className="text-[9px] font-mono text-muted-foreground block truncate max-w-[120px]">
+                                    UTR: {o.upiUtr}
+                                  </span>
+                                )}
                               </td>
                               <td className="px-4 py-3">
                                 <span
@@ -4812,6 +4877,294 @@ function AdminPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* SUB-TAB 3: KOTAK DYNAMIC UPI TRANSACTIONS & AUDIT LOG */}
+            {shopSubTab === "payments" && (
+              <div className="space-y-6">
+                {/* Kotak Gateway Details Card */}
+                <div className="rounded-2xl border bg-card p-5 shadow-xs space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="size-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0">
+                        <CreditCard className="size-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-foreground text-base">Kotak Mahindra Bank Dynamic UPI Gateway</h3>
+                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
+                            <ShieldCheck className="size-3" /> 0% PLATFORM FEE • DIRECT SETTLEMENT
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Direct-to-bank UPI transfers with automatic email verification and instant 12-digit UTR reconciliation.
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchAdminShopData()}
+                      className="rounded-xl text-xs font-semibold gap-1.5 h-8 shrink-0"
+                    >
+                      <RefreshCw className="size-3.5" /> Refresh Payments
+                    </Button>
+                  </div>
+
+                  {/* Integration Metadata Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t">
+                    <div className="rounded-xl border bg-muted/30 p-3">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Official Kotak UPI ID</span>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="font-mono text-xs font-bold text-foreground">9179878521@kotakbank</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText("9179878521@kotakbank");
+                            toast.success("Kotak UPI ID copied!");
+                          }}
+                          className="text-muted-foreground hover:text-foreground text-xs p-1"
+                          title="Copy UPI ID"
+                        >
+                          <Copy className="size-3.5" />
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground mt-0.5 block">Account Name: Menuly India</span>
+                    </div>
+
+                    <div className="rounded-xl border bg-muted/30 p-3 sm:col-span-2">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Bank Credit Email / Observer Webhook</span>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="font-mono text-[11px] text-foreground truncate pr-2">
+                          https://www.menulyindia.online/api/shop/payments/bank-webhook
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText("https://www.menulyindia.online/api/shop/payments/bank-webhook");
+                            toast.success("Webhook URL copied!");
+                          }}
+                          className="text-muted-foreground hover:text-foreground text-xs p-1 shrink-0"
+                          title="Copy Webhook URL"
+                        >
+                          <Copy className="size-3.5" />
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                        Accepts POST JSON with credit alerts: &#123; amount, utr, text &#125;
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metrics Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl border bg-card p-3 shadow-xs">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Sessions</span>
+                    <p className="text-xl font-bold font-display text-foreground mt-0.5">{shopPayments.length}</p>
+                    <span className="text-[10px] text-muted-foreground">Dynamic QR Created</span>
+                  </div>
+                  <div className="rounded-xl border bg-card p-3 shadow-xs">
+                    <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Total Settled</span>
+                    <p className="text-xl font-bold font-display text-emerald-600 mt-0.5">
+                      ₹{shopPayments.filter((p) => p.status === "PAID").reduce((sum, p) => sum + p.amount, 0).toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {shopPayments.filter((p) => p.status === "PAID").length} verified transactions
+                    </span>
+                  </div>
+                  <div className="rounded-xl border bg-card p-3 shadow-xs">
+                    <span className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">Pending Verification</span>
+                    <p className="text-xl font-bold font-display text-amber-600 mt-0.5">
+                      {shopPayments.filter((p) => p.status === "PENDING").length}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">Awaiting UTR or Credit</span>
+                  </div>
+                  <div className="rounded-xl border bg-card p-3 shadow-xs">
+                    <span className="text-[10px] uppercase font-bold text-purple-600 tracking-wider">UTR Submitted</span>
+                    <p className="text-xl font-bold font-display text-purple-600 mt-0.5">
+                      {shopPayments.filter((p) => p.utr).length}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">With 12-digit ref</span>
+                  </div>
+                </div>
+
+                {/* Payments Table */}
+                <div className="rounded-2xl border bg-card shadow-xs overflow-hidden">
+                  <div className="p-4 border-b flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-sm text-foreground">Transaction Audit Log</h4>
+                      <p className="text-xs text-muted-foreground">
+                        All dynamic Kotak UPI sessions with real-time settlement status &amp; UTR numbers.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-muted/50 border-b text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3">Session &amp; Time</th>
+                          <th className="px-4 py-3">Order #</th>
+                          <th className="px-4 py-3">Customer</th>
+                          <th className="px-4 py-3">Amount</th>
+                          <th className="px-4 py-3">12-Digit UTR</th>
+                          <th className="px-4 py-3">Payment Status</th>
+                          <th className="px-4 py-3">Verified Via</th>
+                          <th className="px-4 py-3 text-right">Admin Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {shopPayments.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
+                              <CreditCard className="size-8 mx-auto mb-2 text-muted-foreground/40" />
+                              <p className="font-bold text-sm">No UPI Transactions Yet</p>
+                              <p className="text-xs mt-1">Customer dynamic UPI sessions and Kotak credit alerts will show here live.</p>
+                            </td>
+                          </tr>
+                        ) : (
+                          shopPayments.map((p) => (
+                            <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-3 font-mono">
+                                <span className="font-bold text-foreground block">{p.id.slice(0, 12)}...</span>
+                                <span className="text-[10px] text-muted-foreground font-sans">
+                                  {new Date(p.createdAt).toLocaleString("en-IN", {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {p.orderNumber ? (
+                                  <span className="font-bold text-foreground">#{p.orderNumber}</span>
+                                ) : (
+                                  <span className="text-muted-foreground italic">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-medium text-foreground block">{p.customerName || "Customer"}</span>
+                                <span className="text-[10px] text-muted-foreground">{p.customerPhone}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-black text-foreground text-sm">₹{p.amount}</span>
+                              </td>
+                              <td className="px-4 py-3 font-mono">
+                                {p.utr ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="bg-muted px-2 py-0.5 rounded text-[11px] font-bold border text-foreground select-all">
+                                      {p.utr}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(p.utr!);
+                                        toast.success("UTR copied!");
+                                      }}
+                                      className="text-muted-foreground hover:text-foreground p-0.5"
+                                      title="Copy UTR"
+                                    >
+                                      <Copy className="size-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground italic">Awaiting UTR</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                                    p.status === "PAID"
+                                      ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
+                                      : p.status === "FAILED"
+                                      ? "bg-destructive/10 text-destructive border border-destructive/20"
+                                      : "bg-amber-500/10 text-amber-700 border border-amber-500/20"
+                                  )}
+                                >
+                                  {p.status === "PAID" && <CheckCircle2 className="size-3" />}
+                                  {p.status === "FAILED" && <XCircle className="size-3" />}
+                                  {p.status === "PENDING" && <Clock className="size-3" />}
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {p.verifiedVia ? (
+                                  <div>
+                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-foreground border">
+                                      {p.verifiedVia === "EMAIL_WEBHOOK"
+                                        ? "Bank Webhook"
+                                        : p.verifiedVia === "INSTANT_UTR"
+                                        ? "Instant UTR"
+                                        : "Admin Approval"}
+                                    </span>
+                                    {p.bankAuditNote && (
+                                      <span className="block text-[9px] text-muted-foreground mt-0.5 max-w-[140px] truncate" title={p.bankAuditNote}>
+                                        {p.bankAuditNote}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground italic">Unverified</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {p.status === "PENDING" ? (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      disabled={updatingPaymentId === p.id}
+                                      onClick={() => handleUpdatePaymentStatus(p.id, "PAID", "Approved by Super Admin")}
+                                      className="rounded-lg h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                                    >
+                                      <CheckCircle2 className="size-3" /> Approve Paid
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={updatingPaymentId === p.id}
+                                      onClick={() => handleUpdatePaymentStatus(p.id, "FAILED", "Rejected by Super Admin")}
+                                      className="rounded-lg h-7 px-2 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                ) : p.status === "PAID" ? (
+                                  <div className="flex items-center justify-end gap-2">
+                                    <span className="text-[11px] text-emerald-600 font-bold inline-flex items-center gap-1">
+                                      <ShieldCheck className="size-3.5" /> Settled
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdatePaymentStatus(p.id, "FAILED", "Revoked to Failed")}
+                                      className="text-[10px] text-muted-foreground hover:text-destructive underline"
+                                    >
+                                      Mark Failed
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={updatingPaymentId === p.id}
+                                    onClick={() => handleUpdatePaymentStatus(p.id, "PAID", "Re-approved by Super Admin")}
+                                    className="rounded-lg h-7 px-2.5 text-[11px] font-semibold"
+                                  >
+                                    Re-approve
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </div>
