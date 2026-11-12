@@ -523,6 +523,7 @@ function ShopPublic() {
   // Kotak Dynamic UPI Payment Gateway Modal State
   const [upiModalOpen, setUpiModalOpen] = useState(false);
   const [activePaymentSession, setActivePaymentSession] = useState<ShopPaymentSession | null>(null);
+  const [pendingUpiOrder, setPendingUpiOrder] = useState<ShopOrder | null>(null);
   const [manualUtrInput, setManualUtrInput] = useState("");
   const [submittingManualUtr, setSubmittingManualUtr] = useState(false);
 
@@ -918,6 +919,13 @@ function ShopPublic() {
           if (data.success && data.status === "PAID") {
             setActivePaymentSession(data.session);
             setUpiModalOpen(false);
+            if (pendingUpiOrder) {
+              setPlacedOrder({
+                ...pendingUpiOrder,
+                paymentStatus: "PAID",
+                upiUtr: data.session?.utr,
+              });
+            }
             toast.success("Payment Received! Kotak Bank credit verified.");
             fetchUserOrders();
           }
@@ -926,7 +934,7 @@ function ShopPublic() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [upiModalOpen, activePaymentSession, fetchUserOrders]);
+  }, [upiModalOpen, activePaymentSession, pendingUpiOrder, fetchUserOrders]);
 
   // Submit UTR manually (Fallback when bank email is delayed)
   const handleManualUtrSubmit = async (e: React.FormEvent) => {
@@ -955,6 +963,13 @@ function ShopPublic() {
 
       setActivePaymentSession(data.session);
       setUpiModalOpen(false);
+      if (pendingUpiOrder) {
+        setPlacedOrder({
+          ...pendingUpiOrder,
+          paymentStatus: "PAID",
+          upiUtr: cleanUtr,
+        });
+      }
       toast.success("UPI UTR Verified! Order confirmed.");
       fetchUserOrders();
     } catch (err: any) {
@@ -997,6 +1012,8 @@ function ShopPublic() {
     try {
       // 1. If Kotak UPI, first create dynamic payment session
       let paymentSessionId: string | undefined = undefined;
+      let createdSession: ShopPaymentSession | null = null;
+
       if (paymentMode === "UPI") {
         const sessRes = await fetch("/api/shop/payments/create-session", {
           method: "POST",
@@ -1012,8 +1029,11 @@ function ShopPublic() {
         });
         const sessData = await sessRes.json();
         if (sessRes.ok && sessData.success && sessData.session) {
+          createdSession = sessData.session;
           setActivePaymentSession(sessData.session);
           paymentSessionId = sessData.session.id;
+        } else {
+          throw new Error(sessData.error || "Failed to initialize Kotak UPI payment session");
         }
       }
 
@@ -1048,14 +1068,16 @@ function ShopPublic() {
         throw new Error(data.error || "Failed to place order.");
       }
 
-      setPlacedOrder(data.order);
       setCart([]);
       setCheckoutOpen(false);
 
-      if (paymentMode === "UPI" && activePaymentSession) {
+      if (paymentMode === "UPI" && (createdSession || paymentSessionId)) {
+        setPendingUpiOrder(data.order);
+        setManualUtrInput("");
         setUpiModalOpen(true);
-        toast.info("Scan dynamic Kotak QR code to complete payment.");
+        toast.info("Scan Kotak QR code or use your UPI app to complete payment.");
       } else {
+        setPlacedOrder(data.order);
         toast.success(`Order ${data.order.orderNumber} placed! Cash on Delivery confirmed.`);
       }
 
@@ -1064,6 +1086,53 @@ function ShopPublic() {
       toast.error(err.message || "Failed to place order. Please try again.");
     } finally {
       setOrderSubmitting(false);
+    }
+  };
+
+  // Pay existing pending UPI order from Track Orders modal
+  const handlePayOrderUpi = async (ord: ShopOrder) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token) return;
+    try {
+      let session: ShopPaymentSession | null = null;
+      if (ord.paymentSessionId) {
+        const sRes = await fetch(`/api/shop/payments/status?sessionId=${ord.paymentSessionId}`);
+        const sData = await sRes.json();
+        if (sRes.ok && sData.success && sData.session) {
+          session = sData.session;
+        }
+      }
+      if (!session) {
+        const createRes = await fetch("/api/shop/payments/create-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            amount: ord.grandTotal,
+            customerName: ord.customerName,
+            customerPhone: ord.customerPhone,
+            orderNumber: ord.orderNumber,
+            orderId: ord.id,
+          }),
+        });
+        const cData = await createRes.json();
+        if (createRes.ok && cData.success && cData.session) {
+          session = cData.session;
+        }
+      }
+      if (session) {
+        setActivePaymentSession(session);
+        setPendingUpiOrder(ord);
+        setManualUtrInput(ord.upiUtr || "");
+        setTrackModalOpen(false);
+        setUpiModalOpen(true);
+      } else {
+        toast.error("Failed to start Kotak UPI session. Please retry.");
+      }
+    } catch {
+      toast.error("Network error starting UPI payment.");
     }
   };
 
@@ -2445,25 +2514,28 @@ function ShopPublic() {
                 </p>
               </div>
 
-              {/* Dynamic QR Code */}
-              <div className="mx-auto w-48 h-48 border border-neutral-300 p-2 bg-white flex flex-col items-center justify-center relative">
-                {/* Visual SVG QR preview */}
-                <div className="w-full h-full bg-neutral-900 p-3 flex flex-col items-center justify-center text-white">
-                  <QrCode className="size-32 text-white stroke-[1.5]" />
-                  <span className="text-[10px] text-neutral-300 mt-1 uppercase font-mono tracking-wider">
-                    SCAN VIA ANY UPI APP
-                  </span>
-                </div>
+              {/* Dynamic Real Scannable QR Code */}
+              <div className="mx-auto w-56 h-56 border border-neutral-300 p-2 bg-white flex flex-col items-center justify-center relative shadow-sm">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(
+                    activePaymentSession.upiUri
+                  )}`}
+                  alt="Kotak Dynamic UPI QR Code"
+                  className="w-full h-full object-contain"
+                />
               </div>
+              <p className="text-[11px] text-neutral-600 font-medium">
+                Scan with Google Pay, PhonePe, Paytm, BHIM, or any UPI app
+              </p>
 
               {/* Account details & 1-click copy */}
-              <div className="border border-neutral-200 p-3 bg-neutral-50 text-xs space-y-1 text-left">
+              <div className="border border-neutral-200 p-3 bg-neutral-50 text-xs space-y-1.5 text-left">
                 <div className="flex items-center justify-between">
                   <span className="text-neutral-500">Payee Name:</span>
                   <span className="font-semibold text-neutral-900">{KOTAK_ACCOUNT_NAME}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-neutral-500">Kotak UPI ID:</span>
+                  <span className="text-neutral-500">Official Kotak UPI ID:</span>
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono font-bold text-neutral-900">{KOTAK_UPI_ID}</span>
                     <button
@@ -2475,6 +2547,10 @@ function ShopPublic() {
                       <Copy className="size-3.5" />
                     </button>
                   </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-500">Txn Ref:</span>
+                  <span className="font-mono text-[10px] text-neutral-700">{activePaymentSession.id}</span>
                 </div>
               </div>
 
@@ -2491,31 +2567,53 @@ function ShopPublic() {
               {/* Live Status Detector Pulse */}
               <div className="flex items-center justify-center gap-2 text-xs text-neutral-600 pt-1">
                 <RefreshCw className="size-3.5 animate-spin text-emerald-700" />
-                <span>Waiting for Kotak Bank credit confirmation...</span>
+                <span>Auto-detecting Kotak Bank credit confirmation...</span>
               </div>
 
               {/* Instant UTR Fallback (When bank email is delayed) */}
               <div className="border-t border-neutral-200 pt-4 text-left space-y-2">
-                <p className="text-xs font-semibold text-neutral-800">
-                  Bank email taking time? Submit 12-Digit UTR to confirm immediately:
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-neutral-800">
+                    Already paid? Submit 12-Digit UTR to confirm order:
+                  </p>
+                  <span className="text-[10px] text-neutral-500 font-medium">Instant</span>
+                </div>
                 <form onSubmit={handleManualUtrSubmit} className="flex gap-2">
                   <Input
                     required
                     maxLength={12}
                     value={manualUtrInput}
                     onChange={(e) => setManualUtrInput(e.target.value.replace(/\D/g, ""))}
-                    placeholder="12-digit UPI Ref / UTR"
-                    className="rounded-none border-neutral-300 text-xs flex-1"
+                    placeholder="Enter 12-digit UPI UTR"
+                    className="rounded-none border-neutral-300 text-xs flex-1 font-mono"
                   />
                   <button
                     type="submit"
                     disabled={submittingManualUtr || manualUtrInput.length < 10}
                     className="bg-[#c5221f] text-white px-4 py-1.5 text-xs font-bold uppercase hover:bg-[#a91b18] disabled:opacity-50 cursor-pointer"
                   >
-                    {submittingManualUtr ? "Verifying..." : "Verify"}
+                    {submittingManualUtr ? "Verifying..." : "Verify UTR"}
                   </button>
                 </form>
+                <p className="text-[10px] text-neutral-500">
+                  Open your UPI app transaction receipt and copy the 12-digit UPI Reference / UTR.
+                </p>
+              </div>
+
+              {/* Close / Pay Later Option */}
+              <div className="pt-2 text-center border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUpiModalOpen(false);
+                    if (pendingUpiOrder) {
+                      toast.info(`Order #${pendingUpiOrder.orderNumber} saved as Pending Payment. You can pay anytime from Track Orders.`);
+                    }
+                  }}
+                  className="text-xs text-neutral-500 hover:text-neutral-900 underline cursor-pointer"
+                >
+                  Close / Pay Later from Track Orders
+                </button>
               </div>
             </div>
           )}
@@ -2552,8 +2650,19 @@ function ShopPublic() {
                 </p>
                 <p>
                   <strong>Payment Mode:</strong>{" "}
-                  {placedOrder.paymentMode === "UPI" ? "Kotak Direct UPI" : "Cash on Delivery"}
+                  {placedOrder.paymentMode === "UPI" ? (
+                    <span className="text-purple-700 font-bold">
+                      Kotak Direct UPI {placedOrder.paymentStatus === "PAID" ? "(PAID & VERIFIED)" : "(Pending Verification)"}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 font-bold">Cash on Delivery</span>
+                  )}
                 </p>
+                {placedOrder.upiUtr && (
+                  <p>
+                    <strong>12-Digit UTR:</strong> <span className="font-mono font-bold bg-neutral-100 px-1 py-0.5">{placedOrder.upiUtr}</span>
+                  </p>
+                )}
                 <p>
                   <strong>Delivery To:</strong> {placedOrder.shippingAddress.street},{" "}
                   {placedOrder.shippingAddress.city}, {placedOrder.shippingAddress.state} -{" "}
@@ -2694,8 +2803,25 @@ function ShopPublic() {
                         </span>
                       </div>
 
-                      <div className="text-neutral-500 text-[11px]">
-                        Placed on {new Date(ord.createdAt).toLocaleDateString()} • ₹{ord.grandTotal} ({ord.paymentMode})
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-neutral-500 text-[11px]">
+                        <span>
+                          Placed on {new Date(ord.createdAt).toLocaleDateString()} • ₹{ord.grandTotal} (
+                          {ord.paymentMode === "UPI" ? "Kotak UPI" : "COD"})
+                        </span>
+                        {ord.paymentMode === "UPI" && ord.paymentStatus !== "PAID" && (
+                          <button
+                            type="button"
+                            onClick={() => handlePayOrderUpi(ord)}
+                            className="bg-neutral-900 hover:bg-black text-white px-2.5 py-1 text-[10px] font-bold uppercase rounded-none cursor-pointer flex items-center gap-1"
+                          >
+                            <CreditCard className="size-3" /> Pay Now via Kotak UPI
+                          </button>
+                        )}
+                        {ord.paymentMode === "UPI" && ord.paymentStatus === "PAID" && (
+                          <span className="text-emerald-700 font-bold text-[10px] flex items-center gap-1">
+                            <CheckCircle2 className="size-3" /> Paid &amp; Verified {ord.upiUtr ? `(UTR: ${ord.upiUtr})` : ""}
+                          </span>
+                        )}
                       </div>
 
                       {/* Items with review buttons */}
