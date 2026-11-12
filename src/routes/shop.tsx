@@ -110,11 +110,11 @@ function LocalUpiQrCode({ upiUri }: { upiUri: string }) {
         containerRef.current.innerHTML = "";
 
         const qr = new QRCodeStyling({
-          width: 220,
-          height: 220,
+          width: 176,
+          height: 176,
           type: "svg",
           data: upiUri,
-          margin: 6,
+          margin: 4,
           qrOptions: {
             typeNumber: 0,
             mode: "Byte",
@@ -150,11 +150,11 @@ function LocalUpiQrCode({ upiUri }: { upiUri: string }) {
   }, [upiUri]);
 
   return (
-    <div className="relative mx-auto w-56 h-56 border border-neutral-300 p-2 bg-white flex flex-col items-center justify-center shadow-xs">
+    <div className="relative mx-auto w-44 h-44 sm:w-48 sm:h-48 border border-neutral-300 p-1.5 bg-white flex flex-col items-center justify-center shadow-xs">
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-10">
-          <RefreshCw className="size-6 animate-spin text-neutral-400" />
-          <span className="text-[10px] text-neutral-400 mt-2">Generating QR Code...</span>
+          <RefreshCw className="size-5 animate-spin text-neutral-400" />
+          <span className="text-[10px] text-neutral-400 mt-1">Generating QR...</span>
         </div>
       )}
       <div ref={containerRef} className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full" />
@@ -1282,6 +1282,51 @@ function ShopPublic() {
   }, [currentUser, userOrders]);
 
   // Manual Check Payment Status button handler
+  const [manualUtrInput, setManualUtrInput] = useState("");
+  const [verifyingUtr, setVerifyingUtr] = useState(false);
+
+  const handleVerifyManualUtr = async () => {
+    if (!activePaymentSession) return;
+    const cleanUtr = manualUtrInput.trim().replace(/\D/g, "");
+    if (cleanUtr.length !== 12) {
+      toast.error("Please enter a valid 12-digit UPI UTR / Reference number.");
+      return;
+    }
+    setVerifyingUtr(true);
+    try {
+      const res = await fetch("/api/shop/payments/submit-utr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: activePaymentSession.id,
+          utr: cleanUtr,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.session) {
+        setActivePaymentSession(data.session);
+        setUpiModalOpen(false);
+        setManualUtrInput("");
+        if (pendingUpiOrder) {
+          setPlacedOrder({
+            ...pendingUpiOrder,
+            paymentStatus: "PAID",
+            upiUtr: cleanUtr,
+            status: "PROCESSING",
+          });
+        }
+        toast.success("Payment Received & Verified! Order Confirmed.");
+        fetchUserOrders();
+      } else {
+        toast.error(data.error || "Failed to verify UTR. Please check the 12 digits from your receipt.");
+      }
+    } catch {
+      toast.error("Network error submitting UTR. Please try again.");
+    } finally {
+      setVerifyingUtr(false);
+    }
+  };
+
   const handleManualCheckPayment = async () => {
     if (!activePaymentSession) return;
     setCheckingPaymentStatus(true);
@@ -1293,11 +1338,13 @@ function ShopPublic() {
         if (data.success && data.status === "PAID") {
           setActivePaymentSession(data.session);
           setUpiModalOpen(false);
+          setManualUtrInput("");
           if (pendingUpiOrder) {
             setPlacedOrder({
               ...pendingUpiOrder,
               paymentStatus: "PAID",
               upiUtr: data.session?.utr,
+              status: "PROCESSING",
             });
           }
           toast.success("Payment Received & Verified in Kotak Bank! Order Confirmed.");
@@ -1306,7 +1353,7 @@ function ShopPublic() {
         }
       }
       setCheckStatusFeedback(
-        "Payment not confirmed yet. It typically takes 10–20 seconds for bank settlement. If already paid, please tap Check again shortly."
+        "Bank auto-credit pending. If your account was debited, enter your 12-digit UPI Reference / UTR below for instant 1-second confirmation."
       );
     } catch {
       setCheckStatusFeedback("Network error checking payment status. Please try again.");
@@ -2479,7 +2526,7 @@ function ShopPublic() {
       {/* 1. SHOPPING CART DIALOG (Clean Header Clearance, Zero Overlap)        */}
       {/* ===================================================================== */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
               <ShoppingCart className="size-5" />
@@ -2586,7 +2633,7 @@ function ShopPublic() {
       {/* 2. WISHLIST DIALOG (Saved Items Manager)                              */}
       {/* ===================================================================== */}
       <Dialog open={wishlistOpen} onOpenChange={setWishlistOpen}>
-        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
               <Heart className="size-5 text-red-500 fill-red-500" />
@@ -2919,35 +2966,36 @@ function ShopPublic() {
           if (open) {
             setQrSecondsLeft(300);
             setCheckStatusFeedback(null);
+            setManualUtrInput("");
           }
         }}
       >
-        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
-          <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
-            <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-5 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+          <DialogHeader className="pr-10 text-left border-b border-neutral-200 pb-3">
+            <DialogTitle className="text-base sm:text-lg font-bold text-neutral-900 flex items-center gap-2">
               <Building2 className="size-5 text-neutral-800" />
               <span>Kotak Bank UPI Payment</span>
             </DialogTitle>
           </DialogHeader>
 
           {activePaymentSession && (
-            <div className="space-y-4 py-2 text-center">
+            <div className="space-y-3.5 py-1 text-center">
               {/* Amount badge & 5-minute Countdown Timer */}
-              <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
                 <div className="text-left">
                   <p className="text-[10px] uppercase text-neutral-500 font-semibold tracking-wider">Amount to Pay</p>
-                  <p className="text-2xl font-extrabold text-neutral-900">
+                  <p className="text-2xl font-extrabold text-neutral-900 leading-none mt-0.5">
                     ₹{activePaymentSession.amount}
                   </p>
                 </div>
                 <div>
                   {qrSecondsLeft > 0 ? (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold font-mono">
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold font-mono">
                       <Clock className="size-3 text-amber-700 animate-pulse" />
                       <span>Expires in {formatTimer(qrSecondsLeft)}</span>
                     </div>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
                       Expired
                     </span>
                   )}
@@ -2956,23 +3004,23 @@ function ShopPublic() {
 
               {/* QR Code Display or Expired State */}
               {qrSecondsLeft > 0 ? (
-                <>
+                <div className="space-y-1.5">
                   <LocalUpiQrCode upiUri={activePaymentSession.upiUri} />
                   <p className="text-[11px] text-neutral-600 font-medium">
                     Scan with Google Pay, PhonePe, Paytm, CRED or any UPI app
                   </p>
-                </>
+                </div>
               ) : (
-                <div className="w-56 h-56 mx-auto border border-dashed border-red-300 bg-red-50/60 flex flex-col items-center justify-center p-4 text-center space-y-3">
-                  <Clock className="size-8 text-red-500" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-red-900">QR Code Expired</p>
-                  <p className="text-[11px] text-neutral-600 leading-tight">
-                    For security, dynamic payment QR codes expire after 5 minutes.
+                <div className="w-44 h-44 sm:w-48 sm:h-48 mx-auto border border-dashed border-red-300 bg-red-50/60 flex flex-col items-center justify-center p-3 text-center space-y-2">
+                  <Clock className="size-6 text-red-500" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-red-900">QR Expired</p>
+                  <p className="text-[10px] text-neutral-600 leading-tight">
+                    Dynamic QR codes expire after 5 minutes for security.
                   </p>
                   <button
                     type="button"
                     onClick={handleRegenerateUpiQr}
-                    className="bg-neutral-900 hover:bg-black text-white px-3 py-1.5 text-xs font-bold uppercase cursor-pointer transition-colors"
+                    className="bg-neutral-900 hover:bg-black text-white px-2.5 py-1 text-xs font-bold uppercase cursor-pointer transition-colors"
                   >
                     Generate Fresh QR
                   </button>
@@ -2980,13 +3028,13 @@ function ShopPublic() {
               )}
 
               {/* Account details & 1-click copy */}
-              <div className="border border-neutral-200 p-3 bg-neutral-50 text-xs space-y-1.5 text-left">
+              <div className="border border-neutral-200 p-2.5 bg-neutral-50 text-xs space-y-1 text-left">
                 <div className="flex items-center justify-between">
-                  <span className="text-neutral-500">Payee Name:</span>
+                  <span className="text-neutral-500">Payee:</span>
                   <span className="font-semibold text-neutral-900">{KOTAK_ACCOUNT_NAME}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-neutral-500">Official Kotak UPI ID:</span>
+                  <span className="text-neutral-500">Official UPI ID:</span>
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono font-bold text-neutral-900">{KOTAK_UPI_ID}</span>
                     <button
@@ -2995,7 +3043,7 @@ function ShopPublic() {
                       className="text-neutral-500 hover:text-black p-0.5 cursor-pointer"
                       title="Copy UPI ID"
                     >
-                      <Copy className="size-3.5" />
+                      <Copy className="size-3" />
                     </button>
                   </div>
                 </div>
@@ -3012,47 +3060,77 @@ function ShopPublic() {
                 <div>
                   <a
                     href={activePaymentSession.upiUri}
-                    className="block w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black transition-colors"
+                    className="block w-full bg-neutral-900 text-white py-2 text-xs font-bold uppercase hover:bg-black transition-colors"
                   >
-                    Pay via GPay / PhonePe / Paytm App
+                    Pay via UPI App (GPay / PhonePe / Paytm)
                   </a>
                 </div>
               )}
 
               {/* Dedicated "Check Payment Status / I Have Paid" Button */}
-              <div>
+              <div className="space-y-1.5">
                 <button
                   type="button"
                   disabled={checkingPaymentStatus}
                   onClick={handleManualCheckPayment}
-                  className="w-full border border-neutral-800 bg-white hover:bg-neutral-100 text-neutral-900 py-2.5 px-4 text-xs font-bold uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+                  className="w-full border border-neutral-800 bg-white hover:bg-neutral-100 text-neutral-900 py-2 px-3 text-xs font-bold uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className={cn("size-3.5", checkingPaymentStatus && "animate-spin")} />
                   {checkingPaymentStatus ? "Verifying with Kotak Bank..." : "Check Payment Status / I Have Paid"}
                 </button>
                 {checkStatusFeedback && (
-                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2 mt-2 text-left">
+                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 p-2 text-left">
                     {checkStatusFeedback}
                   </p>
                 )}
               </div>
 
-              {/* Live Status Detector & Clear Professional English Instructions */}
-              <div className="bg-emerald-50/80 border border-emerald-200/80 p-3 rounded-none text-left space-y-1">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-                  <RefreshCw className="size-3.5 animate-spin text-emerald-700 shrink-0" />
-                  <span>Auto-detecting Kotak Bank confirmation...</span>
+              {/* Instant 12-Digit UTR Fallback Input */}
+              <div className="border border-neutral-300 bg-neutral-50 p-2.5 text-left space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-neutral-900">
+                    Paid? Enter 12-Digit UTR for Instant Confirmation:
+                  </span>
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 uppercase tracking-wide">
+                    Instant
+                  </span>
                 </div>
-                <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  Complete ₹{activePaymentSession.amount} from any UPI app. Your order will confirm automatically once the bank confirms credit.
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={12}
+                    placeholder="Enter 12-digit UPI UTR"
+                    value={manualUtrInput}
+                    onChange={(e) => setManualUtrInput(e.target.value.replace(/\D/g, ""))}
+                    className="flex-1 border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-mono text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-black rounded-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={verifyingUtr || manualUtrInput.trim().length !== 12}
+                    onClick={handleVerifyManualUtr}
+                    className="bg-neutral-900 hover:bg-black disabled:opacity-40 text-white px-3 py-1.5 text-xs font-bold uppercase transition-colors rounded-none cursor-pointer shrink-0"
+                  >
+                    {verifyingUtr ? "Verifying..." : "Verify UTR"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-neutral-500 leading-tight">
+                  Found on your UPI app transaction receipt (Google Pay, PhonePe, Paytm, CRED) under <strong>UPI Ref No.</strong> or <strong>UTR</strong>.
                 </p>
-                <p className="text-[10px] text-emerald-700/90 font-semibold">
-                  ✓ 100% Automated • Zero manual reference entry needed
+              </div>
+
+              {/* Live Status Detector */}
+              <div className="bg-emerald-50/70 border border-emerald-200/70 p-2.5 text-left space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                  <RefreshCw className="size-3 animate-spin text-emerald-700 shrink-0" />
+                  <span>Auto-detecting Kotak Bank credit confirmation...</span>
+                </div>
+                <p className="text-[10px] text-emerald-800 leading-tight">
+                  This screen updates automatically as soon as bank credit or UTR verification is confirmed.
                 </p>
               </div>
 
               {/* Close / Pay Later Option */}
-              <div className="pt-2 text-center border-t border-neutral-100">
+              <div className="pt-1 text-center border-t border-neutral-100">
                 <button
                   type="button"
                   onClick={() => {
@@ -3075,7 +3153,7 @@ function ShopPublic() {
       {/* 5. ORDER CONFIRMATION MODAL                                           */}
       {/* ===================================================================== */}
       <Dialog open={Boolean(placedOrder)} onOpenChange={() => setPlacedOrder(null)}>
-        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
               <CheckCircle2 className="size-5 text-emerald-600" />
@@ -3242,7 +3320,7 @@ function ShopPublic() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900">
               Leave a Customer Review
@@ -3341,7 +3419,7 @@ function ShopPublic() {
       {/* 8. AUTHENTICATION MODAL (Login / Signup for Shop Order)               */}
       {/* ===================================================================== */}
       <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
-        <DialogContent className="sm:max-w-md p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
             <DialogTitle className="text-lg font-bold text-neutral-900">
               {authMode === "signup" ? "Create Account to Place Order" : "Sign In to Complete Order"}
