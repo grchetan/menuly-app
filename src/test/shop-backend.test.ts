@@ -145,6 +145,19 @@ describe("Menuly E-Commerce Shop & Merchandise Engine Suite", () => {
     expect(shipRes.order?.courierPartner).toBe("BlueDart Express");
     expect(shipRes.order?.trackingNumber).toBe("BD-982183109");
 
+    // Review attempt while SHIPPED (not yet delivered) must fail
+    const products = await getShopProducts();
+    const stand = products.find((p) => p.name === "Acrylic Table Stand")!;
+    const prematureReview = await createShopReview({
+      productId: stand.id,
+      userId: testUserId,
+      userName: "Aman Sharma",
+      rating: 5,
+      comment: "Trying to review before delivery arrives",
+    });
+    expect(prematureReview.success).toBe(false);
+    expect(prematureReview.error).toMatch(/delivered/i);
+
     // 3. Delivered
     const delivRes = await updateShopOrderStatus(createdOrderId, "DELIVERED");
     expect(delivRes.success).toBe(true);
@@ -152,7 +165,7 @@ describe("Menuly E-Commerce Shop & Merchandise Engine Suite", () => {
     expect(delivRes.order?.deliveredAt).toBeDefined();
   });
 
-  it("submits 1-5 star review for delivered product and updates product rating", async () => {
+  it("submits 1-5 star review for delivered product, rejects duplicates, and updates product rating", async () => {
     const products = await getShopProducts();
     const stand = products.find((p) => p.name === "Acrylic Table Stand")!;
 
@@ -171,9 +184,47 @@ describe("Menuly E-Commerce Shop & Merchandise Engine Suite", () => {
     expect(reviewRes.review?.rating).toBe(5);
     expect(reviewRes.review?.verifiedPurchase).toBe(true);
 
+    // Duplicate review should be rejected
+    const dupRes = await createShopReview({
+      productId: stand.id,
+      userId: testUserId,
+      userName: "Aman Sharma",
+      rating: 4,
+      comment: "Second review attempt should be blocked",
+    });
+    expect(dupRes.success).toBe(false);
+    expect(dupRes.error).toMatch(/already/i);
+
     const reviews = await getShopReviews(stand.id);
     expect(reviews.length).toBeGreaterThanOrEqual(1);
     expect(reviews.some((r) => r.id === reviewRes.review?.id)).toBe(true);
+  });
+
+  it("supports Kotak Mahindra Bank UPI payment mode with 12-digit UTR reference", async () => {
+    const products = await getShopProducts();
+    const poster = products.find((p) => p.name === "Wall Poster (A3 Matte)")!;
+
+    const upiOrderRes = await createShopOrder({
+      userId: testUserId,
+      customerName: "Aman Sharma",
+      customerPhone: "9876543210",
+      shippingAddress: {
+        fullName: "Aman Sharma",
+        phone: "9876543210",
+        street: "Shop #4, Near Clock Tower",
+        city: "Jaipur",
+        state: "Rajasthan",
+        pincode: "302001",
+      },
+      items: [{ productId: poster.id, quantity: 1 }],
+      paymentMode: "UPI",
+      upiUtr: "439281920192",
+    });
+
+    expect(upiOrderRes.success).toBe(true);
+    expect(upiOrderRes.order?.paymentMode).toBe("UPI");
+    expect(upiOrderRes.order?.upiUtr).toBe("439281920192");
+    expect(upiOrderRes.order?.grandTotal).toBe(poster.price + 80);
   });
 
   it("allows updating product price, offer badge, and stock from Admin", async () => {

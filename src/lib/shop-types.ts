@@ -38,6 +38,8 @@ export interface ShopCartItem {
 
 export type ShopOrderStatus = "PLACED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 
+export type ShopPaymentMode = "COD" | "UPI" | "ONLINE";
+
 export interface ShopShippingAddress {
   fullName: string;
   phone: string;
@@ -69,7 +71,8 @@ export interface ShopOrder {
   subtotal: number;
   deliveryFee: number; // Flat ₹80 COD / Delivery fee
   grandTotal: number;
-  paymentMode: "COD" | "ONLINE";
+  paymentMode: ShopPaymentMode;
+  upiUtr?: string | undefined;
   status: ShopOrderStatus;
   trackingNumber?: string | undefined;
   courierPartner?: string | undefined;

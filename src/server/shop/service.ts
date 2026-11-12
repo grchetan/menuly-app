@@ -13,7 +13,7 @@ const SETTING_KEY_PRODUCTS = "shop_products";
 const SETTING_KEY_ORDERS = "shop_orders";
 const SETTING_KEY_REVIEWS = "shop_reviews";
 
-// Default initial 4 merchandise products
+// Default initial 4 merchandise products with 0 initial reviews/ratings (populated only via real customer feedback)
 export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
   {
     id: "stand-acrylic",
@@ -25,13 +25,13 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     badge: "MOST POPULAR",
     image: "/assets/shop-stand.png",
     inStock: true,
-    rating: 4.9,
-    reviewsCount: 38,
+    rating: 0,
+    reviewsCount: 0,
     features: [
-      "High-grade crystal clear 3mm acrylic",
+      "High-grade crystal clear 3mm cast acrylic",
       "UV & water resistant laser printed insert",
-      "T-shape stable table-top base",
-      "Easy wipe-clean daily sanitization",
+      "Heavyweight T-shape anti-tumble table base",
+      "Easy wipe-clean daily sanitization (100% waterproof)",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -40,19 +40,19 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     id: "poster-a3",
     name: "Wall Poster (A3 Matte)",
     description:
-      "Matte-finish A3 poster printed with your QR code, logo and short tagline. Perfect for entryways, counter, or pickup counters.",
+      "Matte-finish A3 poster printed with your high-res QR code, restaurant logo and tagline. Perfect for main entrances, billing counters, or takeaway queues.",
     price: 349,
     originalPrice: 499,
     badge: "HIGH VISIBILITY",
     image: "/assets/shop-poster.png",
     inStock: true,
-    rating: 4.8,
-    reviewsCount: 24,
+    rating: 0,
+    reviewsCount: 0,
     features: [
       "300 GSM heavy-duty non-tearable matte paper",
-      "Vibrant anti-glare fade-proof ink",
-      "Custom brand logo & restaurant name",
-      "Dual-sided mounting foam tape included",
+      "Anti-glare spotlight-resistant satin coating",
+      "Custom brand logo & restaurant name header",
+      "Dual-sided 3M mounting foam tape included",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -61,19 +61,19 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     id: "stickers-pack",
     name: "QR Sticker Pack (12 pcs)",
     description:
-      "Weather-proof vinyl stickers for tables, glass windows, cash registers, and takeout packaging.",
+      "Weather-proof vinyl stickers for tables, glass windows, cash registers, and takeout packaging. Strong adhesive that peels off clean without residue.",
     price: 249,
     originalPrice: 399,
     badge: "PACK OF 12",
     image: "/assets/shop-sticker.png",
     inStock: true,
-    rating: 5.0,
-    reviewsCount: 52,
+    rating: 0,
+    reviewsCount: 0,
     features: [
       "100% waterproof vinyl with gloss lamination",
-      "Strong scratch-proof adhesive (leaves no residue)",
-      "12 individual die-cut stickers per pack",
-      "Pre-tested camera scan precision",
+      "High-tack scratch-proof adhesive (leaves no sticky residue)",
+      "12 individual die-cut scannable stickers",
+      "Pre-tested for instant smartphone camera scanning",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -82,52 +82,27 @@ export const INITIAL_SHOP_PRODUCTS: ShopProduct[] = [
     id: "tent-wooden",
     name: "Folded Wooden Table Tent",
     description:
-      "Double-sided premium tent card featuring your restaurant branding on one side and a scannable QR code on the other.",
+      "Double-sided premium tent card featuring your restaurant branding on one side and a scannable QR code on the other. Rustic artisan cafe aesthetic.",
     price: 399,
     originalPrice: 599,
     badge: "ECO-FRIENDLY",
     image: "/assets/shop-stand.png",
     inStock: true,
-    rating: 4.9,
-    reviewsCount: 19,
+    rating: 0,
+    reviewsCount: 0,
     features: [
-      "Sustainable engineered wood core",
-      "Dual-sided scannable finish",
+      "Sustainable engineered wood core (moisture sealed)",
+      "Dual-sided scannable A-frame tent finish",
       "Rustic cafe & fine-dine aesthetic",
-      "Compact space-saving footprint",
+      "Compact space-saving dining table footprint",
     ],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
 ];
 
-// Initial seed reviews so products have authentic initial social proof
-const INITIAL_SHOP_REVIEWS: ShopReview[] = [
-  {
-    id: "rev-1",
-    productId: "stand-acrylic",
-    userId: "usr-demo-1",
-    userName: "Chef Sanjeev (Spice Junction)",
-    rating: 5,
-    title: "Super clean and sturdy!",
-    comment:
-      "Received all 10 acrylic stands within 3 days. Beautiful print quality and customers scan without issues from their seats.",
-    verifiedPurchase: true,
-    createdAt: "2026-02-10T11:20:00.000Z",
-  },
-  {
-    id: "rev-2",
-    productId: "stickers-pack",
-    userId: "usr-demo-2",
-    userName: "Rohit Verma (Cafe Bloom)",
-    rating: 5,
-    title: "100% waterproof indeed",
-    comment:
-      "We wipe our outdoor tables with sanitizer 10 times a day and the stickers still look brand new. COD delivery was seamless.",
-    verifiedPurchase: true,
-    createdAt: "2026-02-14T15:45:00.000Z",
-  },
-];
+// No fake/demo reviews - only authentic reviews from customers with DELIVERED orders
+const INITIAL_SHOP_REVIEWS: ShopReview[] = [];
 
 // Memory caches with TTL for sub-millisecond responses
 let cachedProducts: ShopProduct[] | null = null;
@@ -153,6 +128,7 @@ export async function getShopProducts(): Promise<ShopProduct[]> {
       where: { key: SETTING_KEY_PRODUCTS },
     });
 
+    let products: ShopProduct[];
     if (!row || !Array.isArray(row.value) || row.value.length === 0) {
       // Seed initial products
       await prisma.platformSetting.upsert({
@@ -165,12 +141,24 @@ export async function getShopProducts(): Promise<ShopProduct[]> {
           value: INITIAL_SHOP_PRODUCTS as any,
         },
       });
-      cachedProducts = INITIAL_SHOP_PRODUCTS;
-      cacheTimeProducts = now;
-      return INITIAL_SHOP_PRODUCTS;
+      products = INITIAL_SHOP_PRODUCTS;
+    } else {
+      products = row.value as unknown as ShopProduct[];
     }
 
-    const products = row.value as unknown as ShopProduct[];
+    // Synchronize real review ratings (clearing any old hardcoded fake values)
+    const allReviews = await getShopReviews();
+    for (const p of products) {
+      const prodRevs = allReviews.filter((r) => r.productId === p.id);
+      p.reviewsCount = prodRevs.length;
+      if (prodRevs.length === 0) {
+        p.rating = 0;
+      } else {
+        const total = prodRevs.reduce((sum, r) => sum + r.rating, 0);
+        p.rating = Number((total / prodRevs.length).toFixed(1));
+      }
+    }
+
     cachedProducts = products;
     cacheTimeProducts = now;
     return products;
@@ -342,7 +330,8 @@ export interface CreateShopOrderInput {
   customerEmail?: string | undefined;
   shippingAddress: ShopShippingAddress;
   items: Array<{ productId: string; quantity: number }>;
-  paymentMode?: "COD" | "ONLINE" | undefined;
+  paymentMode?: "COD" | "UPI" | "ONLINE" | undefined;
+  upiUtr?: string | undefined;
   notes?: string | undefined;
 }
 
@@ -424,6 +413,7 @@ export async function createShopOrder(
     deliveryFee,
     grandTotal,
     paymentMode: input.paymentMode || "COD",
+    upiUtr: input.upiUtr?.trim() || undefined,
     status: "PLACED",
     notes: input.notes?.trim() || undefined,
     createdAt: now,
@@ -506,8 +496,10 @@ export async function updateShopOrderStatus(
 
 export async function getShopReviews(productId?: string): Promise<ShopReview[]> {
   const now = Date.now();
-  if (!productId && cachedReviews && now - cacheTimeReviews < CACHE_TTL_MS) {
-    return cachedReviews;
+  if (cachedReviews && now - cacheTimeReviews < CACHE_TTL_MS) {
+    return productId
+      ? cachedReviews.filter((r) => r.productId === productId)
+      : cachedReviews;
   }
 
   try {
@@ -516,40 +508,72 @@ export async function getShopReviews(productId?: string): Promise<ShopReview[]> 
     });
 
     if (!row || !Array.isArray(row.value) || row.value.length === 0) {
-      await prisma.platformSetting.upsert({
-        where: { key: SETTING_KEY_REVIEWS },
-        create: {
-          key: SETTING_KEY_REVIEWS,
-          value: INITIAL_SHOP_REVIEWS as any,
-        },
-        update: {
-          value: INITIAL_SHOP_REVIEWS as any,
-        },
-      });
-      cachedReviews = INITIAL_SHOP_REVIEWS;
+      cachedReviews = [];
       cacheTimeReviews = now;
-      return productId
-        ? INITIAL_SHOP_REVIEWS.filter((r) => r.productId === productId)
-        : INITIAL_SHOP_REVIEWS;
+      return [];
     }
 
-    const reviews = row.value as unknown as ShopReview[];
+    const raw = row.value as unknown as ShopReview[];
+    // Filter out any legacy dummy reviews
+    const reviews = raw.filter(
+      (r) =>
+        r &&
+        !r.userId.startsWith("usr-demo") &&
+        !r.id.startsWith("rev-1") &&
+        !r.id.startsWith("rev-2")
+    );
     reviews.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
-    if (!productId) {
-      cachedReviews = reviews;
-      cacheTimeReviews = now;
-      return reviews;
-    }
+    cachedReviews = reviews;
+    cacheTimeReviews = now;
 
-    return reviews.filter((r) => r.productId === productId);
+    return productId
+      ? reviews.filter((r) => r.productId === productId)
+      : reviews;
   } catch (err) {
     console.error("[getShopReviews Error]", err);
     return [];
   }
+}
+
+/**
+ * Checks whether a specific user is eligible to write a review for a product.
+ * Policy:
+ * 1. User must have at least one order containing this product that has reached DELIVERED status.
+ * 2. User must not have already reviewed this product.
+ */
+export async function canUserReviewProduct(
+  userId: string,
+  productId: string
+): Promise<{ canReview: boolean; orderId?: string; reason?: string }> {
+  if (!userId) {
+    return { canReview: false, reason: "Please log in to submit a review." };
+  }
+
+  const reviews = await getShopReviews(productId);
+  const alreadyReviewed = reviews.some((r) => r.userId === userId && r.productId === productId);
+  if (alreadyReviewed) {
+    return { canReview: false, reason: "You have already reviewed this product." };
+  }
+
+  const allOrders = await getShopOrders(userId);
+  const deliveredOrder = allOrders.find(
+    (o) =>
+      o.status === "DELIVERED" &&
+      o.items.some((it) => it.productId === productId)
+  );
+
+  if (!deliveredOrder) {
+    return {
+      canReview: false,
+      reason: "You can only write a review after this product has been successfully delivered to you.",
+    };
+  }
+
+  return { canReview: true, orderId: deliveredOrder.id };
 }
 
 export interface CreateShopReviewInput {
@@ -573,24 +597,25 @@ export async function createShopReview(
     return { success: false, error: "Review comment cannot be empty." };
   }
 
-  // Check if user has an order with this product
-  const allOrders = await getShopOrders(input.userId);
-  const hasPurchased = allOrders.some(
-    (o) =>
-      o.items.some((it) => it.productId === input.productId) &&
-      (o.status === "DELIVERED" || o.status === "SHIPPED" || o.status === "PLACED" || o.status === "PROCESSING")
-  );
+  // Strictly check that user has an order with status DELIVERED for this product
+  const eligibility = await canUserReviewProduct(input.userId, input.productId);
+  if (!eligibility.canReview) {
+    return {
+      success: false,
+      error: eligibility.reason || "You can only review a product after it has been delivered to you.",
+    };
+  }
 
   const newReview: ShopReview = {
     id: `rev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     productId: input.productId,
-    orderId: input.orderId,
+    orderId: input.orderId || eligibility.orderId,
     userId: input.userId,
     userName: input.userName.trim() || "Verified Buyer",
     rating,
     title: input.title?.trim() || undefined,
     comment: input.comment.trim(),
-    verifiedPurchase: hasPurchased,
+    verifiedPurchase: true,
     createdAt: new Date().toISOString(),
   };
 

@@ -76,6 +76,7 @@ import {
   updateShopOrderStatus,
   getShopReviews,
   createShopReview,
+  canUserReviewProduct,
 } from "./shop/service";
 import {
   sanitizeObject,
@@ -1354,6 +1355,24 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       return json({ success: true, reviews });
     }
 
+    // GET /api/shop/reviews/can-review (Check if user can review this product)
+    if (pathname === "/api/shop/reviews/can-review" && request.method === "GET") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ canReview: false, reason: "Please log in to submit a review." });
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json({ canReview: false, reason: "Please log in to submit a review." });
+      }
+      const productId = url.searchParams.get("productId") || "";
+      if (!productId) {
+        return json({ canReview: false, reason: "Product ID is required." });
+      }
+      const checkRes = await canUserReviewProduct(payload.userId, productId);
+      return json(checkRes);
+    }
+
     // GET /api/shop/orders/track
     if (pathname === "/api/shop/orders/track" && request.method === "GET") {
       const orderNumber = url.searchParams.get("orderNumber") || url.searchParams.get("id") || "";
@@ -1391,6 +1410,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       }
 
       const body = await request.json().catch(() => ({}));
+      const isUpi = body.paymentMode === "UPI";
       const orderRes = await createShopOrder({
         userId: payload.userId,
         customerName: sanitizeText(body.customerName || payload.fullName || "", 100),
@@ -1408,7 +1428,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
             : undefined,
         },
         items: Array.isArray(body.items) ? body.items : [],
-        paymentMode: "COD",
+        paymentMode: isUpi ? "UPI" : "COD",
+        upiUtr: body.upiUtr ? sanitizeText(body.upiUtr, 50) : undefined,
         notes: body.notes ? sanitizeText(body.notes, 500) : undefined,
       });
 
@@ -1418,7 +1439,9 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       return json({
         success: true,
-        message: "Order placed successfully! Cash on Delivery confirmed.",
+        message: isUpi
+          ? "Order placed successfully! Kotak UPI payment reference submitted."
+          : "Order placed successfully! Cash on Delivery confirmed.",
         order: orderRes.order,
       });
     }
