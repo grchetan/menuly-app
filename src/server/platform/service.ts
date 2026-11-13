@@ -36,7 +36,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
     "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   announcementTickerEnabled: true,
   allowNewSignups: true,
-  demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
+  demoMenuUrl: "https://www.menulyindia.online/menu/menuly-official",
   defaultStarterPreset: "dhaba",
 };
 

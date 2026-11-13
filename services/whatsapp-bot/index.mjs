@@ -331,7 +331,7 @@ _(Tap or long-press the code above to copy)_
 Thank you for choosing Menuly for your restaurant.
 ────────────────────────
 _Sent securely by Menuly Technologies_
-_Visit: https://menuly-app-blush.vercel.app_`;
+_Visit: https://www.menulyindia.online_`;
 
   try {
     const result = await sock.sendMessage(jid, { text: messageText });

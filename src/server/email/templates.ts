@@ -42,7 +42,7 @@ export function renderOtpEmail({
     subject = "Sign in to your Menuly account";
   }
 
-  const siteUrl = "https://menuly-app-blush.vercel.app";
+  const siteUrl = "https://www.menulyindia.online";
   const termsUrl = `${siteUrl}/terms`;
   const privacyUrl = `${siteUrl}/privacy`;
   const contactUrl = `${siteUrl}/contact`;

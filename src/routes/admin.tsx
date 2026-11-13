@@ -326,7 +326,7 @@ const DEFAULT_SETTINGS: PlatformSettings = {
     "Scan the QR 💥 See the menu 💥 Update prices anytime 💥 Mark sold out in 1 tap 💥 Fast & Responsive 💥 Zero reprinting",
   announcementTickerEnabled: true,
   allowNewSignups: true,
-  demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
+  demoMenuUrl: "https://www.menulyindia.online/menu/menuly-official",
   defaultStarterPreset: "dhaba",
 };
 
@@ -4501,7 +4501,7 @@ function AdminPage() {
                     onClick={() => {
                       const updated = {
                         ...settings,
-                        demoMenuUrl: "https://menuly-app-blush.vercel.app/menu/menuly-official",
+                        demoMenuUrl: "https://www.menulyindia.online/menu/menuly-official",
                       };
                       setSettings(updated);
                       savePlatformSettings(updated, "Reset to Menuly Official Demo link!");
@@ -4522,7 +4522,7 @@ function AdminPage() {
                         value={settings.demoMenuUrl || ""}
                         onChange={(e) => setSettings({ ...settings, demoMenuUrl: e.target.value })}
                         className="h-11 px-4 text-sm font-medium rounded-xl border-border bg-background"
-                        placeholder="https://menuly-app-blush.vercel.app/menu/menuly-official"
+                        placeholder="https://www.menulyindia.online/menu/menuly-official"
                       />
                     </div>
 
@@ -4534,7 +4534,7 @@ function AdminPage() {
                         className="text-xs font-bold gap-1.5"
                       >
                         <a
-                          href={settings.demoMenuUrl || "https://menuly-app-blush.vercel.app/menu/menuly-official"}
+                          href={settings.demoMenuUrl || "https://www.menulyindia.online/menu/menuly-official"}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -4555,7 +4555,7 @@ function AdminPage() {
                   {/* Live QR Preview */}
                   <div className="flex flex-col items-center justify-center p-3 rounded-2xl border bg-white shadow-soft">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1a5c38&bgcolor=ffffff&data=${encodeURIComponent(settings.demoMenuUrl || "https://menuly-app-blush.vercel.app/menu/menuly-official")}&margin=2`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1a5c38&bgcolor=ffffff&data=${encodeURIComponent(settings.demoMenuUrl || "https://www.menulyindia.online/menu/menuly-official")}&margin=2`}
                       alt="Live Demo QR"
                       width={120}
                       height={120}
