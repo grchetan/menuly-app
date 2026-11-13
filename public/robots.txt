@@ -1,0 +1,41 @@
+# robots.txt for Menuly India (https://www.menulyindia.online)
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /how-to-use
+Allow: /about
+Allow: /contact
+Allow: /community
+Allow: /restaurants
+Allow: /menu/
+Allow: /privacy
+Allow: /terms
+Allow: /refund
+Allow: /shipping
+Allow: /cancellation-refund
+Allow: /cookies
+
+# Disallow private user & admin dashboard pages
+Disallow: /dashboard
+Disallow: /my-menu
+Disallow: /orders
+Disallow: /profile
+Disallow: /qr
+Disallow: /admin
+Disallow: /api/
+
+# Explicit Bot optimizations
+User-agent: Googlebot
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api/
+
+# XML Sitemap
+Sitemap: https://www.menulyindia.online/sitemap.xml

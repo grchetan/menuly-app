@@ -70,18 +70,38 @@ import type {
 export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
-      { title: "Restaurant Merch & QR Print Shop | Menuly" },
+      { title: "Buy Restaurant QR Code Stands, Acrylic Displays & Posters | Menuly Shop" },
       {
         name: "description",
         content:
-          "Professional acrylic table stands, wall posters, and vinyl QR stickers custom printed with your restaurant branding and live digital menu QR code. Cash on Delivery and Kotak UPI available.",
+          "Order custom-printed acrylic QR table stands, laser-engraved wooden table tents, waterproof vinyl QR stickers & posters for restaurants & cafes. Cash on Delivery & Kotak UPI available with flat ₹80 Pan-India courier.",
       },
-      { property: "og:title", content: "Menuly Merch & QR Print Shop" },
+      {
+        name: "keywords",
+        content:
+          "buy acrylic QR stand India, restaurant table tent QR code, custom printed QR code stand, restaurant QR stickers, restaurant merchandise India, buy table QR display COD, Menuly Shop",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:title", content: "Restaurant Merch & Printed QR Table Stands — Menuly Shop" },
       {
         property: "og:description",
         content:
-          "High quality printed QR merchandise for restaurants & cafes. Cash on delivery & Kotak UPI with flat ₹80 delivery fee across India.",
+          "High quality custom-printed acrylic QR table stands & merchandise. Fast 24-48h dispatch, Cash on Delivery & Kotak UPI across India.",
       },
+      { property: "og:url", content: "https://www.menulyindia.online/shop" },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/shop-stand.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Buy Restaurant QR Code Stands & Table Merchandise — Menuly Shop" },
+      {
+        name: "twitter:description",
+        content:
+          "High quality custom-printed acrylic QR table stands & merchandise. Fast dispatch & Pan-India COD available.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/shop-stand.png" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/shop" },
     ],
   }),
   component: ShopPublic,
@@ -1816,6 +1836,54 @@ function ShopPublic() {
 
   return (
     <SitePage>
+      {/* Schema.org Structured Data for Shop / Products */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Store",
+            name: "Menuly Merchandise & QR Stand Store",
+            description:
+              "Official store for custom-printed acrylic QR stands, laser-engraved table tents, stickers and merchandise for restaurants across India.",
+            url: "https://www.menulyindia.online/shop",
+            telephone: "+91-9179878521",
+            priceRange: "₹₹",
+            currenciesAccepted: "INR",
+            paymentAccepted: "Cash on Delivery, Kotak UPI, Direct Bank Transfer",
+            address: {
+              "@type": "PostalAddress",
+              addressCountry: "IN",
+            },
+            itemListElement: products.map((p, idx) => ({
+              "@type": "ListItem",
+              position: idx + 1,
+              item: {
+                "@type": "Product",
+                name: p.name,
+                description: p.description,
+                image: p.image?.startsWith("http")
+                  ? p.image
+                  : `https://www.menulyindia.online${p.image}`,
+                sku: `MNL-SHOP-${p.id}`,
+                offers: {
+                  "@type": "Offer",
+                  priceCurrency: "INR",
+                  price: p.price,
+                  availability:
+                    p.inStock && (p.stock ?? 1) > 0
+                      ? "https://schema.org/InStock"
+                      : "https://schema.org/OutOfStock",
+                  seller: {
+                    "@type": "Organization",
+                    name: "Menuly India",
+                  },
+                },
+              },
+            })),
+          }),
+        }}
+      />
       {/* ===================================================================== */}
       {/* TOP NAVIGATION / HEADER (Spacious, Crisp, Zero Blobs, Zero Curves)     */}
       {/* ===================================================================== */}

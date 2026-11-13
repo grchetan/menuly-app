@@ -365,6 +365,62 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     }
 
     // --------------------------------------------------------------------------
+    // DYNAMIC XML SITEMAP (Google & Search Engine Crawlers)
+    // --------------------------------------------------------------------------
+    if (pathname === "/sitemap.xml" && request.method === "GET") {
+      try {
+        const restaurants = await prisma.restaurant.findMany({
+          select: { slug: true, updatedAt: true },
+          take: 500,
+        });
+
+        const baseUrl = "https://www.menulyindia.online";
+        const today = new Date().toISOString().split("T")[0];
+
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+        const corePages = [
+          { path: "", priority: "1.0", freq: "daily" },
+          { path: "/shop", priority: "0.9", freq: "daily" },
+          { path: "/how-to-use", priority: "0.8", freq: "weekly" },
+          { path: "/restaurants", priority: "0.8", freq: "daily" },
+          { path: "/menu/menuly-official", priority: "0.8", freq: "weekly" },
+          { path: "/about", priority: "0.7", freq: "monthly" },
+          { path: "/contact", priority: "0.7", freq: "monthly" },
+          { path: "/community", priority: "0.7", freq: "weekly" },
+          { path: "/terms", priority: "0.4", freq: "monthly" },
+          { path: "/privacy", priority: "0.4", freq: "monthly" },
+          { path: "/shipping", priority: "0.4", freq: "monthly" },
+          { path: "/refund", priority: "0.4", freq: "monthly" },
+          { path: "/cancellation-refund", priority: "0.4", freq: "monthly" },
+          { path: "/cookies", priority: "0.3", freq: "monthly" },
+        ];
+
+        for (const p of corePages) {
+          xml += `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${p.freq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>\n`;
+        }
+
+        for (const r of restaurants) {
+          if (!r.slug) continue;
+          const lastMod = r.updatedAt ? r.updatedAt.toISOString().split("T")[0] : today;
+          xml += `  <url>\n    <loc>${baseUrl}/menu/${encodeURIComponent(r.slug)}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+        }
+
+        xml += `</urlset>`;
+
+        return new Response(xml, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8",
+            "Cache-Control": "public, max-age=3600, s-maxage=3600",
+          },
+        });
+      } catch (err) {
+        console.error("[Sitemap Generation Error]", err);
+      }
+    }
+
+    // --------------------------------------------------------------------------
     // 0d. GOOGLE REDIRECT: GET /api/auth/google/redirect
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/google/redirect" && request.method === "GET") {

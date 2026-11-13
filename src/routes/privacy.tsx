@@ -16,6 +16,9 @@ export const Route = createFileRoute("/privacy")({
         content: `Read the official Privacy Policy for ${APP_NAME} digital menus and QR services.`,
       },
     ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/privacy" },
+    ],
   }),
   component: PrivacyPolicyPage,
 });

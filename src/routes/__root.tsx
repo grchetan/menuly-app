@@ -262,13 +262,47 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Menuly — QR digital menus for restaurants" },
-      { name: "description", content: "Create a digital menu and share it with a QR code." },
+      { title: "Menuly India — Free QR Code Digital Menu Maker for Restaurants, Cafes & Dhabas" },
+      {
+        name: "description",
+        content:
+          "Create a contactless digital QR menu for your restaurant, cafe, or dhaba in under 60 seconds. Instant camera scan, live price updates, WhatsApp ordering & Pan-India printed acrylic QR stands.",
+      },
+      {
+        name: "keywords",
+        content:
+          "digital menu for restaurant India, free QR code menu maker, contactless QR menu card, restaurant menu online, cafe digital menu, dhaba digital menu, QR code table ordering, WhatsApp food ordering, acrylic table stand QR code, Menuly India",
+      },
+      { name: "author", content: "Menuly India" },
+      { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
+      { name: "googlebot", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:locale", content: "en_IN" },
+      { property: "og:title", content: "Menuly India — #1 QR Digital Menu Platform for Restaurants & Cafes" },
+      {
+        property: "og:description",
+        content:
+          "High-speed contactless QR menus. No customer app download needed. Update dishes, prices & photos anytime from your phone.",
+      },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Menuly India — Digital QR Menu Platform for Restaurants" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:site", content: "@menulyindia" },
+      { name: "twitter:title", content: "Menuly India — Free QR Code Digital Menu Maker" },
+      {
+        name: "twitter:description",
+        content:
+          "Create a contactless digital QR menu in under 60 seconds. Live dish updates, WhatsApp ordering & Pan-India printed acrylic QR stands.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
       { name: "theme-color", content: "#0f5132" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "geo.region", content: "IN" },
+      { name: "geo.placename", content: "India" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -276,6 +310,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "alternate icon", href: "/favicon.ico", type: "image/x-icon", sizes: "32x32" },
       { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.json" },
+      { rel: "canonical", href: "https://www.menulyindia.online/" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "preconnect", href: "https://images.unsplash.com" },

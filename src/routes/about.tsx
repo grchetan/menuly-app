@@ -36,18 +36,37 @@ import digitalMenuImg from "@/assets/digital-menu.png";
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About Us — Menuly | Digital QR Menus for Restaurants" },
+      { title: "About Us — Menuly India | Empowering Indian Restaurants with Digital Menus" },
       {
         name: "description",
         content:
           "Learn how Menuly empowers Indian restaurants, cafes, dhabas, and local food brands to replace printed paper menus with fast, interactive digital QR menus.",
       },
-      { property: "og:title", content: "About Menuly — Digital QR Menus for Food Businesses" },
+      {
+        name: "keywords",
+        content:
+          "about Menuly, restaurant tech India, digital menu company India, contactless menu startup, Menuly India mission",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:title", content: "About Menuly India — Digital QR Menus for Food Businesses" },
       {
         property: "og:description",
         content:
           "Helping local food brands go digital simply: instant camera scan, real-time price updates, zero reprint costs, and direct WhatsApp ordering.",
       },
+      { property: "og:url", content: "https://www.menulyindia.online/about" },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "About Menuly India — Smart Digital QR Menus" },
+      {
+        name: "twitter:description",
+        content: "Helping Indian restaurants, cafes & dhabas thrive with high-speed digital menus.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/about" },
     ],
   }),
   component: About,

@@ -18,6 +18,9 @@ export const Route = createFileRoute("/refund")({
         content: `Read the official cancellation, return, and refund terms for ${APP_NAME} software plans and physical QR shop merchandise.`,
       },
     ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/refund" },
+    ],
   }),
   component: RefundPolicyPage,
 });

@@ -19,10 +19,37 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 export const Route = createFileRoute("/how-to-use")({
   head: () => ({
     meta: [
-      { title: "How to use — Setup guide | Menuly" },
-      { name: "description", content: "Step-by-step guide to set up your digital QR menu in 5 minutes, plus zero-network offline solutions for remote dhabas and highway stops." },
-      { property: "og:title", content: "How to use Menuly — Setup guide & Offline Solutions" },
-      { property: "og:description", content: "Create your account, add dishes, print your QR code, and operate seamlessly even with zero internet." },
+      { title: "How to Create a QR Menu in 5 Minutes — Step-by-Step Guide | Menuly India" },
+      {
+        name: "description",
+        content:
+          "Complete beginner setup guide to create, customize and print QR code digital menus for restaurants, cafes & dhabas. Plus zero-network offline modes for highway stops.",
+      },
+      {
+        name: "keywords",
+        content:
+          "how to make QR menu for restaurant, create digital menu India, setup QR code food menu, restaurant QR tutorial, offline digital menu dhaba, Menuly guide",
+      },
+      { property: "og:type", content: "article" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:title", content: "How to Create a Restaurant QR Menu in 5 Minutes — Menuly Guide" },
+      {
+        property: "og:description",
+        content:
+          "Step-by-step tutorial: sign up, enter dishes, pick branded QR styles, print table stands and launch contactless dining.",
+      },
+      { property: "og:url", content: "https://www.menulyindia.online/how-to-use" },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "How to Setup Restaurant QR Menu in 5 Minutes" },
+      {
+        name: "twitter:description",
+        content: "Step-by-step guide to launch contactless QR dining for your food business.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/how-to-use" },
     ],
   }),
   component: HowTo,

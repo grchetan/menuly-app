@@ -17,6 +17,9 @@ export const Route = createFileRoute("/shipping")({
         content: `Read the official shipping timelines and logistics guidelines for ${APP_NAME} custom physical QR merchandise.`,
       },
     ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/shipping" },
+    ],
   }),
   component: ShippingPolicyPage,
 });

@@ -16,6 +16,7 @@ export const Route = createFileRoute("/terms")({
         content: `Official Terms and Conditions governing the use of ${APP_NAME} digital menus, QR codes, and merchandise.`,
       },
     ],
+    links: [{ rel: "canonical", href: "https://www.menulyindia.online/terms" }],
   }),
   component: TermsOfServicePage,
 });

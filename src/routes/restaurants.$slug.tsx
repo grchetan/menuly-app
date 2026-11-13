@@ -33,15 +33,26 @@ import { APP_NAME } from "@/lib/config";
 import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
 
 export const Route = createFileRoute("/restaurants/$slug")({
-  head: () => ({
-    meta: [
-      { title: `Restaurant Profile & Live Menu — ${APP_NAME}` },
-      {
-        name: "description",
-        content: `Explore live digital menus, chef specials, location, and QR ordering powered by ${APP_NAME}.`,
-      },
-    ],
-  }),
+  head: ({ params }) => {
+    const slug = params?.slug ?? "";
+    return {
+      meta: [
+        { title: `Restaurant Profile & Live QR Menu — ${APP_NAME}` },
+        {
+          name: "description",
+          content: `Explore live digital menus, chef specials, location, and contactless dining powered by ${APP_NAME}.`,
+        },
+        { property: "og:type", content: "restaurant" },
+        { property: "og:site_name", content: "Menuly India" },
+        { property: "og:url", content: `https://www.menulyindia.online/restaurants/${slug}` },
+        { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
+      links: [
+        { rel: "canonical", href: `https://www.menulyindia.online/restaurants/${slug}` },
+      ],
+    };
+  },
   component: RestaurantStorefrontPage,
 });
 

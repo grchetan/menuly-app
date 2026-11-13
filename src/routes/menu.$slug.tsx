@@ -1,5 +1,5 @@
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { UtensilsCrossed, ArrowRight, Home, QrCode } from "lucide-react";
 import { getPublicMenu } from "@/lib/menu.functions";
 import { MenuView } from "@/components/MenuView";
@@ -41,7 +41,59 @@ function MenuComponent() {
     }
   }, [menu?.restaurant?.id, menu?.restaurant?.slug, table]);
 
-  return <MenuView menu={menu} table={table} />;
+  // Schema.org Restaurant + Menu Structured Data for Google Local Search
+  const restaurantSchema = useMemo(() => {
+    if (!menu?.restaurant) return null;
+    const r = menu.restaurant;
+    return {
+      "@context": "https://schema.org",
+      "@type": "Restaurant",
+      "name": r.name,
+      "url": `https://www.menulyindia.online/menu/${r.slug}`,
+      "telephone": r.phone || undefined,
+      "servesCuisine": r.isPureVeg ? "Pure Vegetarian" : "Multi-Cuisine",
+      "image": r.cover_url || r.logo_url || undefined,
+      "address": r.address
+        ? {
+            "@type": "PostalAddress",
+            "streetAddress": r.address,
+            "addressCountry": "IN",
+          }
+        : undefined,
+      "hasMenu": {
+        "@type": "Menu",
+        "name": `${r.name} Food Menu`,
+        "hasMenuSection": (menu.categories || []).map((cat) => ({
+          "@type": "MenuSection",
+          "name": cat.name,
+          "hasMenuItem": (menu.items || [])
+            .filter((item) => item.category_id === cat.id)
+            .map((item) => ({
+              "@type": "MenuItem",
+              "name": item.name,
+              "description": item.description || undefined,
+              "offers": {
+                "@type": "Offer",
+                "price": item.price,
+                "priceCurrency": "INR",
+              },
+            })),
+        })),
+      },
+    };
+  }, [menu]);
+
+  return (
+    <>
+      {restaurantSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(restaurantSchema) }}
+        />
+      )}
+      <MenuView menu={menu} table={table} />
+    </>
+  );
 }
 
 function OfflineOrNotFound() {
@@ -124,14 +176,37 @@ export const Route = createFileRoute("/menu/$slug")({
     }
   },
   head: ({ loaderData }) => {
-    const name = loaderData?.restaurant.name ?? "Menu";
-    const desc = loaderData ? `View the menu of ${name}${loaderData.restaurant.address ? `, ${loaderData.restaurant.address}` : ""}.` : "Restaurant menu";
+    const r = loaderData?.restaurant;
+    const name = r?.name ?? "Restaurant Menu";
+    const address = r?.address ? `, ${r.address}` : "";
+    const desc = loaderData
+      ? `Browse live food menu, prices, and specials for ${name}${address}. Instant contactless ordering on Menuly.`
+      : "Explore contactless food menu and dish prices.";
+    const slug = r?.slug ?? "";
+    const canonicalUrl = `https://www.menulyindia.online/menu/${slug}`;
+    const cover = r?.cover_url || r?.logo_url || "https://www.menulyindia.online/assets/menuly-banner.png";
+
     return {
       meta: [
-        { title: `${name} — Menu` },
+        { title: `${name} — Digital Food Menu & Online Prices | Menuly` },
         { name: "description", content: desc },
-        { property: "og:title", content: `${name} — Menu` },
+        {
+          name: "keywords",
+          content: `${name} menu, ${name} food prices, ${name} online menu, ${name} dishes, digital menu ${name}, contactless menu India, Menuly`,
+        },
+        { property: "og:type", content: "restaurant.menu" },
+        { property: "og:site_name", content: "Menuly India" },
+        { property: "og:title", content: `${name} — Interactive Digital Food Menu` },
         { property: "og:description", content: desc },
+        { property: "og:url", content: canonicalUrl },
+        { property: "og:image", content: cover },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: `${name} — Digital Food Menu & Prices` },
+        { name: "twitter:description", content: desc },
+        { name: "twitter:image", content: cover },
+      ],
+      links: [
+        { rel: "canonical", href: canonicalUrl },
       ],
     };
   },

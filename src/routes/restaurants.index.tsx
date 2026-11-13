@@ -30,13 +30,35 @@ import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
 export const Route = createFileRoute("/restaurants/")({
   head: () => ({
     meta: [
-      { title: `Restaurant Community & Live Digital Menus — ${APP_NAME}` },
+      { title: `Explore Verified Restaurants & Live QR Digital Menus in India — ${APP_NAME}` },
       {
         name: "description",
-        content: `Discover verified restaurants, cafes, and bakeries powered by ${APP_NAME} digital QR menus. Browse live menus, dish counts, locations, and real-time food reviews.`,
+        content: `Discover top restaurants, cafes, dhabas, and bakeries powered by ${APP_NAME} digital QR menus. Browse live menus, dish prices, locations, and authentic reviews.`,
       },
-      { property: "og:title", content: `Restaurant Community & Live Digital Menus — ${APP_NAME}` },
-      { property: "og:description", content: "Explore live digital menus from restaurants across India." },
+      {
+        name: "keywords",
+        content:
+          "restaurants near me menu, digital restaurant directory India, cafe menu QR code, dhaba food list, Indian restaurants live menu, Menuly Community",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:title", content: `Verified Restaurants & Live QR Digital Menus — ${APP_NAME}` },
+      {
+        property: "og:description",
+        content: "Explore live digital menus, food prices and locations from verified restaurants across India.",
+      },
+      { property: "og:url", content: "https://www.menulyindia.online/restaurants" },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Explore Verified Restaurants & Live Digital Menus — Menuly" },
+      {
+        name: "twitter:description",
+        content: "Explore live digital menus and food prices from verified restaurants across India.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/restaurants" },
     ],
   }),
   component: RestaurantCommunityPage,

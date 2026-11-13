@@ -13,10 +13,39 @@ const DEFAULT_DEMO_URL = "https://www.menulyindia.online/menu/menuly-official";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Menuly — Digital QR menus for restaurants & cafes" },
-      { name: "description", content: "Create a beautiful digital menu, share it with a QR code and update it anytime from your phone." },
-      { property: "og:title", content: "Menuly — Digital QR menus for restaurants & cafes" },
-      { property: "og:description", content: "No more reprinting menus. Update items and prices anytime." },
+      { title: "Menuly India — Free QR Code Digital Menu Maker for Restaurants, Cafes & Dhabas" },
+      {
+        name: "description",
+        content:
+          "Create a contactless digital QR menu for your restaurant, cafe, or dhaba in under 60 seconds. Instant camera scan, live price updates, WhatsApp ordering & Pan-India printed acrylic QR stands.",
+      },
+      {
+        name: "keywords",
+        content:
+          "digital menu for restaurant India, free QR code menu maker, contactless QR menu card, restaurant menu online, cafe digital menu, dhaba digital menu, QR code table ordering, WhatsApp food ordering, acrylic table stand QR code, Menuly India",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:locale", content: "en_IN" },
+      { property: "og:title", content: "Menuly India — #1 QR Digital Menu Platform for Restaurants & Cafes" },
+      {
+        property: "og:description",
+        content:
+          "Boost dine-in revenue and delight guests with high-speed digital QR menus. No customer app download needed. Update dishes, prices & photos anytime from your phone.",
+      },
+      { property: "og:url", content: "https://www.menulyindia.online/" },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Menuly India — Free QR Code Digital Menu Maker for Restaurants" },
+      {
+        name: "twitter:description",
+        content:
+          "Create a stunning contactless digital QR menu in 60 seconds. Live dish updates, WhatsApp ordering & Pan-India printed acrylic QR stands.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/" },
     ],
   }),
   component: Index,
@@ -139,6 +168,111 @@ function Index() {
 
   return (
     <SitePage>
+      {/* Search Engine Structured Data: Organization, WebApplication, WebSite, FAQPage */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([
+            {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "Menuly India",
+              "url": "https://www.menulyindia.online",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://www.menulyindia.online/restaurants?q={search_term_string}",
+                "query-input": "required name=search_term_string",
+              },
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "Menuly India",
+              "url": "https://www.menulyindia.online",
+              "logo": "https://www.menulyindia.online/assets/menuly-logo.png",
+              "sameAs": ["https://twitter.com/menulyindia"],
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "telephone": "+91-9179878521",
+                "contactType": "customer service",
+                "areaServed": "IN",
+                "availableLanguage": ["English", "Hindi"],
+              },
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              "name": "Menuly - Contactless Digital Menu Maker",
+              "url": "https://www.menulyindia.online",
+              "applicationCategory": "BusinessApplication",
+              "operatingSystem": "All",
+              "browserRequirements": "Requires JavaScript. Requires HTML5.",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "INR",
+              },
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.9",
+                "reviewCount": "128",
+              },
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "How do I create a digital QR menu for my restaurant on Menuly?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text":
+                      "Creating a digital menu takes under 60 seconds. Sign up for free on Menuly, choose a 1-click starter cuisine pack (Dhaba, Cafe, South Indian, Street Food) or type your dishes, customize your logo and colours, and download your high-resolution QR code instantly.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Do customers need to download an app to scan the QR code?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text":
+                      "No app download is required. Customers simply scan the table QR code using their normal smartphone camera (iPhone, Android) and the interactive digital menu opens instantly in under 1 second in their web browser.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I change dish prices and mark items sold out in real-time?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text":
+                      "Yes! You can edit dish names, update prices, add new seasonal items, or toggle dishes as sold-out instantly from your phone dashboard without reprinting a single paper menu.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can customers place direct food orders on WhatsApp through Menuly?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text":
+                      "Yes, Menuly features direct 1-tap WhatsApp food ordering. When customers finalize their cart, the exact order summary with table number and dish quantities is sent straight to your restaurant WhatsApp number.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I buy printed acrylic QR stands and wooden table tents for my restaurant?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text":
+                      "Yes, Menuly offers an integrated Merchandise Shop with custom-printed acrylic table stands, laser-engraved wooden table tents, wall posters, and waterproof vinyl QR stickers shipped Pan-India with Cash on Delivery and Kotak UPI.",
+                  },
+                },
+              ],
+            },
+          ]),
+        }}
+      />
+
       {/* ── HERO ─────────────────────────────────────────────────────── */}
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-20 pt-8 md:grid-cols-2 md:pt-14">
         <div className="animate-rise">

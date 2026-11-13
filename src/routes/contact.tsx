@@ -28,16 +28,36 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
-      { title: `Contact & Support Desk — ${APP_NAME}` },
+      { title: "Contact Us & Restaurant Support Desk — Menuly India" },
       {
         name: "description",
-        content: `Contact ${APP_NAME} for technical support, report a bug, or share your valuable restaurant feedback. Our support desk responds rapidly.`,
+        content:
+          "Need help setting up your restaurant digital QR menu or ordering table stands? Contact the Menuly India support team via WhatsApp, phone or email.",
       },
-      { property: "og:title", content: `Contact & Feedback — ${APP_NAME}` },
+      {
+        name: "keywords",
+        content:
+          "contact Menuly, Menuly phone number, Menuly customer care, restaurant QR support India, Menuly WhatsApp helpline",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Menuly India" },
+      { property: "og:title", content: "Contact & Support Desk — Menuly India" },
       {
         property: "og:description",
-        content: `Get in touch with ${APP_NAME} technical support or submit restaurant feedback.`,
+        content: "Get rapid assistance with your restaurant digital QR menu setup and table stand orders.",
       },
+      { property: "og:url", content: "https://www.menulyindia.online/contact" },
+      { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Contact Menuly India Support" },
+      {
+        name: "twitter:description",
+        content: "Get rapid assistance with your restaurant digital QR menu setup.",
+      },
+      { name: "twitter:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://www.menulyindia.online/contact" },
     ],
   }),
   component: ContactPage,
