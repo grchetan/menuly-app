@@ -766,8 +766,6 @@ function ShopPublic() {
   // Dialog states
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [trackModalOpen, setTrackModalOpen] = useState(false);
 
   // Reviews state (real reviews only)
@@ -786,13 +784,6 @@ function ShopPublic() {
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
-
-  // Auth form inputs
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authFullName, setAuthFullName] = useState("");
-  const [authPhone, setAuthPhone] = useState("");
-  const [authSubmitting, setAuthSubmitting] = useState(false);
 
   // Checkout Form (COD & Kotak UPI)
   const [shippingName, setShippingName] = useState("");
@@ -924,6 +915,40 @@ function ShopPublic() {
   useEffect(() => {
     checkCurrentUser();
   }, [checkCurrentUser]);
+
+  // Redirect directly to official /auth portal and preserve return destination + cart + auto-checkout
+  const redirectToAuth = useCallback((autoCheckout: boolean = true) => {
+    if (typeof window === "undefined") return;
+    const currentPath = window.location.pathname;
+    const searchParams = new URLSearchParams(window.location.search);
+    if (autoCheckout) {
+      searchParams.set("checkout", "1");
+    }
+    const returnUrl = `${currentPath}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+    window.location.href = `/auth?redirect=${encodeURIComponent(returnUrl)}`;
+  }, []);
+
+  // Auto-resume checkout when returning from auth page with ?checkout=1
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const shouldCheckout = params.get("checkout") === "1" || params.get("checkout") === "true";
+
+    if (shouldCheckout && authChecked) {
+      const token = localStorage.getItem("menuly_token");
+      if (token || currentUser) {
+        if (cart.length > 0) {
+          setCartOpen(false);
+          setWishlistOpen(false);
+          setCheckoutOpen(true);
+        }
+        // Clean ?checkout=1 from URL so page refreshes don't re-trigger it
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("checkout");
+        window.history.replaceState({}, "", cleanUrl.toString());
+      }
+    }
+  }, [authChecked, currentUser, cart.length]);
 
   // 3. User past orders
   const fetchUserOrders = useCallback(async () => {
@@ -1146,8 +1171,36 @@ function ShopPublic() {
     }
 
     const safeQty = Math.max(1, Math.min(qty, maxStock));
-    addToCart(liveProd, safeQty);
-    handleProceedToCheckout();
+
+    // Synchronously update cart in localStorage & state
+    let updatedCart: ShopCartItem[] = [];
+    try {
+      const stored = localStorage.getItem("menuly_shop_cart");
+      const currentCart: ShopCartItem[] = stored ? JSON.parse(stored) : [...cart];
+      const idx = currentCart.findIndex((i) => i.product.id === liveProd.id);
+      if (idx >= 0) {
+        updatedCart = currentCart.map((item, i) =>
+          i === idx ? { ...item, quantity: Math.min(maxStock, item.quantity + safeQty) } : item
+        );
+      } else {
+        updatedCart = [...currentCart, { product: liveProd, quantity: safeQty }];
+      }
+      localStorage.setItem("menuly_shop_cart", JSON.stringify(updatedCart));
+      setCart(updatedCart);
+    } catch {
+      addToCart(liveProd, safeQty);
+    }
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+    if (!token && !currentUser) {
+      toast.info("Redirecting to login. Your cart will be saved!");
+      redirectToAuth(true);
+      return;
+    }
+
+    setCartOpen(false);
+    setWishlistOpen(false);
+    setCheckoutOpen(true);
   };
 
   // Checkout flow with inventory sanitization
@@ -1191,7 +1244,8 @@ function ShopPublic() {
 
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token && !currentUser) {
-      setAuthModalOpen(true);
+      toast.info("Please sign in or register to complete your order. Your cart is saved!");
+      redirectToAuth(true);
       return;
     }
     setCartOpen(false);
@@ -1542,7 +1596,7 @@ function ShopPublic() {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token) {
       toast.error("Please log in to confirm your order.");
-      setAuthModalOpen(true);
+      redirectToAuth(true);
       return;
     }
 
@@ -1684,7 +1738,7 @@ function ShopPublic() {
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token) {
       toast.error("Please log in to submit a review.");
-      setAuthModalOpen(true);
+      redirectToAuth(false);
       return;
     }
     const targetProd = reviewModalProduct || activeProduct;
@@ -1726,46 +1780,6 @@ function ShopPublic() {
       toast.error(err.message || "Failed to submit review.");
     } finally {
       setSubmittingReview(false);
-    }
-  };
-
-  // Auth handler (Login)
-  const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authEmail.trim() || !authPassword.trim()) {
-      toast.error("Please provide your email and password.");
-      return;
-    }
-    setAuthSubmitting(true);
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: authEmail.trim(),
-          password: authPassword.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Authentication failed. Invalid email or password.");
-      }
-
-      const token = data.data?.token || data.token;
-      if (token && typeof window !== "undefined") {
-        localStorage.setItem("menuly_token", token);
-        await checkCurrentUser();
-        setAuthModalOpen(false);
-        toast.success("Signed in successfully!");
-        if (cart.length > 0) {
-          setCheckoutOpen(true);
-        }
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Authentication failed.");
-    } finally {
-      setAuthSubmitting(false);
     }
   };
 
@@ -3587,97 +3601,6 @@ function ShopPublic() {
               </DialogFooter>
             </form>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ===================================================================== */}
-      {/* 8. AUTHENTICATION MODAL (Sign In or Register with OTP)                 */}
-      {/* ===================================================================== */}
-      <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-2xl shadow-xl">
-          <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
-            <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-              <Sparkles className="size-4 text-emerald-600" />
-              Sign In to Complete Order
-            </DialogTitle>
-            <p className="text-xs text-neutral-500 mt-1">
-              Sign in with your Menuly account to manage orders and track package delivery.
-            </p>
-          </DialogHeader>
-
-          <form onSubmit={handleAuthSubmit} className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Registered Email Address *</Label>
-              <Input
-                required
-                type="email"
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="rounded-xl border-neutral-300 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold">Password *</Label>
-                <Link
-                  to="/auth"
-                  search={{ redirect: "/shop" }}
-                  className="text-[11px] text-emerald-700 hover:underline font-medium"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                required
-                type="password"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                placeholder="••••••••"
-                className="rounded-xl border-neutral-300 text-xs"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={authSubmitting}
-              className="w-full bg-neutral-900 text-white py-2.5 rounded-xl text-xs font-bold uppercase hover:bg-black disabled:opacity-50 cursor-pointer transition-colors"
-            >
-              {authSubmitting ? "Signing in..." : "Sign In & Checkout"}
-            </button>
-          </form>
-
-          {/* New User / Register Box */}
-          <div className="border-t border-neutral-200 pt-4 space-y-3">
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
-              <p className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                <Sparkles className="size-3.5 text-emerald-600 shrink-0" />
-                <span>New to Menuly? Create Account with OTP</span>
-              </p>
-              <p className="text-[11px] text-neutral-600 leading-relaxed">
-                All customer and restaurant accounts require verified WhatsApp &amp; Email OTP to prevent fraud and track shipments.
-              </p>
-              <Button
-                asChild
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl shadow-xs"
-              >
-                <Link to="/auth" search={{ mode: "signup", redirect: "/shop" }}>
-                  Register with Secure OTP <ArrowRight className="size-3.5 ml-1" />
-                </Link>
-              </Button>
-            </div>
-
-            <div className="text-center pt-1">
-              <Link
-                to="/auth"
-                search={{ redirect: "/shop" }}
-                className="text-[11px] text-neutral-500 hover:text-neutral-900 hover:underline"
-              >
-                Prefer full-screen authentication portal? Open Auth Page →
-              </Link>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </SitePage>

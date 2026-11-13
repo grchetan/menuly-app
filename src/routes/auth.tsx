@@ -90,6 +90,20 @@ function AuthPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
+  // Robust destination navigator that handles paths with query params (e.g., /shop?checkout=1)
+  const navigateToDestination = useCallback(
+    (target: string) => {
+      if (typeof window !== "undefined") {
+        if (target.startsWith("/")) {
+          window.location.href = target;
+          return;
+        }
+      }
+      navigate({ to: target as any, replace: true });
+    },
+    [navigate]
+  );
+
   const [checkingSession, setCheckingSession] = useState(true);
   const [mode, setMode] = useState<AuthMode>(search.mode === "signup" ? "signup" : "login");
   const [email, setEmail] = useState("");
@@ -135,7 +149,7 @@ function AuthPage() {
             toast.success("Welcome! Signed in with Google.");
             const destination =
               search.redirect || (data.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
-            navigate({ to: destination as any, replace: true });
+            navigateToDestination(destination);
           } else {
             setCheckingSession(false);
           }
@@ -147,18 +161,18 @@ function AuthPage() {
     const token = localStorage.getItem("menuly_token");
     if (token) {
       const userStr = localStorage.getItem("menuly_user");
-      let destination = "/dashboard";
+      let destination = search.redirect || "/dashboard";
       try {
         const u = userStr ? JSON.parse(userStr) : null;
-        if (u?.role === "SUPER_ADMIN" || u?.role === "super_admin") {
+        if (!search.redirect && (u?.role === "SUPER_ADMIN" || u?.role === "super_admin")) {
           destination = "/admin";
         }
       } catch {
-        // fallback to /dashboard
+        // fallback to destination
       }
 
       const timer = setTimeout(() => {
-        navigate({ to: destination as any, replace: true });
+        navigateToDestination(destination);
       }, 400);
 
       return () => {
@@ -168,7 +182,7 @@ function AuthPage() {
 
     setCheckingSession(false);
     return undefined;
-  }, [navigate, search]);
+  }, [navigateToDestination, search]);
 
   const handleGoogleCredentialResponse = useCallback(
     async (response: { credential?: string }) => {
@@ -189,8 +203,8 @@ function AuthPage() {
         toast.success(data.message || "Signed in with Google!");
 
         const destination =
-          data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
-        navigate({ to: destination as any, replace: true });
+          search.redirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+        navigateToDestination(destination);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         toast.error(msg);
@@ -198,7 +212,7 @@ function AuthPage() {
         setIsGoogleLoading(false);
       }
     },
-    [navigate]
+    [navigateToDestination, search.redirect]
   );
 
   // Initialize Google Identity Services (GIS)
@@ -241,21 +255,25 @@ function AuthPage() {
   }, [handleGoogleCredentialResponse]);
 
   const handleGoogleClick = () => {
+    const googleRedirectUrl = search.redirect
+      ? `/api/auth/google/redirect?redirect=${encodeURIComponent(search.redirect)}`
+      : "/api/auth/google/redirect";
+
     if (googleClientId) {
       if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
         setIsGoogleLoading(true);
         try {
           (window as any).google.accounts.id.prompt((notification: any) => {
             if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-              window.location.href = "/api/auth/google/redirect";
+              window.location.href = googleRedirectUrl;
             }
           });
         } catch {
-          window.location.href = "/api/auth/google/redirect";
+          window.location.href = googleRedirectUrl;
         }
         setTimeout(() => setIsGoogleLoading(false), 2500);
       } else {
-        window.location.href = "/api/auth/google/redirect";
+        window.location.href = googleRedirectUrl;
       }
     } else {
       toast.info("Google Sign-In is being enabled. Please continue with Email & Password or Phone OTP.");
@@ -487,7 +505,7 @@ function AuthPage() {
       toast.success("Welcome back! Redirecting...");
 
       const targetDestination = search.redirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
-      navigate({ to: targetDestination as any });
+      navigateToDestination(targetDestination);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(msg);
@@ -590,7 +608,7 @@ function AuthPage() {
       }
       toast.success("WhatsApp linked successfully! Welcome to Menuly.");
       const targetDestination = search.redirect || "/dashboard";
-      navigate({ to: targetDestination as any });
+      navigateToDestination(targetDestination);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(msg);
@@ -1474,7 +1492,8 @@ function AuthPage() {
                       type="button"
                       onClick={() => {
                         toast.info("WhatsApp setup skipped. You can link it anytime from Settings.");
-                        navigate({ to: "/dashboard" });
+                        const targetDestination = search.redirect || "/dashboard";
+                        navigateToDestination(targetDestination);
                       }}
                       className="w-full py-2 text-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     >

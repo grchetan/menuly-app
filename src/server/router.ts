@@ -375,11 +375,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           { status: 400 }
         );
       }
+      const customRedirect = url.searchParams.get("redirect") || "";
       const origin = url.origin;
       const redirectUri = encodeURIComponent(`${origin}/api/auth/google/callback`);
+      const stateParam = customRedirect ? `&state=${encodeURIComponent(customRedirect)}` : "";
       const googleOAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
         config.clientId
-      )}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=select_account`;
+      )}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=select_account${stateParam}`;
 
       return new Response(null, {
         status: 302,
@@ -393,11 +395,14 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     if (pathname === "/api/auth/google/callback" && request.method === "GET") {
       const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
+      const state = url.searchParams.get("state") || "";
       if (error || !code) {
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `/auth?error=${encodeURIComponent(error || "Google sign-in was cancelled.")}`,
+            Location: `/auth?error=${encodeURIComponent(error || "Google sign-in was cancelled.")}${
+              state ? `&redirect=${encodeURIComponent(state)}` : ""
+            }`,
           },
         });
       }
@@ -425,7 +430,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         });
       }
 
-      const targetPath = res.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+      const targetPath = state || (res.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
       return new Response(null, {
         status: 302,
         headers: {
