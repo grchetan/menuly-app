@@ -202,7 +202,14 @@ function MenuNotFound() {
 
       {/* Footer */}
       <footer className="relative z-10 text-xs text-muted-foreground text-center pt-4">
-        Powered by Menuly &bull; Smart QR menus for modern dining
+        <a
+          href="https://www.menulyindia.online/"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-primary transition-colors inline-block"
+        >
+          Powered by Menuly &bull; Smart QR menus for modern dining
+        </a>
       </footer>
     </div>
   );

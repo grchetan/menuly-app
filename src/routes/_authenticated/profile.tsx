@@ -66,6 +66,60 @@ export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
 });
 
+// Strict Indian Mobile Number Parser for Profile
+export function parseIndianMobile(raw: string) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) {
+    return {
+      raw: "",
+      mobile10: "",
+      isValid: false,
+      isComplete: false,
+      e164: "",
+      error: undefined,
+    };
+  }
+
+  let digits = trimmed.replace(/\D/g, "");
+
+  // If user typed with country code (+91, 91 ) or prefix
+  if (trimmed.startsWith("+91") || trimmed.startsWith("91 ") || trimmed.startsWith("+ 91")) {
+    if (digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+  } else if (digits.length > 10 && digits.startsWith("91")) {
+    digits = digits.slice(2);
+  } else if (digits.startsWith("0")) {
+    // If user starts with 0 (e.g. 09876543210)
+    digits = digits.replace(/^0+/, "");
+  }
+
+  const mobile10 = digits;
+  const is10 = mobile10.length === 10;
+  const startsWith6to9 = /^[6-9]/.test(mobile10);
+  const isValid = is10 && startsWith6to9;
+
+  let error: string | undefined;
+  if (mobile10.length > 0) {
+    if (mobile10.length < 10) {
+      error = `Enter valid 10-digit mobile number (${mobile10.length}/10 entered)`;
+    } else if (mobile10.length > 10) {
+      error = `Mobile number cannot exceed 10 digits (${mobile10.length} digits entered)`;
+    } else if (!startsWith6to9) {
+      error = "Indian mobile number must start with 6, 7, 8, or 9";
+    }
+  }
+
+  return {
+    raw: trimmed,
+    mobile10,
+    isValid,
+    isComplete: is10,
+    e164: isValid ? `+91${mobile10}` : "",
+    error,
+  };
+}
+
 function ProfilePage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -187,15 +241,20 @@ function ProfilePage() {
   }, [restaurant, verifiedPhone]);
 
   // Derived Phone Verification States
-  const cleanPhoneDigits = phone.replace(/\D/g, "").slice(-10);
-  const cleanVerifiedDigits = verifiedPhone.replace(/\D/g, "").slice(-10);
-  const isPhoneVerified = Boolean(cleanVerifiedDigits && cleanPhoneDigits === cleanVerifiedDigits);
-  const isPhoneChanged = cleanPhoneDigits !== cleanVerifiedDigits;
+  const parsedPhone = parseIndianMobile(phone);
+  const parsedVerified = parseIndianMobile(verifiedPhone);
+  const cleanPhoneDigits = parsedPhone.mobile10;
+  const isPhoneVerified = Boolean(
+    parsedVerified.isValid &&
+    parsedPhone.isValid &&
+    parsedPhone.mobile10 === parsedVerified.mobile10
+  );
+  const isPhoneChanged = Boolean(parsedPhone.mobile10 !== parsedVerified.mobile10);
 
   // Handle Send WhatsApp OTP
   const handleSendPhoneOtp = async () => {
-    if (cleanPhoneDigits.length !== 10) {
-      toast.error("Please enter a valid 10-digit WhatsApp number (e.g. 9876543210).");
+    if (!parsedPhone.isValid) {
+      toast.error(parsedPhone.error || "Please enter a valid 10-digit Indian WhatsApp number (e.g. 9876543210).");
       return;
     }
     setIsSendingPhoneOtp(true);
@@ -209,7 +268,7 @@ function ProfilePage() {
         },
         body: JSON.stringify({
           email: email || currentUser?.email,
-          phone: cleanPhoneDigits,
+          phone: parsedPhone.mobile10,
         }),
       });
 
@@ -218,14 +277,14 @@ function ProfilePage() {
         throw new Error(resData.error || "Failed to send WhatsApp verification code.");
       }
 
-      setPhoneToVerify(cleanPhoneDigits);
+      setPhoneToVerify(parsedPhone.mobile10);
       setPhoneOtp("");
       if (resData.data?.devOtp) {
         setPhoneDevOtp(resData.data.devOtp);
       }
       setPhoneCooldown(60);
       setIsPhoneModalOpen(true);
-      toast.success(resData.message || `Verification code sent to WhatsApp: +91 ${cleanPhoneDigits}`);
+      toast.success(resData.message || `Verification code sent to WhatsApp: +91 ${parsedPhone.mobile10}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(msg);
@@ -334,8 +393,12 @@ function ProfilePage() {
     }
 
     // Security: Mobile number changes MUST be verified via WhatsApp OTP
-    if (isPhoneChanged && cleanPhoneDigits.length > 0) {
-      toast.error("WhatsApp verification required: Please click 'Verify via WhatsApp' to verify this mobile number first.");
+    if (isPhoneChanged && parsedPhone.raw.length > 0) {
+      if (!parsedPhone.isValid) {
+        toast.error(parsedPhone.error || "Please enter a valid 10-digit Indian mobile number.");
+        return;
+      }
+      toast.error("WhatsApp verification required: Please click 'Verify via WhatsApp OTP' to verify this mobile number first.");
       handleSendPhoneOtp();
       return;
     }
@@ -669,7 +732,7 @@ function ProfilePage() {
                       <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 className="size-3" /> Verified
                       </span>
-                    ) : isPhoneChanged && cleanPhoneDigits.length >= 10 ? (
+                    ) : isPhoneChanged && parsedPhone.isValid ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
                         OTP Required
                       </span>
@@ -680,23 +743,33 @@ function ProfilePage() {
                     <Input
                       id="profilePhone"
                       type="tel"
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 98765 43210 or 9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className={cn(
                         "pl-10 h-10 rounded-xl text-base sm:text-sm bg-background font-mono tracking-wide",
                         isPhoneVerified
                           ? "border-emerald-500/40 focus:border-emerald-500"
-                          : isPhoneChanged && cleanPhoneDigits.length >= 10
+                          : isPhoneChanged && parsedPhone.isValid
                           ? "border-amber-500/60 focus:border-amber-500"
+                          : isPhoneChanged && parsedPhone.error
+                          ? "border-destructive/60 focus:border-destructive"
                           : ""
                       )}
                     />
                     <Smartphone className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
                   </div>
 
+                  {/* Realtime helper feedback */}
+                  {isPhoneChanged && parsedPhone.error && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1 pt-0.5">
+                      <AlertTriangle className="size-3 shrink-0" />
+                      <span>{parsedPhone.error}</span>
+                    </p>
+                  )}
+
                   {/* Verification action buttons */}
-                  {isPhoneChanged && cleanPhoneDigits.length >= 10 && (
+                  {isPhoneChanged && parsedPhone.isValid && (
                     <div className="flex items-center gap-2 pt-1">
                       <Button
                         type="button"

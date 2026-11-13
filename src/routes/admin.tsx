@@ -81,7 +81,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/Logo";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { AnnouncementMarquee } from "@/components/AnnouncementMarquee";
 import { STARTER_PRESETS, type PresetTemplate } from "@/lib/presets";
 import { compressImage } from "@/lib/image-compress";
@@ -413,6 +413,10 @@ function AdminPage() {
   const [restoringTrashId, setRestoringTrashId] = useState<string | null>(null);
   const [purgingTrashId, setPurgingTrashId] = useState<string | null>(null);
   const [banningUserId, setBanningUserId] = useState<string | null>(null);
+  // Admin Phone Management State
+  const [editingPhoneUser, setEditingPhoneUser] = useState<{ id: string; name: string; email: string; phone: string } | null>(null);
+  const [newAdminPhone, setNewAdminPhone] = useState("");
+  const [savingAdminPhone, setSavingAdminPhone] = useState(false);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -762,7 +766,7 @@ function AdminPage() {
             id: u.id,
             name: u.fullName || u.email.split("@")[0],
             email: u.email,
-            phone: u.phone || "+91 98765 00000",
+            phone: u.phone || "",
             restaurantName:
               u.role === "SUPER_ADMIN"
                 ? "Platform Administration"
@@ -1193,6 +1197,65 @@ function AdminPage() {
     }
   };
 
+  // Super Admin direct phone update or removal (No OTP required)
+  const handleAdminSavePhone = async (phoneValue: string | null) => {
+    if (!editingPhoneUser) return;
+    setSavingAdminPhone(true);
+    try {
+      const token = safeStorage.getItem("menuly_token");
+      const res = await fetch("/api/admin/users/update-phone", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: editingPhoneUser.id || undefined,
+          email: editingPhoneUser.email,
+          phone: phoneValue ? phoneValue.trim() : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update phone number");
+      }
+      const updatedPhone = data.user?.phone || "";
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editingPhoneUser.id || u.email === editingPhoneUser.email
+            ? { ...u, phone: updatedPhone }
+            : u
+        )
+      );
+      setRestaurants((prev) =>
+        prev.map((r) =>
+          r.ownerEmail === editingPhoneUser.email
+            ? { ...r, phone: updatedPhone, whatsapp: updatedPhone.replace(/\D/g, "").slice(-10) }
+            : r
+        )
+      );
+      if (inspectingRestaurant && inspectingRestaurant.ownerEmail === editingPhoneUser.email) {
+        setInspectingRestaurant((prev) =>
+          prev
+            ? {
+                ...prev,
+                phone: updatedPhone,
+                whatsapp: updatedPhone.replace(/\D/g, "").slice(-10),
+              }
+            : null
+        );
+      }
+      toast.success(data.message || "Phone number updated successfully!");
+      setEditingPhoneUser(null);
+      setNewAdminPhone("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    } finally {
+      setSavingAdminPhone(false);
+    }
+  };
+
   const handleRestoreTrash = async (userId: string) => {
     setRestoringTrashId(userId);
     try {
@@ -1222,7 +1285,7 @@ function AdminPage() {
                 id: u.id,
                 name: u.fullName || u.email.split("@")[0],
                 email: u.email,
-                phone: u.phone || "+91 98765 00000",
+                phone: u.phone || "",
                 restaurantName:
                   u.role === "SUPER_ADMIN" ? "Platform Administration" : u.restaurant?.name || "No Restaurant Set",
                 restaurantSlug: u.role === "SUPER_ADMIN" ? "" : u.restaurant?.slug || "",
@@ -3669,6 +3732,14 @@ function AdminPage() {
                               <div>
                                 <div className="font-bold text-foreground">{u.name}</div>
                                 <div className="text-xs text-muted-foreground">{u.email}</div>
+                                <div className="text-[11px] font-mono mt-0.5 flex items-center gap-1.5">
+                                  <Phone className="size-3 text-emerald-600" />
+                                  {u.phone ? (
+                                    <span className="text-foreground font-semibold">{u.phone}</span>
+                                  ) : (
+                                    <span className="italic text-muted-foreground">No phone linked</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -3757,6 +3828,26 @@ function AdminPage() {
                                   <MessageCircle className="size-3.5" />
                                 </a>
                               )}
+
+                              {/* Admin Direct Edit / Remove Phone Button */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7 gap-1 px-2 font-bold cursor-pointer hover:border-primary/50 text-foreground"
+                                onClick={() => {
+                                  setEditingPhoneUser({
+                                    id: u.id,
+                                    name: u.name,
+                                    email: u.email,
+                                    phone: u.phone || "",
+                                  });
+                                  setNewAdminPhone(u.phone || "");
+                                }}
+                                title="Admin Direct Phone Edit / Remove without OTP"
+                              >
+                                <Smartphone className="size-3 text-primary" />
+                                <span className="hidden sm:inline">{u.phone ? "Edit Phone" : "+ Phone"}</span>
+                              </Button>
 
                               {/* Role Toggle Button (ONLY visible to Master Admin) */}
                               {isMasterAdmin && u.email !== "menulyofficial@gmail.com" && (
@@ -6151,39 +6242,60 @@ function AdminPage() {
                         <p className="font-mono text-sm font-black text-foreground">
                           {inspectingRestaurant.phone || "No phone number registered"}
                         </p>
-                        {inspectingRestaurant.phone && (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              asChild
-                              className="text-xs h-7 gap-1 font-semibold"
-                            >
-                              <a href={`tel:${inspectingRestaurant.phone}`}>
-                                <Phone className="size-3 text-blue-600" /> Call
-                              </a>
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              asChild
-                              className="text-xs h-7 gap-1 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                              <a
-                                href={`https://wa.me/${inspectingRestaurant.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
-                                  inspectingRestaurant.ownerName
-                                )},%20this%20is%20Menuly%20Administration%20Support%20regarding%20${encodeURIComponent(
-                                  inspectingRestaurant.name
-                                )}:`}
-                                target="_blank"
-                                rel="noreferrer"
+                        <div className="flex flex-wrap items-center gap-2">
+                          {inspectingRestaurant.phone && (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                asChild
+                                className="text-xs h-7 gap-1 font-semibold"
                               >
-                                <MessageCircle className="size-3" /> Chat WhatsApp
-                              </a>
-                            </Button>
-                          </div>
-                        )}
+                                <a href={`tel:${inspectingRestaurant.phone}`}>
+                                  <Phone className="size-3 text-blue-600" /> Call
+                                </a>
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                asChild
+                                className="text-xs h-7 gap-1 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                <a
+                                  href={`https://wa.me/${inspectingRestaurant.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
+                                    inspectingRestaurant.ownerName
+                                  )},%20this%20is%20Menuly%20Administration%20Support%20regarding%20${encodeURIComponent(
+                                    inspectingRestaurant.name
+                                  )}:`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <MessageCircle className="size-3" /> Chat WhatsApp
+                                </a>
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7 gap-1 font-bold border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+                            onClick={() => {
+                              const matchedUser = users.find((u) => u.email === inspectingRestaurant.ownerEmail);
+                              setEditingPhoneUser({
+                                id: matchedUser?.id || "",
+                                name: inspectingRestaurant.ownerName,
+                                email: inspectingRestaurant.ownerEmail,
+                                phone: inspectingRestaurant.phone || "",
+                              });
+                              setNewAdminPhone(inspectingRestaurant.phone || "");
+                            }}
+                            title="Super Admin Direct Edit / Remove without OTP"
+                          >
+                            <Smartphone className="size-3" /> Admin Edit / Clear Phone
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -6633,6 +6745,99 @@ function AdminPage() {
                 </div>
               </form>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Super Admin Direct Phone Management Modal (No OTP required) */}
+        <Dialog open={Boolean(editingPhoneUser)} onOpenChange={(open) => !open && setEditingPhoneUser(null)}>
+          <DialogContent className="sm:max-w-md p-6 rounded-3xl border-border bg-card space-y-4">
+            <DialogHeader>
+              <DialogTitle className="font-display font-black text-lg text-foreground flex items-center gap-2">
+                <Smartphone className="size-5 text-primary" /> Admin Direct Phone Management
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Update or remove phone number for <span className="font-bold text-foreground">{editingPhoneUser?.name}</span> ({editingPhoneUser?.email}).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 text-xs space-y-1">
+              <p className="font-bold text-primary flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5" /> Super Admin Direct Bypass
+              </p>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                As Platform Administrator, you have full authority to update or clear this contact directly without OTP verification. Regular users cannot bypass OTP.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="adminPhoneInput" className="text-xs font-bold text-foreground">
+                  Indian Mobile / WhatsApp Number
+                </Label>
+                {editingPhoneUser?.phone && (
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    Current: <strong className="text-foreground">{editingPhoneUser.phone}</strong>
+                  </span>
+                )}
+              </div>
+              <Input
+                id="adminPhoneInput"
+                type="tel"
+                placeholder="+91 98765 43210 or 9876543210"
+                value={newAdminPhone}
+                onChange={(e) => setNewAdminPhone(e.target.value)}
+                className="font-mono text-sm rounded-xl h-10"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Accepts 10 digits with or without +91 or 0 prefix. Enter new number or clear to remove.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/60">
+              {editingPhoneUser?.phone ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={savingAdminPhone}
+                  onClick={() => handleAdminSavePhone(null)}
+                  className="text-xs h-9 rounded-xl font-bold cursor-pointer"
+                >
+                  <Trash2 className="size-3 mr-1" /> Remove Phone
+                </Button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditingPhoneUser(null)}
+                  className="text-xs h-9 rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={savingAdminPhone}
+                  onClick={() => handleAdminSavePhone(newAdminPhone)}
+                  className="text-xs h-9 px-4 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                >
+                  {savingAdminPhone ? (
+                    <>
+                      <RefreshCw className="size-3 animate-spin mr-1" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="size-3 mr-1" /> Save Phone
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
         </>

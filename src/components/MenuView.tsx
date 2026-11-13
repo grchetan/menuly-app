@@ -1267,7 +1267,7 @@ export function MenuView({
         {/* Footer Branding Badge */}
         <footer className={cn("text-center flex flex-col items-center justify-center gap-2", compact ? "py-6 text-[10px]" : "py-12 text-xs")}>
           <a
-            href="https://menuly-app-blush.vercel.app"
+            href="https://www.menulyindia.online/"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/90 backdrop-blur px-3.5 py-1.5 shadow-xs hover:border-orange-500/50 hover:bg-card transition-all group"

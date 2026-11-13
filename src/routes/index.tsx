@@ -8,7 +8,7 @@ import { AnimatedQR } from "@/components/AnimatedQR";
 import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
 import hero from "@/assets/hero.png";
 
-const DEFAULT_DEMO_URL = "https://menuly-app-blush.vercel.app/menu/menuly-official";
+const DEFAULT_DEMO_URL = "https://www.menulyindia.online/menu/menuly-official";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -57,9 +57,9 @@ function PhoneMockup() {
             <div className="size-7 rounded-full bg-primary-foreground/20 flex items-center justify-center text-[10px]">
               🍽
             </div>
-            <div>
-              <p className="text-[9px] font-black leading-none">The Roasted Bean</p>
-              <p className="text-[8px] opacity-70 leading-none mt-0.5">Open · 10 AM – 10 PM</p>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black leading-none truncate max-w-[140px]">Menuly HQ (Official Demo)</p>
+              <p className="text-[8px] opacity-70 leading-none mt-0.5">Open · 10 AM – 11 PM</p>
             </div>
           </div>
         </div>

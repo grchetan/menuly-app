@@ -320,6 +320,60 @@ export async function verifyUserOtp(params: {
 }
 
 /**
+ * Strict Indian Mobile Number Parser and Validator
+ * Handles +91 9876543210, 919876543210, 09876543210, and bare 10-digit 9876543210.
+ * Rejects numbers with wrong digit counts (e.g. +91 82360224 which is only 8 digits).
+ */
+export function parseAndValidateIndianMobile(raw: string): {
+  isValid: boolean;
+  mobile10: string;
+  formatted: string;
+  error?: string;
+} {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) {
+    return { isValid: false, mobile10: "", formatted: "", error: "Mobile number is required." };
+  }
+
+  let digits = trimmed.replace(/\D/g, "");
+
+  // If user typed +91... or 91 with a space / prefix
+  if (trimmed.startsWith("+91") || trimmed.startsWith("91 ") || trimmed.startsWith("+ 91")) {
+    if (digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+  } else if (digits.length > 10 && digits.startsWith("91")) {
+    digits = digits.slice(2);
+  } else if (digits.startsWith("0")) {
+    digits = digits.replace(/^0+/, "");
+  }
+
+  if (digits.length !== 10) {
+    return {
+      isValid: false,
+      mobile10: digits,
+      formatted: "",
+      error: `Please enter a valid 10-digit mobile number (${digits.length}/10 digits provided).`,
+    };
+  }
+
+  if (!/^[6-9]/.test(digits)) {
+    return {
+      isValid: false,
+      mobile10: digits,
+      formatted: "",
+      error: "Indian mobile number must start with 6, 7, 8, or 9.",
+    };
+  }
+
+  return {
+    isValid: true,
+    mobile10: digits,
+    formatted: `+91${digits}`,
+  };
+}
+
+/**
  * 2b. SEND PHONE VERIFICATION OTP (Step 2 of Signup)
  * Dispatches a 6-digit verification code to user's WhatsApp to link mobile number.
  */
@@ -330,11 +384,14 @@ export async function sendPhoneVerificationOtp(params: {
 }): Promise<ServiceResult<{ phone: string; devOtp?: string }>> {
   const { email, phone, clientIp = "global" } = params;
   const normalized = email.toLowerCase().trim();
-  const cleanDigits = phone.replace(/\D/g, "");
 
-  if (!cleanDigits || cleanDigits.length < 10) {
-    return { success: false, status: 400, error: "Please enter a valid 10-digit mobile number." };
+  const phoneValidation = parseAndValidateIndianMobile(phone);
+  if (!phoneValidation.isValid) {
+    return { success: false, status: 400, error: phoneValidation.error || "Please enter a valid 10-digit mobile number." };
   }
+  const cleanDigits = phoneValidation.mobile10;
+  const tenDigits = cleanDigits;
+  const formattedPhone = phoneValidation.formatted;
 
   const rate = checkRateLimit(`phone-otp:${cleanDigits}:${clientIp}`, {
     windowMs: 60 * 1000,
@@ -364,9 +421,6 @@ export async function sendPhoneVerificationOtp(params: {
     expiresAt,
     maxAttempts: OTP_MAX_ATTEMPTS,
   });
-
-  const tenDigits = cleanDigits.slice(-10);
-  const formattedPhone = `+91${tenDigits}`;
 
   // Check if another user already owns this phone number
   const existingOwner = await userStore.findByPhone(formattedPhone);
@@ -417,12 +471,14 @@ export async function verifyPhoneVerificationOtp(params: {
 > {
   const { email, phone, otp } = params;
   const normalized = email.toLowerCase().trim();
-  const cleanDigits = phone.replace(/\D/g, "");
-  if (!cleanDigits || cleanDigits.length < 10) {
-    return { success: false, status: 400, error: "Please enter a valid 10-digit mobile number." };
+
+  const phoneValidation = parseAndValidateIndianMobile(phone);
+  if (!phoneValidation.isValid) {
+    return { success: false, status: 400, error: phoneValidation.error || "Please enter a valid 10-digit mobile number." };
   }
-  const tenDigits = cleanDigits.slice(-10);
-  const formattedPhone = `+91${tenDigits}`;
+  const cleanDigits = phoneValidation.mobile10;
+  const tenDigits = cleanDigits;
+  const formattedPhone = phoneValidation.formatted;
 
   const res = await verifyUserOtp({
     email: normalized,
@@ -567,11 +623,11 @@ export async function resendUserOtp(params: {
 
   if (isPhoneLookup) {
     const targetPhone = targetUser?.phone || phone || lookupInput;
-    const cleanDigits = targetPhone.replace(/\D/g, "");
-    if (!cleanDigits || cleanDigits.length < 10) {
-      return { success: false, status: 400, error: "No valid mobile number found to dispatch WhatsApp code." };
+    const phoneValidation = parseAndValidateIndianMobile(targetPhone);
+    if (!phoneValidation.isValid) {
+      return { success: false, status: 400, error: phoneValidation.error || "No valid 10-digit mobile number found to dispatch WhatsApp code." };
     }
-    const formattedPhone = cleanDigits.length === 10 ? `+91${cleanDigits}` : `+${cleanDigits}`;
+    const formattedPhone = phoneValidation.formatted;
 
     const waRes = await sendWhatsAppOtp(formattedPhone, rawOtp, type);
     if (!waRes.success && process.env["NODE_ENV"] !== "test" && !process.env["VITEST"]) {

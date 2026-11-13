@@ -484,13 +484,10 @@ function AuthPage() {
       }
 
       saveAuthSession(data.data.token, data.data.user);
-      toast.success("Welcome back! Redirecting to dashboard...");
+      toast.success("Welcome back! Redirecting...");
 
-      if (data.data.user?.role === "SUPER_ADMIN") {
-        navigate({ to: "/admin" });
-      } else {
-        navigate({ to: "/dashboard" });
-      }
+      const targetDestination = search.redirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+      navigate({ to: targetDestination as any });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(msg);
@@ -592,7 +589,8 @@ function AuthPage() {
         saveAuthSession(data.data.token, data.data.user);
       }
       toast.success("WhatsApp linked successfully! Welcome to Menuly.");
-      navigate({ to: "/dashboard" });
+      const targetDestination = search.redirect || "/dashboard";
+      navigate({ to: targetDestination as any });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(msg);

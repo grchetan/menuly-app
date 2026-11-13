@@ -4,6 +4,7 @@ import {
   verifyUserOtp,
   sendPhoneVerificationOtp,
   verifyPhoneVerificationOtp,
+  parseAndValidateIndianMobile,
   resendUserOtp,
   loginUser,
   forgotPassword,
@@ -1807,6 +1808,83 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           message: isBanned ? "User account has been suspended." : "User account has been unsuspended.",
           isBanned,
           banReason: isBanned ? banReason : null,
+        });
+      }
+
+      // POST /api/admin/users/update-phone (Super Admin direct phone update or removal without OTP)
+      if (pathname === "/api/admin/users/update-phone" && request.method === "POST") {
+        if (payload.email !== "menulyofficial@gmail.com" && payload.role !== "SUPER_ADMIN") {
+          return json({ error: "Access Denied: Only Platform Administrators can manage user phone numbers directly." }, 403);
+        }
+
+        const body = await request.json().catch(() => ({}));
+        const targetUserId = body.userId;
+        const targetEmail = body.email;
+
+        if (!targetUserId && !targetEmail) {
+          return json({ error: "User ID or User Email is required" }, 400);
+        }
+
+        const target = await prisma.user.findFirst({
+          where: {
+            OR: [
+              ...(targetUserId ? [{ id: targetUserId }] : []),
+              ...(targetEmail ? [{ email: targetEmail.toLowerCase().trim() }] : []),
+            ],
+            deletedAt: null,
+          },
+        });
+        if (!target) return json({ error: "User not found" }, 404);
+
+        const rawPhone = (body.phone ?? "").toString().trim();
+        let formattedPhone: string | null = null;
+        let tenDigits: string | null = null;
+
+        if (rawPhone) {
+          const parsed = parseAndValidateIndianMobile(rawPhone);
+          if (!parsed.isValid) {
+            return json({ error: parsed.error || "Please enter a valid 10-digit Indian mobile number." }, 400);
+          }
+          formattedPhone = parsed.formatted;
+          tenDigits = parsed.mobile10;
+
+          // Check if another active user already owns this phone
+          const existing = await prisma.user.findFirst({
+            where: {
+              phone: formattedPhone,
+              id: { not: target.id },
+              deletedAt: null,
+            },
+          });
+          if (existing) {
+            return json({ error: `Phone number is already linked to another active user (${existing.email}).` }, 400);
+          }
+        }
+
+        // Update user record
+        const updatedUser = await prisma.user.update({
+          where: { id: target.id },
+          data: { phone: formattedPhone },
+          select: { id: true, email: true, phone: true, fullName: true, role: true },
+        });
+
+        // Sync with restaurant(s) owned by this user
+        await prisma.restaurant.updateMany({
+          where: { ownerId: target.id },
+          data: {
+            phone: formattedPhone,
+            whatsapp: tenDigits,
+          },
+        });
+
+        userStore.invalidateEmailCache(target.email);
+
+        return json({
+          success: true,
+          message: formattedPhone
+            ? `Phone number successfully updated to ${formattedPhone} for ${target.email} (Admin bypass, no OTP required).`
+            : `Phone number removed for ${target.email}.`,
+          user: updatedUser,
         });
       }
 

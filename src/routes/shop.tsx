@@ -1625,7 +1625,7 @@ function ShopPublic() {
     }
   };
 
-  // Auth handler (Login / Signup)
+  // Auth handler (Login)
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authEmail.trim() || !authPassword.trim()) {
@@ -1634,29 +1634,18 @@ function ShopPublic() {
     }
     setAuthSubmitting(true);
     try {
-      const endpoint = authMode === "signup" ? "/api/auth/register" : "/api/auth/login";
-      const body =
-        authMode === "signup"
-          ? {
-              email: authEmail.trim(),
-              password: authPassword.trim(),
-              fullName: authFullName.trim() || "Customer",
-              phone: authPhone.trim() || undefined,
-            }
-          : {
-              email: authEmail.trim(),
-              password: authPassword.trim(),
-            };
-
-      const res = await fetch(endpoint, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          email: authEmail.trim(),
+          password: authPassword.trim(),
+        }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Authentication failed.");
+        throw new Error(data.error || "Authentication failed. Invalid email or password.");
       }
 
       const token = data.data?.token || data.token;
@@ -1664,7 +1653,7 @@ function ShopPublic() {
         localStorage.setItem("menuly_token", token);
         await checkCurrentUser();
         setAuthModalOpen(false);
-        toast.success(authMode === "signup" ? "Account created successfully!" : "Signed in successfully!");
+        toast.success("Signed in successfully!");
         if (cart.length > 0) {
           setCheckoutOpen(true);
         }
@@ -3416,91 +3405,93 @@ function ShopPublic() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 8. AUTHENTICATION MODAL (Login / Signup for Shop Order)               */}
+      {/* 8. AUTHENTICATION MODAL (Sign In or Register with OTP)                 */}
       {/* ===================================================================== */}
       <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-none shadow-none">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-6 bg-white border border-neutral-300 text-neutral-900 rounded-2xl shadow-xl">
           <DialogHeader className="pr-12 text-left border-b border-neutral-200 pb-4">
-            <DialogTitle className="text-lg font-bold text-neutral-900">
-              {authMode === "signup" ? "Create Account to Place Order" : "Sign In to Complete Order"}
+            <DialogTitle className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+              <Sparkles className="size-4 text-emerald-600" />
+              Sign In to Complete Order
             </DialogTitle>
+            <p className="text-xs text-neutral-500 mt-1">
+              Sign in with your Menuly account to manage orders and track package delivery.
+            </p>
           </DialogHeader>
 
           <form onSubmit={handleAuthSubmit} className="space-y-3 py-2 text-xs">
-            {authMode === "signup" && (
-              <>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Restaurant / Customer Name *</Label>
-                  <Input
-                    required
-                    value={authFullName}
-                    onChange={(e) => setAuthFullName(e.target.value)}
-                    placeholder="e.g. Royal Cafe"
-                    className="rounded-none border-neutral-300 text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Phone Number</Label>
-                  <Input
-                    type="tel"
-                    value={authPhone}
-                    onChange={(e) => setAuthPhone(e.target.value)}
-                    placeholder="10-digit mobile"
-                    className="rounded-none border-neutral-300 text-xs"
-                  />
-                </div>
-              </>
-            )}
-
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Email Address *</Label>
+              <Label className="text-xs font-semibold">Registered Email Address *</Label>
               <Input
                 required
                 type="email"
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="rounded-none border-neutral-300 text-xs"
+                className="rounded-xl border-neutral-300 text-xs"
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Password *</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Password *</Label>
+                <Link
+                  to="/auth"
+                  search={{ redirect: "/shop" }}
+                  className="text-[11px] text-emerald-700 hover:underline font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 required
                 type="password"
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
                 placeholder="••••••••"
-                className="rounded-none border-neutral-300 text-xs"
+                className="rounded-xl border-neutral-300 text-xs"
               />
             </div>
 
-            <DialogFooter className="border-t border-neutral-200 pt-4 flex-col gap-2">
-              <button
-                type="submit"
-                disabled={authSubmitting}
-                className="w-full bg-neutral-900 text-white py-2.5 text-xs font-bold uppercase hover:bg-black disabled:opacity-50 cursor-pointer"
-              >
-                {authSubmitting
-                  ? "Please wait..."
-                  : authMode === "signup"
-                  ? "Create Account & Continue"
-                  : "Sign In & Checkout"}
-              </button>
-
-              <p className="text-center text-[11px] text-neutral-500 pt-1">
-                {authMode === "signup" ? "Already have an account?" : "Don't have an account yet?"}{" "}
-                <button
-                  type="button"
-                  onClick={() => setAuthMode((m) => (m === "signup" ? "login" : "signup"))}
-                  className="font-bold text-neutral-900 hover:underline cursor-pointer"
-                >
-                  {authMode === "signup" ? "Sign In" : "Register Now"}
-                </button>
-              </p>
-            </DialogFooter>
+            <button
+              type="submit"
+              disabled={authSubmitting}
+              className="w-full bg-neutral-900 text-white py-2.5 rounded-xl text-xs font-bold uppercase hover:bg-black disabled:opacity-50 cursor-pointer transition-colors"
+            >
+              {authSubmitting ? "Signing in..." : "Sign In & Checkout"}
+            </button>
           </form>
+
+          {/* New User / Register Box */}
+          <div className="border-t border-neutral-200 pt-4 space-y-3">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+              <p className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                <Sparkles className="size-3.5 text-emerald-600 shrink-0" />
+                <span>New to Menuly? Create Account with OTP</span>
+              </p>
+              <p className="text-[11px] text-neutral-600 leading-relaxed">
+                All customer and restaurant accounts require verified WhatsApp &amp; Email OTP to prevent fraud and track shipments.
+              </p>
+              <Button
+                asChild
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl shadow-xs"
+              >
+                <Link to="/auth" search={{ mode: "signup", redirect: "/shop" }}>
+                  Register with Secure OTP <ArrowRight className="size-3.5 ml-1" />
+                </Link>
+              </Button>
+            </div>
+
+            <div className="text-center pt-1">
+              <Link
+                to="/auth"
+                search={{ redirect: "/shop" }}
+                className="text-[11px] text-neutral-500 hover:text-neutral-900 hover:underline"
+              >
+                Prefer full-screen authentication portal? Open Auth Page →
+              </Link>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </SitePage>
