@@ -660,9 +660,24 @@ function getInitialProductFromUrl(): string | null {
   return p ? p.trim() : null;
 }
 
+function getInitialProducts(): ShopProduct[] {
+  if (typeof window !== "undefined") {
+    try {
+      const cached = localStorage.getItem("menuly_shop_products_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return INITIAL_FALLBACK_PRODUCTS;
+}
+
 function ShopPublic() {
-  // Products state
-  const [products, setProducts] = useState<ShopProduct[]>(INITIAL_FALLBACK_PRODUCTS);
+  // Products state (hydrated instantly from local cache to prevent stock count flicker)
+  const [products, setProducts] = useState<ShopProduct[]>(getInitialProducts);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Selected product for the Full Page view
@@ -825,6 +840,11 @@ function ShopPublic() {
         const data = await res.json();
         if (data.success && Array.isArray(data.products) && data.products.length > 0) {
           setProducts(data.products);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("menuly_shop_products_cache", JSON.stringify(data.products));
+            } catch {}
+          }
         }
       }
     } catch {
@@ -1893,7 +1913,11 @@ function ShopPublic() {
                     }`}
                   >
                     {activeProduct.inStock
-                      ? `● In Stock (${activeProduct.stock ?? 100} available)`
+                      ? typeof activeProduct.stock === "number"
+                        ? activeProduct.stock <= 10
+                          ? `● Only ${activeProduct.stock} left!`
+                          : `● In Stock (${activeProduct.stock} available)`
+                        : "● In Stock"
                       : "● Out of Stock"}
                   </span>
                 </div>
@@ -2399,9 +2423,11 @@ function ShopPublic() {
                             )}
                           >
                             {p.inStock
-                              ? (p.stock ?? 100) <= 10
-                                ? `Only ${p.stock ?? 100} left!`
-                                : `In Stock (${p.stock ?? 100} available)`
+                              ? typeof p.stock === "number"
+                                ? p.stock <= 10
+                                  ? `Only ${p.stock} left!`
+                                  : `In Stock (${p.stock} available)`
+                                : "In Stock"
                               : "Out of Stock"}
                           </span>
                           {p.reviewsCount && p.reviewsCount > 0 ? (
