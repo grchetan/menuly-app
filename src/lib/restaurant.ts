@@ -196,11 +196,14 @@ export function saveLocalDemoMenu(menu: FullMenu) {
 
 export { type PresetTemplate, STARTER_PRESETS } from "./presets";
 
-export async function applyPresetHelper(presetId: string): Promise<FullMenu> {
+export async function applyPresetHelper(
+  presetId: string,
+  mode: "replace" | "merge" = "merge"
+): Promise<FullMenu> {
   const res = await fetch("/api/restaurant/preset", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
-    body: JSON.stringify({ presetId }),
+    body: JSON.stringify({ presetId, mode }),
   });
   const data = await res.json();
   if (!res.ok || !data.success) {

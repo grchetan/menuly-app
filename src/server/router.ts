@@ -1032,8 +1032,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         if (!body.presetId) {
           return json({ error: "Preset ID required" }, 400);
         }
-        const updated = await applyPresetToRestaurant(auth.userId, body.presetId);
-        return json({ success: true, message: "Starter menu pack loaded into database.", ...updated });
+        const mode = body.mode === "replace" ? "replace" : "merge";
+        const updated = await applyPresetToRestaurant(auth.userId, body.presetId, mode);
+        return json({
+          success: true,
+          message: mode === "merge" ? "Starter menu pack merged into existing menu." : "Starter menu pack loaded.",
+          ...updated,
+        });
       }
 
       // 11. GET /api/restaurant/tables

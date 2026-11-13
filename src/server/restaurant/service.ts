@@ -510,7 +510,11 @@ export async function saveStarterPresets(presets: PresetTemplate[], defaultPrese
  * Runs in a SINGLE atomic database transaction with batch insertion.
  * Eliminates redundant queries & telemetry latency for sub-250ms execution.
  */
-export async function applyPresetToRestaurant(userId: string, presetId: string) {
+export async function applyPresetToRestaurant(
+  userId: string,
+  presetId: string,
+  mode: "replace" | "merge" = "replace"
+) {
   const restaurant = await prisma.restaurant.findFirst({
     where: { ownerId: userId },
     select: {
@@ -535,67 +539,172 @@ export async function applyPresetToRestaurant(userId: string, presetId: string) 
   const preset = presets.find((p) => p.id === presetId) || presets[0] || STARTER_PRESETS[0]!;
 
   const { createdCategories, createdItems } = await prisma.$transaction(async (tx) => {
-    // 1. Delete items first, then categories (avoids FK constraint delays)
-    await tx.menuItem.deleteMany({ where: { restaurantId: restaurant.id } });
-    await tx.category.deleteMany({ where: { restaurantId: restaurant.id } });
+    if (mode === "replace") {
+      // 1. Delete items first, then categories (avoids FK constraint delays)
+      await tx.menuItem.deleteMany({ where: { restaurantId: restaurant.id } });
+      await tx.category.deleteMany({ where: { restaurantId: restaurant.id } });
 
-    // 2. Batch create categories
-    const cats = await Promise.all(
-      preset.categories.map((c, idx) =>
-        tx.category.create({
-          data: {
+      // 2. Batch create categories
+      const cats = await Promise.all(
+        preset.categories.map((c, idx) =>
+          tx.category.create({
+            data: {
+              restaurantId: restaurant.id,
+              name: c.name,
+              position: idx,
+            },
+          })
+        )
+      );
+
+      // 3. Batch insert ALL menu items in 1 single query
+      const allItems: Array<{
+        restaurantId: string;
+        categoryId: string;
+        name: string;
+        price: number;
+        description: string;
+        imageUrl: string | null;
+        isVeg: boolean;
+        available: boolean;
+        position: number;
+      }> = [];
+
+      for (let idx = 0; idx < preset.categories.length; idx++) {
+        const createdCat = cats[idx];
+        if (!createdCat) continue;
+        const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
+        itemsForCategory.forEach((it, itIdx) => {
+          allItems.push({
             restaurantId: restaurant.id,
-            name: c.name,
-            position: idx,
-          },
-        })
-      )
-    );
-
-    // 3. Batch insert ALL menu items in 1 single query
-    const allItems: Array<{
-      restaurantId: string;
-      categoryId: string;
-      name: string;
-      price: number;
-      description: string;
-      imageUrl: string | null;
-      isVeg: boolean;
-      available: boolean;
-      position: number;
-    }> = [];
-
-    for (let idx = 0; idx < preset.categories.length; idx++) {
-      const createdCat = cats[idx];
-      if (!createdCat) continue;
-      const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
-      itemsForCategory.forEach((it, itIdx) => {
-        allItems.push({
-          restaurantId: restaurant.id,
-          categoryId: createdCat.id,
-          name: it.name,
-          price: it.price,
-          description: it.description || "",
-          imageUrl: it.image_url || null,
-          isVeg: true,
-          available: true,
-          position: itIdx,
+            categoryId: createdCat.id,
+            name: it.name,
+            price: it.price,
+            description: it.description || "",
+            imageUrl: it.image_url || null,
+            isVeg: true,
+            available: true,
+            position: itIdx,
+          });
         });
+      }
+
+      if (allItems.length > 0) {
+        await tx.menuItem.createMany({
+          data: allItems,
+        });
+      }
+
+      const items = await tx.menuItem.findMany({
+        where: { restaurantId: restaurant.id },
+        orderBy: { position: "asc" },
       });
-    }
 
-    if (allItems.length > 0) {
-      await tx.menuItem.createMany({
-        data: allItems,
+      return { createdCategories: cats, createdItems: items };
+    } else {
+      // MERGE MODE: Keep all existing dishes and categories!
+      const existingCategories = await tx.category.findMany({
+        where: { restaurantId: restaurant.id },
+        orderBy: { position: "asc" },
       });
+
+      let maxCatPosition = existingCategories.reduce((max, c) => Math.max(max, c.position), -1);
+      const existingCatMap = new Map<string, string>();
+      for (const c of existingCategories) {
+        existingCatMap.set(c.name.trim().toLowerCase(), c.id);
+      }
+
+      const targetCategoryIds: string[] = [];
+
+      for (let idx = 0; idx < preset.categories.length; idx++) {
+        const presetCat = preset.categories[idx]!;
+        const normalized = presetCat.name.trim().toLowerCase();
+        const existingId = existingCatMap.get(normalized);
+
+        if (existingId) {
+          targetCategoryIds[idx] = existingId;
+        } else {
+          maxCatPosition += 1;
+          const created = await tx.category.create({
+            data: {
+              restaurantId: restaurant.id,
+              name: presetCat.name.trim(),
+              position: maxCatPosition,
+            },
+          });
+          existingCatMap.set(normalized, created.id);
+          targetCategoryIds[idx] = created.id;
+        }
+      }
+
+      // Find existing item positions to append nicely within categories
+      const existingItems = await tx.menuItem.findMany({
+        where: { restaurantId: restaurant.id },
+        select: { id: true, categoryId: true, position: true },
+      });
+
+      const maxPosByCategory = new Map<string, number>();
+      for (const item of existingItems) {
+        const currentMax = maxPosByCategory.get(item.categoryId) ?? -1;
+        if (item.position > currentMax) {
+          maxPosByCategory.set(item.categoryId, item.position);
+        }
+      }
+
+      const allItemsToInsert: Array<{
+        restaurantId: string;
+        categoryId: string;
+        name: string;
+        price: number;
+        description: string;
+        imageUrl: string | null;
+        isVeg: boolean;
+        available: boolean;
+        position: number;
+      }> = [];
+
+      for (let idx = 0; idx < preset.categories.length; idx++) {
+        const catId = targetCategoryIds[idx];
+        if (!catId) continue;
+
+        const itemsForCategory = preset.items.filter((item) => item.categoryIndex === idx);
+        let catPos = (maxPosByCategory.get(catId) ?? -1) + 1;
+
+        itemsForCategory.forEach((it) => {
+          allItemsToInsert.push({
+            restaurantId: restaurant.id,
+            categoryId: catId,
+            name: it.name,
+            price: it.price,
+            description: it.description || "",
+            imageUrl: it.image_url || null,
+            isVeg: true,
+            available: true,
+            position: catPos++,
+          });
+        });
+
+        maxPosByCategory.set(catId, catPos - 1);
+      }
+
+      if (allItemsToInsert.length > 0) {
+        await tx.menuItem.createMany({
+          data: allItemsToInsert,
+        });
+      }
+
+      const allCats = await tx.category.findMany({
+        where: { restaurantId: restaurant.id },
+        orderBy: { position: "asc" },
+      });
+
+      const allItems = await tx.menuItem.findMany({
+        where: { restaurantId: restaurant.id },
+        orderBy: [{ categoryId: "asc" }, { position: "asc" }],
+      });
+
+      return { createdCategories: allCats, createdItems: allItems };
     }
-
-    const items = await tx.menuItem.findMany({
-      where: { restaurantId: restaurant.id },
-      orderBy: { position: "asc" },
-    });
-
-    return { createdCategories: cats, createdItems: items };
   });
 
   const result = {

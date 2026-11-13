@@ -7,6 +7,7 @@ import {
   ArrowUp,
   Pencil,
   Plus,
+  PlusCircle,
   Trash2,
   Eye,
   Upload,
@@ -375,14 +376,16 @@ function MyMenu() {
 
   // 1-Click Starter Preset Apply (High-speed batch execution directly into live PostgreSQL)
   const handleApplyPreset = async (presetId: string) => {
+    // If user already has existing items, prompt with Dual Options (Merge vs Replace)
     if (data.items.length > 0) {
       setConfirmingPreset(presetId);
       return;
     }
+    // If menu is empty, directly load
     setApplyingPresetId(presetId);
     setShowPresets(false);
     try {
-      const updated = await applyPresetHelper(presetId);
+      const updated = await applyPresetHelper(presetId, "merge");
       if (updated?.restaurant && updated?.categories) {
         qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
           if (!old) return old;
@@ -403,7 +406,7 @@ function MyMenu() {
     }
   };
 
-  const confirmApplyPreset = async () => {
+  const confirmApplyPreset = async (mode: "merge" | "replace") => {
     if (!confirmingPreset) return;
     const targetPresetId = confirmingPreset;
     setApplyingPresetId(targetPresetId);
@@ -411,7 +414,7 @@ function MyMenu() {
     setConfirmingPreset(null);
     setShowPresets(false);
     try {
-      const updated = await applyPresetHelper(targetPresetId);
+      const updated = await applyPresetHelper(targetPresetId, mode);
       if (updated?.restaurant && updated?.categories) {
         qc.setQueryData(myMenuQuery.queryKey, (old: FullMenu | undefined) => {
           if (!old) return old;
@@ -423,7 +426,11 @@ function MyMenu() {
           };
         });
       }
-      toast.success("Starter menu pack loaded! You can now adjust names and prices.");
+      if (mode === "merge") {
+        toast.success("Starter pack added! Your existing dishes were kept and new items were merged.");
+      } else {
+        toast.success("Starter menu pack loaded! Your menu was reset to this pack.");
+      }
     } catch (err) {
       toast.error((err as Error).message);
       refresh();
@@ -2105,54 +2112,134 @@ function MyMenu() {
         </DialogContent>
       </Dialog>
 
-      {/* CUSTOM STARTER PACK CONFIRMATION MODAL (Replaces browser confirm) */}
+      {/* CUSTOM STARTER PACK CONFIRMATION MODAL - DUAL OPTION (MERGE OR REPLACE) */}
       <Dialog open={!!confirmingPreset} onOpenChange={(open) => !open && setConfirmingPreset(null)}>
-        <DialogContent className="sm:max-w-md p-6 sm:p-7 rounded-2xl">
-          <DialogHeader>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-                <Sparkles className="size-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-lg font-bold font-display text-foreground">Load Starter Menu?</DialogTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Populate your menu with pre-built dishes
-                </p>
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="py-3">
-            <p className="text-sm text-foreground">
-              This will load a complete curated starter pack into your menu. Existing dishes will be replaced.
-            </p>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              You can still rename, edit prices, add photos, or add custom dishes anytime.
-            </p>
-          </div>
-          <div className="flex justify-end gap-3 pt-3 border-t border-border/60">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmingPreset(null)}
-              className="h-11 px-5 rounded-xl font-medium"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={!!applyingPresetId}
-              onClick={confirmApplyPreset}
-              className="h-11 px-5 rounded-xl font-bold bg-primary text-primary-foreground shadow-xs gap-2"
-            >
-              {applyingPresetId ? (
-                <>
-                  <RefreshCw className="size-4 animate-spin" /> Loading Pack...
-                </>
-              ) : (
-                "Load Starter Pack"
-              )}
-            </Button>
-          </div>
+        <DialogContent className="sm:max-w-lg p-6 sm:p-7 rounded-3xl">
+          {(() => {
+            const presetObj = activeStarterPresets.find((p) => p.id === confirmingPreset);
+            const presetName = presetObj?.title || "Starter Menu Pack";
+            const currentCount = data.items.length;
+            const newCount = presetObj?.items.length || 0;
+
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600">
+                      <Sparkles className="size-5" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-lg font-bold font-display text-foreground">
+                        Load "{presetName}"
+                      </DialogTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        You have {currentCount} existing dish{currentCount === 1 ? "" : "es"} in your menu
+                      </p>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                <div className="py-4 space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Choose how you would like to load this starter pack into your live menu:
+                  </p>
+
+                  {/* Option 1: MERGE (Keep existing dishes & append new pack) */}
+                  <div
+                    onClick={() => !applyingPresetId && confirmApplyPreset("merge")}
+                    className="group relative rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/5 p-4 hover:border-emerald-600 hover:bg-emerald-500/10 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <PlusCircle className="size-4 text-emerald-600" />
+                            Add to Existing Menu (Merge)
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                            Recommended
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Keep all your current <strong className="text-foreground">{currentCount} dish(es)</strong> completely safe. The new {newCount} dishes from this pack will be added into your categories.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!!applyingPresetId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirmApplyPreset("merge");
+                        }}
+                        className="h-8 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs gap-1.5 cursor-pointer"
+                      >
+                        {applyingPresetId ? (
+                          <RefreshCw className="size-3 animate-spin" />
+                        ) : (
+                          <PlusCircle className="size-3.5" />
+                        )}
+                        <span>Keep &amp; Add Pack</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Option 2: REPLACE (Wipe current and load fresh) */}
+                  <div
+                    onClick={() => !applyingPresetId && confirmApplyPreset("replace")}
+                    className="group relative rounded-2xl border border-border/80 bg-card p-4 hover:border-red-400 hover:bg-red-500/5 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <RefreshCw className="size-4 text-muted-foreground group-hover:text-red-500 transition-colors" />
+                            Replace Entire Menu (Overwrite)
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Delete existing {currentCount} dish(es) and categories. Start fresh with only "{presetName}".
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!!applyingPresetId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirmApplyPreset("replace");
+                        }}
+                        className="h-8 px-4 text-xs font-bold text-muted-foreground hover:text-red-600 hover:border-red-300 rounded-xl cursor-pointer"
+                      >
+                        {applyingPresetId ? (
+                          <RefreshCw className="size-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                        <span>Replace Everything</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-border/60">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setConfirmingPreset(null)}
+                    className="h-9 px-4 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
