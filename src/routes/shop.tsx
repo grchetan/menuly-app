@@ -1034,17 +1034,46 @@ function ShopPublic() {
 
   const cartGrandTotal = cartSubtotal > 0 ? cartSubtotal + FLAT_DELIVERY_FEE : 0;
 
-  // Cart operations
+  // Cart operations with strict real-time inventory stock protection
   const addToCart = (product: ShopProduct, qty: number = 1) => {
+    const liveProd = products.find((p) => p.id === product.id) || product;
+    const maxStock = typeof liveProd.stock === "number" ? liveProd.stock : 999;
+
+    if (!liveProd.inStock || maxStock <= 0) {
+      toast.error(`"${liveProd.name}" is currently out of stock.`);
+      return;
+    }
+
     setCart((prev) => {
       const idx = prev.findIndex((i) => i.product.id === product.id);
       if (idx >= 0) {
+        const existing = prev[idx]!;
+        const currentQty = existing.quantity;
+        const newQty = currentQty + qty;
+
+        if (newQty > maxStock) {
+          toast.warning(
+            `Cannot add more. You have ${currentQty} in cart, and only ${maxStock} units are available in stock.`
+          );
+          if (currentQty >= maxStock) return prev;
+          const next = [...prev];
+          next[idx] = { ...existing, quantity: maxStock };
+          return next;
+        }
+
         const next = [...prev];
-        const existing = next[idx]!;
-        next[idx] = { ...existing, quantity: existing.quantity + qty };
+        next[idx] = { ...existing, quantity: newQty };
+        toast.success(`Updated cart: ${newQty} × ${product.name}`);
         return next;
       }
-      return [...prev, { product, quantity: qty }];
+
+      const safeQty = Math.min(qty, maxStock);
+      if (qty > maxStock) {
+        toast.warning(`Only ${maxStock} units available in stock. Added maximum available.`);
+      } else {
+        toast.success(`Added ${safeQty} × ${product.name} to cart`);
+      }
+      return [...prev, { product: liveProd, quantity: safeQty }];
     });
     setFloatingCartDismissed(false);
   };
@@ -1054,6 +1083,21 @@ function ShopPublic() {
       removeFromCart(productId);
       return;
     }
+
+    const prod = products.find((p) => p.id === productId);
+    const maxStock = prod && typeof prod.stock === "number" ? prod.stock : 999;
+
+    if (prod && (!prod.inStock || maxStock <= 0)) {
+      toast.error(`"${prod.name}" is out of stock and was removed from cart.`);
+      removeFromCart(productId);
+      return;
+    }
+
+    if (quantity > maxStock) {
+      toast.warning(`Only ${maxStock} units available in stock.`);
+      quantity = maxStock;
+    }
+
     setCart((prev) =>
       prev.map((item) => (item.product.id === productId ? { ...item, quantity } : item))
     );
@@ -1072,6 +1116,7 @@ function ShopPublic() {
   // Select product for full page view
   const handleSelectProduct = (product: ShopProduct) => {
     setSelectedProductId(product.id);
+    setDetailQuantity(1);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("product", product.id);
@@ -1092,21 +1137,58 @@ function ShopPublic() {
 
   // Buy Now direct flow
   const handleBuyNow = (product: ShopProduct, qty: number = 1) => {
-    setCart((prev) => {
-      const idx = prev.findIndex((i) => i.product.id === product.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        const existing = next[idx]!;
-        next[idx] = { ...existing, quantity: existing.quantity + qty };
-        return next;
-      }
-      return [...prev, { product, quantity: qty }];
-    });
+    const liveProd = products.find((p) => p.id === product.id) || product;
+    const maxStock = typeof liveProd.stock === "number" ? liveProd.stock : 999;
+
+    if (!liveProd.inStock || maxStock <= 0) {
+      toast.error(`"${liveProd.name}" is currently out of stock.`);
+      return;
+    }
+
+    const safeQty = Math.max(1, Math.min(qty, maxStock));
+    addToCart(liveProd, safeQty);
     handleProceedToCheckout();
   };
 
-  // Checkout flow
+  // Checkout flow with inventory sanitization
   const handleProceedToCheckout = () => {
+    // Check & clamp every item against live inventory before opening checkout
+    let wasAdjusted = false;
+    let hasOutOfStock = false;
+
+    const adjustedCart = cart
+      .map((item) => {
+        const liveProd = products.find((p) => p.id === item.product.id) || item.product;
+        const maxStock = typeof liveProd.stock === "number" ? liveProd.stock : 999;
+        if (!liveProd.inStock || maxStock <= 0) {
+          hasOutOfStock = true;
+          return { ...item, quantity: 0 };
+        }
+        if (item.quantity > maxStock) {
+          wasAdjusted = true;
+          return { ...item, quantity: maxStock };
+        }
+        return item;
+      })
+      .filter((item) => item.quantity > 0);
+
+    if (hasOutOfStock) {
+      setCart(adjustedCart);
+      toast.error("Some item(s) in your cart went out of stock and were removed.");
+      if (adjustedCart.length === 0) {
+        setCartOpen(false);
+        return;
+      }
+    } else if (wasAdjusted) {
+      setCart(adjustedCart);
+      toast.warning("Some cart item quantities were adjusted to match available stock.");
+    }
+
+    if (adjustedCart.length === 0) {
+      toast.error("Your cart is empty.");
+      return;
+    }
+
     const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
     if (!token && !currentUser) {
       setAuthModalOpen(true);
@@ -1536,8 +1618,10 @@ function ShopPublic() {
         toast.success(`Order ${data.order.orderNumber} placed! Cash on Delivery confirmed.`);
       }
 
+      fetchProducts();
       fetchUserOrders();
     } catch (err: any) {
+      fetchProducts();
       toast.error(err.message || "Failed to place order. Please try again.");
     } finally {
       setOrderSubmitting(false);
@@ -1907,19 +1991,25 @@ function ShopPublic() {
                     <span className="text-neutral-500 italic">No reviews yet • Verified buyers only</span>
                   )}
                   <span className="text-neutral-300">|</span>
-                  <span
-                    className={`font-semibold ${
-                      activeProduct.inStock ? "text-emerald-700" : "text-red-600"
-                    }`}
-                  >
-                    {activeProduct.inStock
-                      ? typeof activeProduct.stock === "number"
-                        ? activeProduct.stock <= 10
-                          ? `● Only ${activeProduct.stock} left!`
-                          : `● In Stock (${activeProduct.stock} available)`
-                        : "● In Stock"
-                      : "● Out of Stock"}
-                  </span>
+                  {(() => {
+                    const activeMaxStock = typeof activeProduct.stock === "number" ? activeProduct.stock : 999;
+                    const isOutOfStock = !activeProduct.inStock || activeMaxStock <= 0;
+                    return (
+                      <span
+                        className={`font-semibold ${
+                          !isOutOfStock ? "text-emerald-700" : "text-red-600"
+                        }`}
+                      >
+                        {!isOutOfStock
+                          ? typeof activeProduct.stock === "number"
+                            ? activeProduct.stock <= 10
+                              ? `● Only ${activeProduct.stock} left!`
+                              : `● In Stock (${activeProduct.stock} available)`
+                            : "● In Stock"
+                          : "● Out of Stock"}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 {/* Short description */}
@@ -1948,61 +2038,82 @@ function ShopPublic() {
                 </div>
 
                 {/* Quantity Selector & Wishlist */}
-                <div className="space-y-2">
-                  <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wider block">
-                    Quantity
-                  </span>
-                  <div className="flex items-center gap-4">
-                    <div className="inline-flex items-center border border-neutral-300 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setDetailQuantity((q) => Math.max(1, q - 1))}
-                        className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 transition-colors"
-                      >
-                        <Minus className="size-3.5" />
-                      </button>
-                      <span className="w-12 text-center text-sm font-bold text-neutral-900">
-                        {detailQuantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setDetailQuantity((q) => q + 1)}
-                        className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 transition-colors"
-                      >
-                        <Plus className="size-3.5" />
-                      </button>
+                {(() => {
+                  const activeMaxStock = typeof activeProduct.stock === "number" ? activeProduct.stock : 999;
+                  const isOutOfStock = !activeProduct.inStock || activeMaxStock <= 0;
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wider block">
+                          Quantity
+                        </span>
+                        {typeof activeProduct.stock === "number" && (
+                          <span className="text-[11px] text-neutral-500">
+                            Available: <strong className={isOutOfStock ? "text-red-600" : "text-neutral-900"}>{activeProduct.stock}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="inline-flex items-center border border-neutral-300 bg-white">
+                          <button
+                            type="button"
+                            disabled={isOutOfStock || detailQuantity <= 1}
+                            onClick={() => setDetailQuantity((q) => Math.max(1, q - 1))}
+                            className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          >
+                            <Minus className="size-3.5" />
+                          </button>
+                          <span className="w-12 text-center text-sm font-bold text-neutral-900">
+                            {isOutOfStock ? 0 : detailQuantity}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={isOutOfStock || detailQuantity >= activeMaxStock}
+                            onClick={() => {
+                              if (detailQuantity >= activeMaxStock) {
+                                toast.warning(`Only ${activeMaxStock} units available in stock.`);
+                                return;
+                              }
+                              setDetailQuantity((q) => Math.min(activeMaxStock, q + 1));
+                            }}
+                            className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          >
+                            <Plus className="size-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleWishlist(activeProduct.id)}
+                          className="border border-neutral-300 p-2 text-neutral-600 hover:text-black hover:border-black transition-colors"
+                          title="Wishlist"
+                        >
+                          <Heart
+                            className={`size-4 ${
+                              wishlist.includes(activeProduct.id)
+                                ? "fill-red-500 text-red-500"
+                                : "text-neutral-600"
+                            }`}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              navigator.clipboard.writeText(window.location.href);
+                              toast.success("Product link copied!");
+                            }
+                          }}
+                          className="border border-neutral-300 p-2 text-neutral-600 hover:text-black hover:border-black transition-colors"
+                          title="Share Product"
+                        >
+                          <Share2 className="size-4" />
+                        </button>
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleWishlist(activeProduct.id)}
-                      className="border border-neutral-300 p-2 text-neutral-600 hover:text-black hover:border-black transition-colors"
-                      title="Wishlist"
-                    >
-                      <Heart
-                        className={`size-4 ${
-                          wishlist.includes(activeProduct.id)
-                            ? "fill-red-500 text-red-500"
-                            : "text-neutral-600"
-                        }`}
-                      />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (typeof window !== "undefined") {
-                          navigator.clipboard.writeText(window.location.href);
-                          toast.success("Product link copied!");
-                        }
-                      }}
-                      className="border border-neutral-300 p-2 text-neutral-600 hover:text-black hover:border-black transition-colors"
-                      title="Share Product"
-                    >
-                      <Share2 className="size-4" />
-                    </button>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Delivery Pincode Checker (Matching Image 4) */}
                 <div className="border border-neutral-200 p-4 space-y-3 bg-neutral-50/50">
@@ -2040,25 +2151,33 @@ function ShopPublic() {
                 </div>
 
                 {/* Primary Action Buttons (Matching Image 4 Sample Design) */}
-                <div className="space-y-3 pt-2">
-                  <button
-                    type="button"
-                    disabled={!activeProduct.inStock}
-                    onClick={() => handleBuyNow(activeProduct, detailQuantity)}
-                    className="w-full bg-[#c5221f] text-white py-3.5 px-8 text-sm font-bold uppercase tracking-wider hover:bg-[#a91b18] transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Buy Now (₹{activeProduct.price * detailQuantity + FLAT_DELIVERY_FEE})
-                  </button>
+                {(() => {
+                  const activeMaxStock = typeof activeProduct.stock === "number" ? activeProduct.stock : 999;
+                  const isOutOfStock = !activeProduct.inStock || activeMaxStock <= 0;
+                  return (
+                    <div className="space-y-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={isOutOfStock}
+                        onClick={() => handleBuyNow(activeProduct, detailQuantity)}
+                        className="w-full bg-[#c5221f] text-white py-3.5 px-8 text-sm font-bold uppercase tracking-wider hover:bg-[#a91b18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isOutOfStock
+                          ? "Out of Stock"
+                          : `Buy Now (₹${activeProduct.price * (isOutOfStock ? 0 : detailQuantity) + FLAT_DELIVERY_FEE})`}
+                      </button>
 
-                  <button
-                    type="button"
-                    disabled={!activeProduct.inStock}
-                    onClick={() => addToCart(activeProduct, detailQuantity)}
-                    className="w-full border border-neutral-800 bg-white text-neutral-900 py-3 px-8 text-sm font-bold uppercase tracking-wider hover:bg-neutral-100 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Add to Cart
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        disabled={isOutOfStock}
+                        onClick={() => addToCart(activeProduct, detailQuantity)}
+                        className="w-full border border-neutral-800 bg-white text-neutral-900 py-3 px-8 text-sm font-bold uppercase tracking-wider hover:bg-neutral-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -2368,6 +2487,8 @@ function ShopPublic() {
               {products.map((p) => {
                 const inCart = cart.find((i) => i.product.id === p.id);
                 const isWishlisted = wishlist.includes(p.id);
+                const pMaxStock = typeof p.stock === "number" ? p.stock : 999;
+                const pOutOfStock = !p.inStock || pMaxStock <= 0;
 
                 return (
                   <article
@@ -2419,10 +2540,10 @@ function ShopPublic() {
                           <span
                             className={cn(
                               "font-medium",
-                              p.inStock ? "text-emerald-700" : "text-red-600"
+                              !pOutOfStock ? "text-emerald-700" : "text-red-600"
                             )}
                           >
-                            {p.inStock
+                            {!pOutOfStock
                               ? typeof p.stock === "number"
                                 ? p.stock <= 10
                                   ? `Only ${p.stock} left!`
@@ -2459,7 +2580,15 @@ function ShopPublic() {
                           View Details
                         </button>
 
-                        {inCart ? (
+                        {pOutOfStock ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="bg-neutral-100 border border-neutral-200 text-neutral-400 px-3 py-1.5 text-xs font-semibold cursor-not-allowed"
+                          >
+                            Out of Stock
+                          </button>
+                        ) : inCart ? (
                           <div className="flex items-center border border-neutral-300">
                             <button
                               type="button"
@@ -2473,8 +2602,15 @@ function ShopPublic() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => updateQuantity(p.id, inCart.quantity + 1)}
-                              className="px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 cursor-pointer"
+                              disabled={inCart.quantity >= pMaxStock}
+                              onClick={() => {
+                                if (inCart.quantity >= pMaxStock) {
+                                  toast.warning(`Only ${pMaxStock} units available in stock.`);
+                                  return;
+                                }
+                                updateQuantity(p.id, inCart.quantity + 1);
+                              }}
+                              className="px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             >
                               +
                             </button>
@@ -2556,53 +2692,77 @@ function ShopPublic() {
             </div>
           ) : (
             <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
-              {cart.map((item) => (
-                <div
-                  key={item.product.id}
-                  className="flex items-center justify-between gap-3 border border-neutral-200 p-3"
-                >
-                  <img
-                    src={resolveProductImage(item.product.image)}
-                    alt={item.product.name}
-                    className="size-12 object-contain border border-neutral-100 p-1"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-neutral-900 truncate">
-                      {item.product.name}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      ₹{item.product.price} × {item.quantity} = ₹{item.product.price * item.quantity}
-                    </p>
-                  </div>
+              {cart.map((item) => {
+                const itemLive = products.find((p) => p.id === item.product.id) || item.product;
+                const maxStock = typeof itemLive.stock === "number" ? itemLive.stock : 999;
+                const isOutOfStock = !itemLive.inStock || maxStock <= 0;
 
-                  <div className="flex items-center border border-neutral-300">
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                      className="px-2 py-1 text-xs hover:bg-neutral-100 cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="px-2 text-xs font-bold">{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                      className="px-2 py-1 text-xs hover:bg-neutral-100 cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => removeFromCart(item.product.id)}
-                    className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
-                    title="Remove item"
+                return (
+                  <div
+                    key={item.product.id}
+                    className="flex items-center justify-between gap-3 border border-neutral-200 p-3"
                   >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              ))}
+                    <img
+                      src={resolveProductImage(item.product.image)}
+                      alt={item.product.name}
+                      className="size-12 object-contain border border-neutral-100 p-1"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-neutral-900 truncate">
+                        {item.product.name}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        ₹{item.product.price} × {item.quantity} = ₹{item.product.price * item.quantity}
+                      </p>
+                      {isOutOfStock ? (
+                        <p className="text-[10px] text-red-600 font-bold mt-0.5">
+                          ● Out of Stock (Will be removed at checkout)
+                        </p>
+                      ) : (
+                        typeof itemLive.stock === "number" && (
+                          <p className="text-[10px] text-neutral-500 mt-0.5">
+                            Max available: {maxStock}
+                          </p>
+                        )
+                      )}
+                    </div>
+
+                    <div className="flex items-center border border-neutral-300">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                        className="px-2 py-1 text-xs hover:bg-neutral-100 cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <span className="px-2 text-xs font-bold">{item.quantity}</span>
+                      <button
+                        type="button"
+                        disabled={item.quantity >= maxStock || isOutOfStock}
+                        onClick={() => {
+                          if (item.quantity >= maxStock) {
+                            toast.warning(`Only ${maxStock} units available in stock.`);
+                            return;
+                          }
+                          updateQuantity(item.product.id, item.quantity + 1);
+                        }}
+                        className="px-2 py-1 text-xs hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeFromCart(item.product.id)}
+                      className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
+                      title="Remove item"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                );
+              })}
 
               {/* Price summary */}
               <div className="border-t border-neutral-200 pt-3 space-y-1.5 text-xs">

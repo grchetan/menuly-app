@@ -555,20 +555,36 @@ export async function createShopOrder(
   const orderItems: ShopOrderItem[] = [];
   let subtotal = 0;
 
-  // Dynamic stock reduction
-  let stockUpdated = false;
+  // 1. Pre-validation pass: Strictly enforce available inventory for EVERY item
   for (const item of input.items) {
     const qty = Math.max(1, Math.floor(item.quantity || 1));
     const prod = productMap.get(item.productId);
     if (!prod) {
       return { success: false, error: `Product not found: ${item.productId}` };
     }
-    if (!prod.inStock) {
-      return { success: false, error: `Product "${prod.name}" is currently out of stock.` };
+    const currentStock = typeof prod.stock === "number" ? prod.stock : 0;
+    if (!prod.inStock || currentStock <= 0) {
+      return {
+        success: false,
+        error: `Product "${prod.name}" is currently out of stock. Please remove it from your cart to proceed.`,
+      };
     }
+    if (qty > currentStock) {
+      return {
+        success: false,
+        error: `Insufficient stock for "${prod.name}". Only ${currentStock} unit${currentStock === 1 ? "" : "s"} available in stock (you requested ${qty}). Please adjust your cart.`,
+      };
+    }
+  }
+
+  // 2. Deduct inventory & assemble order items
+  let stockUpdated = false;
+  for (const item of input.items) {
+    const qty = Math.max(1, Math.floor(item.quantity || 1));
+    const prod = productMap.get(item.productId)!;
 
     // Decrement stock count
-    const currentStock = typeof prod.stock === "number" ? prod.stock : 100;
+    const currentStock = typeof prod.stock === "number" ? prod.stock : 0;
     const remainingStock = Math.max(0, currentStock - qty);
     prod.stock = remainingStock;
     if (remainingStock <= 0) {
