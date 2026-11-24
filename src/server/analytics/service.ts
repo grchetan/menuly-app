@@ -193,6 +193,13 @@ export interface AnalyticsSummary {
   metaAdsVisits: number;
   metaAdsSharePercent: number;
   overallConversionRate: number;
+  periodNewUsers: number;
+  periodNewRestaurants: number;
+  periodScans: number;
+  periodOrders: number;
+  totalUsers: number;
+  totalRestaurants: number;
+  totalScans: number;
   trafficSources: {
     source: string;
     label: string;
@@ -253,13 +260,16 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
   let startDate: Date;
 
   if (period === "today") {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    // Exact Midnight in Indian Standard Time (IST: UTC + 5:30)
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffsetMs);
+    startDate = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate(), 0, 0, 0) - istOffsetMs);
   } else if (period === "7d") {
     startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   } else if (period === "30d") {
     startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   } else {
-    startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    startDate = new Date(0); // All time
   }
 
   // 1. Parallel queries for high-performance aggregate metrics
@@ -268,6 +278,10 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
     totalUsers,
     totalRestaurants,
     totalScans,
+    periodNewUsers,
+    periodNewRestaurants,
+    periodScans,
+    periodOrders,
     dbMetrics,
   ] = await Promise.all([
     prisma.visitorEvent.findMany({
@@ -287,9 +301,13 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
       orderBy: { createdAt: "desc" },
       take: 15000, // Safe query limit
     }),
-    prisma.user.count({ where: { role: "RESTAURANT_OWNER" } }).catch(() => 0),
-    prisma.restaurant.count({ where: { isActive: true } }).catch(() => 0),
+    prisma.user.count({ where: { role: "RESTAURANT_OWNER", deletedAt: null } }).catch(() => 0),
+    prisma.restaurant.count({ where: { deletedAt: null } }).catch(() => 0),
     prisma.qrScan.count().catch(() => 0),
+    prisma.user.count({ where: { role: "RESTAURANT_OWNER", createdAt: { gte: startDate }, deletedAt: null } }).catch(() => 0),
+    prisma.restaurant.count({ where: { createdAt: { gte: startDate }, deletedAt: null } }).catch(() => 0),
+    prisma.qrScan.count({ where: { scannedAt: { gte: startDate } } }).catch(() => 0),
+    prisma.order.count({ where: { createdAt: { gte: startDate } } }).catch(() => 0),
     getDatabaseMetrics().catch(() => ({ connected: true, latencyMs: 14, poolMode: "Supabase Transaction Pooler (Port 6543)" as const })),
   ]);
 
@@ -433,7 +451,8 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
   // 3. Conversion Funnel (Ad Views -> Features -> Signups -> Menus -> Scans)
   const topLevelAudience = Math.max(totalVisits, uniqueVisitors, 1);
   const engagedVisitors = Math.round(topLevelAudience * 0.45); // Explored beyond 1 page
-  const overallConversionRate = topLevelAudience > 0 ? Number(((totalUsers / topLevelAudience) * 100).toFixed(1)) : 0;
+  const conversionCount = period === "today" ? periodNewUsers : totalUsers;
+  const overallConversionRate = topLevelAudience > 0 ? Number(((conversionCount / topLevelAudience) * 100).toFixed(1)) : 0;
 
   const conversionFunnel = [
     {
@@ -441,35 +460,35 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
       count: topLevelAudience,
       percentOfTop: 100,
       dropoffPercent: 0,
-      description: "Visitors landed on Menuly from Meta Ads & campaigns",
+      description: period === "today" ? "Visitors landed on Menuly today (IST)" : "Visitors landed on Menuly from Meta Ads & campaigns",
     },
     {
       stage: "2. Explored Features & Pricing",
-      count: Math.max(engagedVisitors, totalUsers * 2),
-      percentOfTop: topLevelAudience > 0 ? Math.round((Math.max(engagedVisitors, totalUsers * 2) / topLevelAudience) * 100) : 45,
+      count: Math.max(engagedVisitors, conversionCount * 2),
+      percentOfTop: topLevelAudience > 0 ? Math.round((Math.max(engagedVisitors, conversionCount * 2) / topLevelAudience) * 100) : 45,
       dropoffPercent: 55,
       description: "Browsed digital menu benefits, templates, and how-it-works",
     },
     {
-      stage: "3. Registered Restaurant Owners",
-      count: totalUsers,
-      percentOfTop: topLevelAudience > 0 ? Math.max(1, Math.round((totalUsers / topLevelAudience) * 100)) : 10,
+      stage: period === "today" ? "3. New Signups Today" : "3. Registered Restaurant Owners",
+      count: conversionCount,
+      percentOfTop: topLevelAudience > 0 ? Math.max(1, Math.round((conversionCount / topLevelAudience) * 100)) : 10,
       dropoffPercent: 30,
-      description: "Completed free registration & email verification",
+      description: period === "today" ? "New restaurant owners registered today (IST)" : "Completed free registration & email verification",
     },
     {
-      stage: "4. Live Digital Menus Created",
-      count: totalRestaurants,
+      stage: period === "today" ? "4. Menus Created Today" : "4. Live Digital Menus Created",
+      count: period === "today" ? periodNewRestaurants : totalRestaurants,
       percentOfTop: totalUsers > 0 ? Math.round((totalRestaurants / totalUsers) * 100) : 80,
       dropoffPercent: 20,
-      description: "Added categories, dishes, and downloaded QR codes",
+      description: period === "today" ? "New menus initialized today" : "Added categories, dishes, and downloaded QR codes",
     },
     {
-      stage: "5. Customer Dining Scans",
-      count: totalScans,
-      percentOfTop: totalRestaurants > 0 ? Math.round((totalScans / Math.max(totalRestaurants, 1)) * 10) : 100,
+      stage: period === "today" ? "5. Table Scans Today" : "5. Customer Dining Scans",
+      count: period === "today" ? periodScans : totalScans,
+      percentOfTop: 100,
       dropoffPercent: 0,
-      description: "Real diners scanning QR codes at restaurant tables",
+      description: period === "today" ? "Customer scans recorded today" : "Real diners scanning QR codes at restaurant tables",
     },
   ];
 
@@ -522,6 +541,13 @@ export async function getExecutiveAnalytics(period: AnalyticsPeriod = "7d"): Pro
     metaAdsVisits,
     metaAdsSharePercent,
     overallConversionRate,
+    periodNewUsers,
+    periodNewRestaurants,
+    periodScans,
+    periodOrders,
+    totalUsers,
+    totalRestaurants,
+    totalScans,
     trafficSources,
     campaigns,
     devices,

@@ -2560,7 +2560,9 @@ function AdminPage() {
               {/* Card 3: Platform Lead Conversion */}
               <div className="rounded-3xl border bg-card p-5 shadow-soft">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Conversion Rate</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {analyticsPeriod === "today" ? "Today's Conversion" : "Conversion Rate"}
+                  </span>
                   <div className="flex size-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
                     <TrendingUp className="size-4" />
                   </div>
@@ -2571,7 +2573,9 @@ function AdminPage() {
                   </p>
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="font-semibold text-purple-600 dark:text-purple-400">
-                      {users.filter((u) => u.role !== "super_admin").length} Registered Owners
+                      {analyticsPeriod === "today"
+                        ? `${analyticsData?.periodNewUsers ?? 0} New Signups Today (IST)`
+                        : `${users.filter((u) => u.role !== "super_admin").length} Registered Owners`}
                     </span>
                     <span className="text-[11px] text-muted-foreground">Ad ➔ Owner</span>
                   </div>
@@ -2581,18 +2585,24 @@ function AdminPage() {
               {/* Card 4: Total QR Diner Scans */}
               <div className="rounded-3xl border bg-card p-5 shadow-soft">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total QR Scans</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {analyticsPeriod === "today" ? "Today's Table Scans" : "Total QR Scans"}
+                  </span>
                   <div className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <QrCode className="size-4" />
                   </div>
                 </div>
                 <div className="mt-3">
                   <p className="text-3xl font-extrabold tracking-tight text-foreground">
-                    {totalScans.toLocaleString()}
+                    {analyticsPeriod === "today"
+                      ? (analyticsData?.periodScans ?? 0).toLocaleString()
+                      : (analyticsData?.totalScans ?? totalScans).toLocaleString()}
                   </p>
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="font-semibold text-amber-600 dark:text-amber-400">
-                      {restaurants.length} Live Restaurants
+                      {analyticsPeriod === "today"
+                        ? `${analyticsData?.periodOrders ?? 0} Orders Today`
+                        : `${restaurants.length} Live Restaurants`}
                     </span>
                     <span className="text-[11px] text-muted-foreground">Customer Scans</span>
                   </div>

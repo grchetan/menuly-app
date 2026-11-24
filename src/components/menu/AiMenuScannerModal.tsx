@@ -359,29 +359,29 @@ export function AiMenuScannerModal({
         )}
       >
         {/* Modal Header */}
-        <DialogHeader className="p-5 border-b border-border/60 pb-3 shrink-0">
-          <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="size-9 rounded-xl border border-border/80 bg-secondary/50 shadow-2xs flex items-center justify-center shrink-0">
+        <DialogHeader className="p-4 sm:p-5 border-b border-border/60 pb-3 shrink-0 bg-card pr-12">
+          <DialogTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="size-9 rounded-xl border border-border/80 bg-primary/10 text-primary shadow-2xs flex items-center justify-center shrink-0">
                 <GeminiIcon size={18} />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-serif font-black text-base sm:text-lg text-foreground tracking-tight">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-serif font-black text-base sm:text-lg text-foreground tracking-tight truncate">
                     Smart Menu Digitizer
                   </h3>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-secondary/70 px-2 py-0.5 text-[10px] font-semibold text-foreground/80">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-secondary/80 px-2 py-0.5 text-[10px] font-semibold text-foreground/80">
                     <GeminiIcon size={10} /> AI Scan
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground font-normal">
+                <p className="text-[11px] text-muted-foreground font-normal line-clamp-1">
                   Photo scan your paper menu to auto-import dishes &amp; prices
                 </p>
               </div>
             </div>
 
             {step === "review" && (
-              <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 text-xs font-bold">
+              <span className="self-start sm:self-auto rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 text-xs font-bold shrink-0">
                 {totalSelectedDishes} Dishes Ready
               </span>
             )}
@@ -642,18 +642,19 @@ export function AiMenuScannerModal({
                         <div
                           key={it.name + itemIdx}
                           className={cn(
-                            "flex items-center justify-between gap-2 p-2 rounded-xl border transition-all text-xs",
+                            "p-2.5 rounded-xl border transition-all text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5",
                             it.selected !== false
-                              ? "border-border/70 bg-card"
+                              ? "border-border/70 bg-card shadow-2xs"
                               : "border-border/40 bg-muted/30 opacity-60"
                           )}
                         >
+                          {/* Top / Left: Checkbox + Veg/NonVeg + Image + Dish Name */}
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <input
                               type="checkbox"
                               checked={it.selected !== false}
                               onChange={() => handleItemSelectToggle(catIdx, itemIdx)}
-                              className="size-3.5 accent-primary rounded cursor-pointer shrink-0"
+                              className="size-4 accent-primary rounded cursor-pointer shrink-0"
                             />
 
                             {/* Official FSSAI Square Veg / Non-Veg Indicator Toggle Button */}
@@ -706,28 +707,30 @@ export function AiMenuScannerModal({
                               type="text"
                               value={it.name}
                               onChange={(e) => handleItemNameChange(catIdx, itemIdx, e.target.value)}
-                              className="h-8 text-xs font-medium rounded-lg bg-secondary/30 border-border/60 flex-1 min-w-[140px]"
+                              className="h-8 text-xs font-semibold rounded-lg bg-secondary/30 border-border/60 flex-1 min-w-0"
+                              placeholder="Dish Name"
                             />
                           </div>
 
-                          {/* Price Input & Delete Button */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="relative w-20">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">
+                          {/* Bottom / Right: Price Input & Delete Button */}
+                          <div className="flex items-center justify-end gap-2 pl-6 sm:pl-0 shrink-0">
+                            <div className="relative w-28 sm:w-24">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">
                                 ₹
                               </span>
                               <Input
                                 type="text"
                                 value={it.price}
                                 onChange={(e) => handleItemPriceChange(catIdx, itemIdx, e.target.value)}
-                                className="h-8 pl-5 text-xs font-mono font-bold rounded-lg bg-secondary/30 border-border/60 text-right"
+                                className="h-8 pl-6 pr-2 text-xs font-mono font-bold rounded-lg bg-secondary/30 border-border/60 text-right"
+                                placeholder="Price"
                               />
                             </div>
 
                             <button
                               type="button"
                               onClick={() => handleDeleteItem(catIdx, itemIdx)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              className="size-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
                               title="Delete dish"
                             >
                               <Trash2 className="size-3.5" />

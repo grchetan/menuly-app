@@ -33,6 +33,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Download,
   Image as ImageIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -500,6 +501,55 @@ function MyMenu() {
     }
   };
 
+  // 1-Click Complete Menu Backup (JSON Export)
+  const handleExportBackup = () => {
+    if (!data?.restaurant) return;
+    const backupPayload = {
+      app: "Menuly India",
+      version: "2.0",
+      exportedAt: new Date().toISOString(),
+      restaurant: {
+        name: data.restaurant.name,
+        slug: data.restaurant.slug,
+        address: data.restaurant.address,
+        phone: data.restaurant.phone,
+        whatsapp: data.restaurant.whatsapp,
+        hours: data.restaurant.hours,
+        isPureVeg: data.restaurant.isPureVeg,
+        qrFg: data.restaurant.qr_fg,
+        qrBg: data.restaurant.qr_bg,
+      },
+      categories: (data.categories || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        position: c.position,
+      })),
+      dishes: (data.items || []).map((it) => ({
+        id: it.id,
+        category_id: it.category_id,
+        name: it.name,
+        description: it.description,
+        price: it.price,
+        image_url: it.image_url,
+        is_veg: it.is_veg,
+        available: it.available,
+        position: it.position,
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const cleanDate = new Date().toISOString().slice(0, 10);
+    a.download = `menuly-backup-${data.restaurant.slug || "menu"}-${cleanDate}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Menu Backup downloaded! Keep this JSON file safe.");
+  };
+
   // Delete Category (Modal Handlers)
   const startDeleteCat = (c: Category) => {
     setDeletingCat(c);
@@ -812,6 +862,17 @@ function MyMenu() {
           >
             <Sparkles className="size-3.5 text-accent" />
             1-Click Menus
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportBackup}
+            className="gap-1.5 text-xs font-semibold"
+            title="Download full JSON backup of your restaurant dishes and categories"
+          >
+            <Download className="size-3.5 text-primary" />
+            <span className="hidden sm:inline">Backup Menu</span>
+            <span className="sm:hidden">Backup</span>
           </Button>
           <Button
             variant="secondary"

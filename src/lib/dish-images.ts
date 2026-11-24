@@ -6,6 +6,26 @@
 const DISH_PHOTO_KEYWORDS: Array<{ keywords: string[]; url: string }> = [
   // Fast Food & Snacks
   {
+    keywords: ["roll", "rolls", "kathi roll", "veg roll", "paneer roll", "egg roll", "chicken roll", "frankie", "wrap", "burrito"],
+    url: "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    keywords: ["maggi", "masala maggi", "cheese maggi", "noodles", "chowmein", "hakka", "ramen"],
+    url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    keywords: ["manchurian", "chilli paneer", "chilli chicken", "spring roll", "chinese"],
+    url: "https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    keywords: ["pav bhaji", "misal pav", "vada pav", "maska pav", "dabeli"],
+    url: "https://images.unsplash.com/photo-1606491956689-2ea866880c84?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    keywords: ["chole bhature", "chana bhatura", "bhature", "chole kulche", "amritsari"],
+    url: "https://images.unsplash.com/photo-1626132647523-66f5bf380027?auto=format&fit=crop&w=600&q=80",
+  },
+  {
     keywords: ["fries", "french fries", "peri peri", "potato wedges", "chips", "finger chips"],
     url: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=600&q=80",
   },
