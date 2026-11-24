@@ -136,12 +136,10 @@ function Dashboard() {
   const anyErr = error as any;
   const isDeleted =
     anyErr?.code === "ACCOUNT_DELETED" ||
-    anyErr?.isDeleted ||
-    (typeof anyErr?.message === "string" && anyErr.message.toLowerCase().includes("deleted"));
+    anyErr?.isDeleted === true;
   const isBanned =
     anyErr?.code === "ACCOUNT_BANNED" ||
-    anyErr?.isBanned ||
-    (typeof anyErr?.message === "string" && anyErr.message.toLowerCase().includes("suspended"));
+    anyErr?.isBanned === true;
 
   const { data: orderStats } = useQuery({
     queryKey: ["restaurant-order-stats"],

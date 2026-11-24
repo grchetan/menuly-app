@@ -32,12 +32,16 @@ interface CachedRestaurantMenu {
   expiresAt: number;
 }
 const userRestaurantCache = new Map<string, CachedRestaurantMenu>();
+// Mutex map to prevent concurrent requests from race-creating duplicate restaurants
+const inFlightUserRestaurant = new Map<string, Promise<any>>();
 
 export function invalidateUserRestaurantCache(userId?: string) {
   if (userId) {
     userRestaurantCache.delete(userId);
+    inFlightUserRestaurant.delete(userId);
   } else {
     userRestaurantCache.clear();
+    inFlightUserRestaurant.clear();
   }
 }
 
@@ -47,47 +51,92 @@ export async function getOrCreateUserRestaurant(
   userFullName?: string | null,
   role?: string
 ) {
-  const now = Date.now();
-  const cached = userRestaurantCache.get(userId);
-  if (cached && now < cached.expiresAt) {
-    return cached.data;
+  const inFlight = inFlightUserRestaurant.get(userId);
+  if (inFlight) {
+    return inFlight;
   }
 
-  // Run user verification and restaurant retrieval in parallel to minimize Supabase roundtrips
-  const [user, existingRestaurant] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, deletedAt: true, isBanned: true, banReason: true },
-    }),
-    prisma.restaurant.findFirst({
-      where: { ownerId: userId, deletedAt: null },
-      include: {
-        categories: {
-          orderBy: { position: "asc" },
+  const task = (async () => {
+    const now = Date.now();
+    const cached = userRestaurantCache.get(userId);
+    if (cached && now < cached.expiresAt) {
+      return cached.data;
+    }
+
+    // Run user verification and restaurant retrieval in parallel to minimize Supabase roundtrips
+    const [user, existingRestaurants] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, deletedAt: true, isBanned: true, banReason: true },
+      }),
+      prisma.restaurant.findMany({
+        where: { ownerId: userId, deletedAt: null },
+        include: {
+          categories: {
+            orderBy: { position: "asc" },
+          },
+          menuItems: {
+            orderBy: { position: "asc" },
+          },
         },
-        menuItems: {
-          orderBy: { position: "asc" },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+
+    if (!user) {
+      const err = new Error("Session expired or user account not found. Please log in again.");
+      (err as any).code = "UNAUTHORIZED";
+      (err as any).status = 401;
+      throw err;
+    }
+    if (user.deletedAt) {
+      const err = new Error("Menuly Official: Your account has been deleted by administration.");
+      (err as any).code = "ACCOUNT_DELETED";
+      (err as any).status = 403;
+      throw err;
+    }
+    if (user.isBanned) {
+      const err = new Error(user.banReason || "Your account has been suspended by Menuly Administration.");
+      (err as any).code = "ACCOUNT_BANNED";
+      (err as any).status = 403;
+      throw err;
+    }
+
+    let restaurant: any = null;
+
+    if (existingRestaurants.length > 0) {
+      // Pick the primary restaurant (the one with the most menuItems or oldest)
+      const sorted = [...existingRestaurants].sort((a, b) => {
+        const diff = (b.menuItems?.length || 0) - (a.menuItems?.length || 0);
+        if (diff !== 0) return diff;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
+      restaurant = sorted[0];
+
+      // Auto-clean any accidental duplicates created previously for this same owner
+      if (sorted.length > 1) {
+        const duplicateIds = sorted.slice(1).map((r) => r.id);
+        prisma.restaurant
+          .deleteMany({
+            where: { id: { in: duplicateIds } },
+          })
+          .catch((err) => console.warn("[Restaurant Cleanup Notice]", err));
+      }
+    }
+
+    if (!restaurant) {
+      // Double check within lock before creating
+      const doubleCheck = await prisma.restaurant.findFirst({
+        where: { ownerId: userId, deletedAt: null },
+        include: {
+          categories: { orderBy: { position: "asc" } },
+          menuItems: { orderBy: { position: "asc" } },
         },
-      },
-    }),
-  ]);
+      });
 
-  if (!user || user.deletedAt) {
-    const err = new Error("Menuly Official: Your account has been deleted by administration.");
-    (err as any).code = "ACCOUNT_DELETED";
-    (err as any).status = 403;
-    throw err;
-  }
-  if (user.isBanned) {
-    const err = new Error(user.banReason || "Your account has been suspended by Menuly Administration.");
-    (err as any).code = "ACCOUNT_BANNED";
-    (err as any).status = 403;
-    throw err;
-  }
-
-  let restaurant = existingRestaurant;
-
-  if (!restaurant) {
+      if (doubleCheck) {
+        restaurant = doubleCheck;
+      } else {
     // Generate unique slug
     const cleanBase =
       role === "SUPER_ADMIN"
@@ -204,6 +253,7 @@ export async function getOrCreateUserRestaurant(
     } catch (err) {
       console.error("[Restaurant Auto-seed Default Menu Failed]", err);
     }
+    }
   }
 
   if (!restaurant) {
@@ -233,14 +283,14 @@ export async function getOrCreateUserRestaurant(
       created_at: restaurant.createdAt.toISOString(),
       updated_at: restaurant.updatedAt.toISOString(),
     },
-    categories: restaurant.categories.map((c) => ({
+    categories: (restaurant.categories || []).map((c: any) => ({
       id: c.id,
       restaurant_id: c.restaurantId,
       name: c.name,
       position: c.position,
-      created_at: c.createdAt.toISOString(),
+      created_at: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
     })),
-    items: restaurant.menuItems.map((item) => ({
+    items: (restaurant.menuItems || []).map((item: any) => ({
       id: item.id,
       restaurant_id: item.restaurantId,
       category_id: item.categoryId,
@@ -251,13 +301,21 @@ export async function getOrCreateUserRestaurant(
       is_veg: item.isVeg,
       available: item.available,
       position: item.position,
-      created_at: item.createdAt.toISOString(),
+      created_at: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
     })),
     analytics,
   };
 
-  userRestaurantCache.set(userId, { data: result, expiresAt: Date.now() + 120 * 1000 });
-  return result;
+    userRestaurantCache.set(userId, { data: result, expiresAt: Date.now() + 120 * 1000 });
+    return result;
+  })();
+
+  inFlightUserRestaurant.set(userId, task);
+  try {
+    return await task;
+  } finally {
+    inFlightUserRestaurant.delete(userId);
+  }
 }
 
 // High-Performance In-Memory Analytics Cache (30s TTL to eliminate DB scan thrashing)
@@ -1353,14 +1411,14 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
       created_at: restaurant.createdAt.toISOString(),
       updated_at: restaurant.updatedAt.toISOString(),
     },
-    categories: restaurant.categories.map((c) => ({
+    categories: (restaurant.categories || []).map((c: any) => ({
       id: c.id,
       restaurant_id: c.restaurantId,
       name: c.name,
       position: c.position,
-      created_at: c.createdAt.toISOString(),
+      created_at: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
     })),
-    items: restaurant.menuItems.map((item) => ({
+    items: (restaurant.menuItems || []).map((item: any) => ({
       id: item.id,
       restaurant_id: item.restaurantId,
       category_id: item.categoryId,
@@ -1371,7 +1429,7 @@ export async function getPublicRestaurantMenu(slug: string, tableNumber?: string
       is_veg: item.isVeg,
       available: item.available,
       position: item.position,
-      created_at: item.createdAt.toISOString(),
+      created_at: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
     })),
   };
 
@@ -1407,7 +1465,18 @@ export async function getAllRestaurantsForAdmin() {
     orderBy: { createdAt: "desc" },
   });
 
-  return restaurants.map((r) => ({
+  // Deduplicate by ownerId to guarantee strictly 1 restaurant per owner in the admin list
+  const seenOwners = new Set<string>();
+  const uniqueRestaurants = [];
+  for (const r of restaurants) {
+    if (r.ownerId) {
+      if (seenOwners.has(r.ownerId)) continue;
+      seenOwners.add(r.ownerId);
+    }
+    uniqueRestaurants.push(r);
+  }
+
+  return uniqueRestaurants.map((r) => ({
     id: r.id,
     name: r.name,
     slug: r.slug,

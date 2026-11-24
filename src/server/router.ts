@@ -909,7 +909,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         return json({ error: "Session expired. Please log in again.", code: "TOKEN_EXPIRED" }, 401);
       }
       const user = await userStore.findById(auth.userId);
-      if (!user || user.deletedAt) {
+      if (!user) {
+        return json({
+          error: "Session expired or user account not found. Please log in again.",
+          code: "UNAUTHORIZED",
+        }, 401);
+      }
+      if (user.deletedAt) {
         return json({
           error: "Menuly Official: Your account has been deleted by administration.",
           code: "ACCOUNT_DELETED",
@@ -952,7 +958,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // Live verification of account status against database
       const user = await userStore.findById(auth.userId);
-      if (!user || user.deletedAt) {
+      if (!user) {
+        return json({
+          error: "Session expired or user account not found. Please log in again.",
+          code: "UNAUTHORIZED",
+        }, 401);
+      }
+      if (user.deletedAt) {
         return json({
           error: "Menuly Official: Your account has been deleted by administration.",
           code: "ACCOUNT_DELETED",
@@ -2064,7 +2076,8 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       // POST /api/admin/restaurants/delete
       if (pathname === "/api/admin/restaurants/delete" && request.method === "POST") {
-        if (payload.email !== "menulyofficial@gmail.com") {
+        const isMasterAdmin = payload.role === "SUPER_ADMIN" || payload.email?.toLowerCase().trim() === "menulyofficial@gmail.com";
+        if (!isMasterAdmin) {
           return json({ error: "Access Denied: Only the Master Platform Administrator can delete restaurants." }, 403);
         }
 
