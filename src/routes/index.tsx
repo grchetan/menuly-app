@@ -137,7 +137,7 @@ function PhoneMockup() {
       </div>
 
       {/* Live badge */}
-      <div className="absolute -bottom-3 -right-4 rounded-2xl bg-primary text-primary-foreground px-2.5 py-1.5 shadow-lift text-[10px] font-black flex items-center gap-1 animate-float">
+      <div className="absolute -bottom-2 right-1 sm:-bottom-3 sm:-right-4 rounded-2xl bg-primary text-primary-foreground px-2.5 py-1.5 shadow-lift text-[10px] font-black flex items-center gap-1 animate-float">
         <ScanLine className="size-3" /> Live Menu
       </div>
     </div>
@@ -305,7 +305,7 @@ function Index() {
             ))}
           </ul>
         </div>
-        <div className="relative justify-self-center">
+        <div className="relative justify-self-center w-full max-w-md px-2 sm:px-0">
           <img
             src={hero}
             alt="Customer viewing a digital menu on a phone"
@@ -313,15 +313,15 @@ function Index() {
             height={1152}
             className="w-full max-w-md rounded-3xl object-cover shadow-lift"
           />
-          <div className="absolute -bottom-6 -left-6 w-32 animate-float sm:w-36">
+          <div className="absolute -bottom-4 left-1 sm:-bottom-6 sm:-left-6 w-28 animate-float sm:w-36">
             <AnimatedQR />
           </div>
           <div
-            className="absolute -right-3 top-8 animate-float rounded-2xl border bg-card px-4 py-3 shadow-lift"
+            className="absolute right-1 top-4 sm:-right-3 sm:top-8 animate-float rounded-2xl border bg-card px-3 py-2 sm:px-4 sm:py-3 shadow-lift"
             style={{ animationDelay: "1.2s" }}
           >
-            <p className="text-xs text-muted-foreground">Menu updated</p>
-            <p className="text-sm font-bold text-primary">Paneer Tikka · ₹220</p>
+            <p className="text-[11px] sm:text-xs text-muted-foreground">Menu updated</p>
+            <p className="text-xs sm:text-sm font-bold text-primary">Paneer Tikka · ₹220</p>
           </div>
         </div>
       </section>

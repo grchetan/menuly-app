@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getPublicRestaurantMenu } from "../server/restaurant/service";
+import { getCommunityRestaurantBySlug, type CommunityRestaurantDetail } from "../server/community/service";
 import type { FullMenu } from "./restaurant";
 
 export const getPublicMenu = createServerFn({ method: "GET" })
@@ -18,6 +19,20 @@ export const getPublicMenu = createServerFn({ method: "GET" })
       };
     } catch (err) {
       console.error("[getPublicMenu Error]", err);
+      return null;
+    }
+  });
+
+export const getPublicStorefront = createServerFn({ method: "GET" })
+  .validator((slug: string) => {
+    if (typeof slug !== "string" || slug.length > 80) throw new Error("Invalid slug");
+    return slug.toLowerCase().trim();
+  })
+  .handler(async ({ data: slug }): Promise<CommunityRestaurantDetail | null> => {
+    try {
+      return await getCommunityRestaurantBySlug(slug, { incrementVisit: false });
+    } catch (err) {
+      console.error("[getPublicStorefront Error]", err);
       return null;
     }
   });

@@ -8,6 +8,23 @@ const SAFE_HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const SAFE_RGB_COLOR = /^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(\s*,\s*(0|1|0?\.\d+))?\s*\)$/i;
 const SAFE_HSL_COLOR = /^hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%(\s*,\s*(0|1|0?\.\d+))?\s*\)$/i;
 
+function stripControlChars(str: string): string {
+  let out = "";
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    const isUnsafeControl =
+      (code >= 0 && code <= 8) ||
+      code === 11 ||
+      code === 12 ||
+      (code >= 14 && code <= 31) ||
+      (code >= 127 && code <= 159);
+    if (!isUnsafeControl) {
+      out += str[i];
+    }
+  }
+  return out;
+}
+
 /**
  * Strips dangerous HTML tags and script injection vectors from string input.
  */
@@ -17,13 +34,12 @@ export function sanitizeText(val: unknown, maxLen = 250): string {
   if (!str) return "";
 
   // Strip script tags, HTML tags, and event handlers
-  const cleaned = str
+  const noControls = stripControlChars(str);
+  const cleaned = noControls
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/<[^>]+>/g, "")
     .replace(/javascript:/gi, "")
-    .replace(/on\w+\s*=/gi, "")
-    // Remove control characters except standard whitespace
-    .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, "");
+    .replace(/on\w+\s*=/gi, "");
 
   return cleaned.slice(0, maxLen);
 }

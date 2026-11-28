@@ -242,6 +242,52 @@ function HowTo() {
           </Link>
         </Button>
       </div>
+
+      {/* Schema.org HowTo & BreadcrumbList JSON-LD for Google Rich Results */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "HowTo",
+                name: "How to Create a Restaurant QR Digital Menu on Menuly",
+                description:
+                  "Create, customize, and print a contactless QR code menu for your restaurant, cafe, or dhaba in under 5 minutes.",
+                totalTime: "PT5M",
+                step: [
+                  {
+                    "@type": "HowToStep",
+                    name: "Create your free restaurant account",
+                    text: "Sign up with Google, Email, or WhatsApp OTP on Menuly.",
+                    url: "https://www.menulyindia.online/auth?mode=signup",
+                  },
+                  {
+                    "@type": "HowToStep",
+                    name: "Upload photo or add dishes",
+                    text: "Use the AI Menu Scanner or 1-Click Starter Packs to populate categories, prices, and veg/non-veg indicators.",
+                    url: "https://www.menulyindia.online/how-to-use",
+                  },
+                  {
+                    "@type": "HowToStep",
+                    name: "Generate and print Table QR codes",
+                    text: "Download crisp printable table tents or QR stickers from QR Studio.",
+                    url: "https://www.menulyindia.online/shop",
+                  },
+                ],
+              },
+              {
+                "@type": "BreadcrumbList",
+                itemListElement: [
+                  { "@type": "ListItem", position: 1, name: "Home", item: "https://www.menulyindia.online/" },
+                  { "@type": "ListItem", position: 2, name: "How to Use", item: "https://www.menulyindia.online/how-to-use" },
+                ],
+              },
+            ],
+          }),
+        }}
+      />
     </SitePage>
   );
 }

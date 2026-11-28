@@ -193,7 +193,8 @@ export async function getCommunityRestaurants(params: {
  * Increments profileVisits in the database and returns public details.
  */
 export async function getCommunityRestaurantBySlug(
-  slug: string
+  slug: string,
+  options: { incrementVisit?: boolean } = {}
 ): Promise<CommunityRestaurantDetail | null> {
   const cleanSlug = slug.toLowerCase().trim();
 
@@ -234,13 +235,15 @@ export async function getCommunityRestaurantBySlug(
     return null;
   }
 
-  // Atomically increment profileVisits counter in background
-  prisma.restaurant
-    .update({
-      where: { id: restaurant.id },
-      data: { profileVisits: { increment: 1 } },
-    })
-    .catch(() => {});
+  // Atomically increment profileVisits counter in background unless disabled for SSR/read-only metadata
+  if (options.incrementVisit !== false) {
+    prisma.restaurant
+      .update({
+        where: { id: restaurant.id },
+        data: { profileVisits: { increment: 1 } },
+      })
+      .catch(() => {});
+  }
 
   let extractedCity = "India";
   if (restaurant.address) {

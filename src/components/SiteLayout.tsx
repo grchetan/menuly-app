@@ -228,10 +228,10 @@ export function SiteHeader() {
                 {isSuperAdmin && (
                   <Link
                     to="/admin"
-                    className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 shadow-xs transition-all hover:bg-amber-500/25"
+                    className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 shadow-xs transition-all hover:bg-amber-500/25"
                   >
                     <Shield className="size-3.5" />
-                    <span className="hidden xs:inline">Admin</span> Console
+                    Admin Console
                   </Link>
                 )}
                 <Link

@@ -31,22 +31,45 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { APP_NAME } from "@/lib/config";
 import { getOptimizedBannerUrl, getDefaultBanner } from "@/lib/banner-presets";
+import { getPublicStorefront } from "@/lib/menu.functions";
 
 export const Route = createFileRoute("/restaurants/$slug")({
-  head: ({ params }) => {
+  loader: ({ params }) => getPublicStorefront({ data: params.slug }),
+  head: ({ loaderData, params }) => {
     const slug = params?.slug ?? "";
+    const name = loaderData?.name || "Verified Restaurant Profile";
+    const city = loaderData?.city && loaderData.city !== "India" ? loaderData.city : "India";
+    const title = loaderData
+      ? `${name} (${city}) — Live QR Menu, Dishes & Location | ${APP_NAME}`
+      : `Restaurant Profile & Live QR Menu — ${APP_NAME}`;
+    const desc =
+      loaderData?.description?.trim() ||
+      (loaderData
+        ? `Browse ${name}'s digital menu with ${loaderData.dishCount} dishes in ${city}. View prices, timings, photos & instant QR ordering powered by ${APP_NAME}.`
+        : `Explore live digital menus, chef specials, location, and contactless dining powered by ${APP_NAME}.`);
+    const banner =
+      loaderData?.coverUrl ||
+      loaderData?.logoUrl ||
+      "https://www.menulyindia.online/assets/menuly-banner.png";
+
     return {
       meta: [
-        { title: `Restaurant Profile & Live QR Menu — ${APP_NAME}` },
+        { title },
+        { name: "description", content: desc },
         {
-          name: "description",
-          content: `Explore live digital menus, chef specials, location, and contactless dining powered by ${APP_NAME}.`,
+          name: "keywords",
+          content: `${name}, ${name} menu, ${name} ${city}, digital QR menu, ${APP_NAME}`,
         },
         { property: "og:type", content: "restaurant" },
         { property: "og:site_name", content: "Menuly India" },
+        { property: "og:title", content: title },
+        { property: "og:description", content: desc },
         { property: "og:url", content: `https://www.menulyindia.online/restaurants/${slug}` },
-        { property: "og:image", content: "https://www.menulyindia.online/assets/menuly-banner.png" },
+        { property: "og:image", content: banner },
         { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: desc },
+        { name: "twitter:image", content: banner },
       ],
       links: [
         { rel: "canonical", href: `https://www.menulyindia.online/restaurants/${slug}` },
@@ -109,6 +132,7 @@ function isOpenNow(hoursString?: string | null): boolean {
 }
 
 function RestaurantStorefrontPage() {
+  const loaderRestaurant = Route.useLoaderData() as StorefrontDetail | null | undefined;
   const rawParams = Route.useParams() as { slug?: string };
   const slug = rawParams?.slug || "";
   const navigate = useNavigate();
@@ -123,7 +147,7 @@ function RestaurantStorefrontPage() {
   // Lightbox modal for gallery & dish photos
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null);
 
-  // Fetch full restaurant storefront profile from backend
+  // Fetch full restaurant storefront profile from backend (seeded by SSR loaderData for instant SEO HTML)
   const { data, isLoading, isError, refetch } = useQuery<{ success: boolean; restaurant: StorefrontDetail }>({
     queryKey: ["community-restaurant-detail", slug],
     queryFn: async () => {
@@ -131,6 +155,9 @@ function RestaurantStorefrontPage() {
       if (!res.ok) throw new Error("Restaurant not found or inactive");
       return res.json();
     },
+    ...(loaderRestaurant
+      ? { initialData: { success: true, restaurant: loaderRestaurant }, initialDataUpdatedAt: 0 }
+      : {}),
     staleTime: 60_000,
   });
 
@@ -878,6 +905,50 @@ function RestaurantStorefrontPage() {
             </DialogContent>
           </Dialog>
         )}
+        {/* Schema.org Restaurant, Menu & BreadcrumbList JSON-LD */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "Restaurant",
+                  name: restaurant.name,
+                  url: `https://www.menulyindia.online/restaurants/${restaurant.slug}`,
+                  hasMenu: `https://www.menulyindia.online/menu/${restaurant.slug}`,
+                  image: restaurant.coverUrl || restaurant.logoUrl || "https://www.menulyindia.online/assets/menuly-banner.png",
+                  description: restaurant.description || `${restaurant.name} live QR digital menu powered by Menuly India.`,
+                  servesCuisine: restaurant.isPureVeg ? "Pure Vegetarian Indian Cuisine" : "Multi-Cuisine Indian",
+                  ...(restaurant.address
+                    ? {
+                        address: {
+                          "@type": "PostalAddress",
+                          streetAddress: restaurant.address,
+                          addressLocality: restaurant.city || "India",
+                          addressCountry: "IN",
+                        },
+                      }
+                    : {}),
+                  ...(restaurant.phone ? { telephone: restaurant.phone } : {}),
+                },
+                {
+                  "@type": "BreadcrumbList",
+                  itemListElement: [
+                    { "@type": "ListItem", position: 1, name: "Home", item: "https://www.menulyindia.online/" },
+                    { "@type": "ListItem", position: 2, name: "Restaurants", item: "https://www.menulyindia.online/restaurants" },
+                    {
+                      "@type": "ListItem",
+                      position: 3,
+                      name: restaurant.name,
+                      item: `https://www.menulyindia.online/restaurants/${restaurant.slug}`,
+                    },
+                  ],
+                },
+              ],
+            }),
+          }}
+        />
       </div>
     </SitePage>
   );

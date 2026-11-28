@@ -97,6 +97,7 @@ export function MenuView({
   const { restaurant: r, categories, items } = menu;
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [vegOnly, setVegOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -492,6 +493,7 @@ export function MenuView({
     // Map dishes
     const itemsMap = new Map<string, MenuItem[]>();
     for (const item of items) {
+      if (vegOnly && !item.is_veg) continue;
       // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -518,7 +520,7 @@ export function MenuView({
       normalizedCategories: validCats,
       categoryItemsMap: itemsMap,
     };
-  }, [categories, items, searchQuery]);
+  }, [categories, items, searchQuery, vegOnly]);
 
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -561,8 +563,11 @@ export function MenuView({
     scroller.current.scrollBy({ left: offset, behavior: "smooth" });
   };
 
-  // Best Sellers (Highlighting 2 popular dishes)
-  const availableItems = useMemo(() => items.filter((it) => it.available), [items]);
+  // Best Sellers (Highlighting 2 popular dishes; automatically honors Veg-Only filter)
+  const availableItems = useMemo(
+    () => items.filter((it) => it.available && (!vegOnly || it.is_veg)),
+    [items, vegOnly]
+  );
   const todayBestSeller = useMemo(() => availableItems[0] || null, [availableItems]);
   const monthBestSeller = useMemo(() => availableItems[1] || availableItems[0] || null, [availableItems]);
 
@@ -935,31 +940,59 @@ export function MenuView({
           isDark ? "bg-[#0d0f12]/98 border-[#232834]" : "bg-background/98 border-border/60"
         )}
       >
-        {/* Search Bar Input */}
-        <div className={cn("mx-auto max-w-2xl", compact ? "px-2.5" : "px-4")}>
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search dishes..."
-              className={cn(
-                "w-full rounded-full border py-2 pl-10 pr-9 text-xs sm:text-sm shadow-xs placeholder:text-muted-foreground focus:outline-none transition-all",
-                isDark
-                  ? "border-[#232834] bg-[#1a1e26] text-[#f3f4f6] focus:bg-[#15181e] focus:border-orange-500"
-                  : "border-border/80 bg-secondary/50 text-foreground focus:bg-card focus:border-orange-500"
+        {/* Search Bar Input + Quick Veg-Only Filter */}
+        <div className={cn("mx-auto max-w-2xl", compact ? "px-2.5" : "px-3 sm:px-4")}>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search dishes..."
+                className={cn(
+                  "w-full rounded-full border py-2 pl-10 pr-9 text-xs sm:text-sm shadow-xs placeholder:text-muted-foreground focus:outline-none transition-all",
+                  isDark
+                    ? "border-[#232834] bg-[#1a1e26] text-[#f3f4f6] focus:bg-[#15181e] focus:border-orange-500"
+                    : "border-border/80 bg-secondary/50 text-foreground focus:bg-card focus:border-orange-500"
+                )}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
               )}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setVegOnly((prev) => !prev)}
+              aria-pressed={vegOnly}
+              title="Show vegetarian dishes only"
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-bold transition-all cursor-pointer select-none",
+                vegOnly
+                  ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+                  : isDark
+                  ? "border-[#232834] bg-[#1a1e26] text-[#e5e7eb] hover:border-emerald-500/60"
+                  : "border-border/80 bg-card text-foreground/85 hover:border-emerald-500/60"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-3 items-center justify-center rounded-[3px] border",
+                  vegOnly ? "border-white bg-white/15" : "border-emerald-600"
+                )}
               >
-                <X className="size-3.5" />
-              </button>
-            )}
+                <span className={cn("size-1.5 rounded-full", vegOnly ? "bg-white" : "bg-emerald-600")} />
+              </span>
+              <span>Veg</span>
+            </button>
           </div>
         </div>
 
@@ -1093,9 +1126,11 @@ export function MenuView({
                           </span>
                         )}
 
-                        <div className="flex items-center gap-1.5">
-                          <VegMark veg={i.is_veg} />
-                          <h3 className="font-bold text-sm sm:text-base text-foreground leading-snug group-hover:text-orange-600 transition-colors truncate">
+                        <div className="flex items-start gap-1.5">
+                          <span className="mt-1 shrink-0">
+                            <VegMark veg={i.is_veg} />
+                          </span>
+                          <h3 className="font-bold text-sm sm:text-base text-foreground leading-snug group-hover:text-orange-600 transition-colors line-clamp-2 break-words">
                             {i.name}
                           </h3>
                         </div>
@@ -1400,7 +1435,7 @@ export function MenuView({
 
       {/* FLOATING SOLID ORANGE "VIEW ORDER" BAR (AS IN USER SCREENSHOT 1) */}
       {!compact && totalItemsCount > 0 && (
-        <aside className="fixed inset-x-0 bottom-4 z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
+        <aside className="fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
           <div
             onClick={() => setIsOrderDrawerOpen(true)}
             className="mx-auto max-w-lg bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-bold rounded-2xl shadow-xl flex items-center justify-between p-3.5 sm:p-4 transition-all duration-200 cursor-pointer pointer-events-auto"
@@ -1420,7 +1455,7 @@ export function MenuView({
 
       {/* FLOATING ACTIVE ORDER REAL-TIME STATUS PILL */}
       {!compact && totalItemsCount === 0 && activeOrder && !isFloatingDismissed && (
-        <aside className="fixed inset-x-0 bottom-4 z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
+        <aside className="fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 px-4 animate-in slide-in-from-bottom duration-300 pointer-events-none">
           <div
             onClick={() => {
               setViewingReceiptOrder(activeOrder);
@@ -2299,7 +2334,7 @@ export function MenuView({
 
       {/* Contact Bar when Cart is Empty */}
       {!compact && contact && totalItemsCount === 0 && (
-        <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/95 p-3 backdrop-blur-md shadow-lift">
+        <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md shadow-lift">
           <div className="mx-auto flex max-w-2xl gap-2.5">
             {r.whatsapp && (
               <a

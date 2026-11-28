@@ -160,6 +160,13 @@ function MyMenu() {
   const [filter, setFilter] = useState<"all" | "soldout">("all");
   const [showPresets, setShowPresets] = useState(Boolean(data?.items?.length === 0));
   const [isAiScanOpen, setIsAiScanOpen] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const [pendingBackup, setPendingBackup] = useState<{
+    categories: Array<{ name: string; items: any[] }>;
+    dishCount: number;
+    sourceName?: string;
+  } | null>(null);
+  const [isRestoringBackup, setIsRestoringBackup] = useState(false);
 
   // Live Starter Packs Query (Reflects Admin customizations immediately, cached for 5 min to eliminate DB round-trips)
   const { data: starterPacksData } = useQuery<{ presets: PresetTemplate[]; defaultPresetId: string }>({
@@ -550,6 +557,102 @@ function MyMenu() {
     toast.success("Menu Backup downloaded! Keep this JSON file safe.");
   };
 
+  // 1-Click Menu Restore from Menuly JSON Backup
+  const handleBackupFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Backup file is too large (max 5MB).");
+      return;
+    }
+
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+
+      let normalizedCats: Array<{ name: string; items: any[] }> = [];
+      if (Array.isArray(parsed?.categories) && Array.isArray(parsed?.dishes)) {
+        const catMap = new Map<string, { name: string; items: any[] }>();
+        for (const c of parsed.categories) {
+          const cid = String(c.id || c.name || Math.random());
+          catMap.set(cid, { name: String(c.name || "General Menu"), items: [] });
+        }
+        for (const d of parsed.dishes) {
+          const cid = String(d.category_id || "");
+          if (!catMap.has(cid)) {
+            catMap.set(cid || "general", { name: "Restored Dishes", items: [] });
+          }
+          catMap.get(cid || "general")!.items.push({
+            name: d.name,
+            description: d.description,
+            price: d.price,
+            imageUrl: d.image_url ?? d.imageUrl,
+            isVeg: d.is_veg ?? d.isVeg,
+            available: d.available,
+          });
+        }
+        normalizedCats = Array.from(catMap.values()).filter((c) => c.items.length > 0);
+      } else if (Array.isArray(parsed?.categories)) {
+        normalizedCats = parsed.categories
+          .filter((c: any) => Array.isArray(c?.items) && c.items.length > 0)
+          .map((c: any) => ({ name: String(c.name || "General Menu"), items: c.items }));
+      } else if (Array.isArray(parsed?.menu)) {
+        normalizedCats = parsed.menu
+          .filter((c: any) => Array.isArray(c?.items) && c.items.length > 0)
+          .map((c: any) => ({ name: String(c.name || "General Menu"), items: c.items }));
+      }
+
+      const dishCount = normalizedCats.reduce((acc, c) => acc + c.items.length, 0);
+      if (normalizedCats.length === 0 || dishCount === 0) {
+        toast.error("No valid categories or dishes found inside that JSON backup.");
+        return;
+      }
+
+      setPendingBackup({
+        categories: normalizedCats,
+        dishCount,
+        sourceName: parsed?.restaurant?.name || file.name,
+      });
+    } catch {
+      toast.error("Could not read JSON backup file. Please upload a valid Menuly backup (.json).");
+    }
+  };
+
+  const confirmRestoreBackup = async (mode: "append" | "replace") => {
+    if (!pendingBackup || isRestoringBackup) return;
+    setIsRestoringBackup(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const res = await fetch("/api/restaurant/restore-backup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          mode,
+          categories: pendingBackup.categories,
+        }),
+      });
+      const out = await res.json();
+      if (!res.ok || !out.success) {
+        throw new Error(out.error || "Failed to restore backup");
+      }
+      toast.success(
+        `Restored ${out.createdDishesCount ?? pendingBackup.dishCount} dishes (${
+          mode === "replace" ? "replaced menu" : "merged into menu"
+        })!`
+      );
+      setPendingBackup(null);
+      await qc.invalidateQueries({ queryKey: myMenuQuery.queryKey });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to restore menu backup");
+    } finally {
+      setIsRestoringBackup(false);
+    }
+  };
+
   // Delete Category (Modal Handlers)
   const startDeleteCat = (c: Category) => {
     setDeletingCat(c);
@@ -839,7 +942,14 @@ function MyMenu() {
     <AppShell
       title="Easy Menu Studio"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleBackupFileSelect}
+            className="hidden"
+          />
           <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs font-semibold">
             <Link to="/profile">
               <ImageIcon className="size-3.5 text-orange-500" /> Banner &amp; Address
@@ -873,6 +983,17 @@ function MyMenu() {
             <Download className="size-3.5 text-primary" />
             <span className="hidden sm:inline">Backup Menu</span>
             <span className="sm:hidden">Backup</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => restoreInputRef.current?.click()}
+            className="gap-1.5 text-xs font-semibold"
+            title="Restore dishes & categories from a downloaded Menuly JSON backup"
+          >
+            <Upload className="size-3.5 text-primary" />
+            <span className="hidden sm:inline">Restore JSON</span>
+            <span className="sm:hidden">Restore</span>
           </Button>
           <Button
             variant="secondary"
@@ -2301,6 +2422,59 @@ function MyMenu() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* 1-Click JSON Backup Restore Dialog */}
+      <Dialog open={!!pendingBackup} onOpenChange={(open) => !open && !isRestoringBackup && setPendingBackup(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">Restore Menu from Backup</DialogTitle>
+          </DialogHeader>
+          {pendingBackup && (
+            <div className="space-y-4 pt-1">
+              <div className="rounded-2xl border border-primary/25 bg-primary/5 p-3.5 text-xs space-y-1">
+                <p className="font-bold text-foreground">
+                  Source: {pendingBackup.sourceName || "Menuly Backup"}
+                </p>
+                <p className="text-muted-foreground">
+                  Ready to restore <strong>{pendingBackup.dishCount} dishes</strong> across{" "}
+                  <strong>{pendingBackup.categories.length} categories</strong>.
+                </p>
+              </div>
+              <div className="grid gap-2.5">
+                <Button
+                  type="button"
+                  disabled={isRestoringBackup}
+                  onClick={() => confirmRestoreBackup("append")}
+                  className="justify-between rounded-xl h-auto py-3 px-4 font-semibold"
+                >
+                  <span className="text-left">
+                    <span className="block text-sm font-bold">Merge with Current Menu</span>
+                    <span className="block text-[11px] opacity-85 font-normal">
+                      Keep existing dishes and add backup items into matching categories
+                    </span>
+                  </span>
+                  <Plus className="size-4 shrink-0" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isRestoringBackup}
+                  onClick={() => confirmRestoreBackup("replace")}
+                  className="justify-between rounded-xl h-auto py-3 px-4 border-destructive/40 text-destructive hover:bg-destructive/10"
+                >
+                  <span className="text-left">
+                    <span className="block text-sm font-bold">Replace Entire Menu</span>
+                    <span className="block text-[11px] opacity-80 font-normal">
+                      Clear current dishes and restore exact snapshot from backup
+                    </span>
+                  </span>
+                  <RefreshCw className="size-4 shrink-0" />
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

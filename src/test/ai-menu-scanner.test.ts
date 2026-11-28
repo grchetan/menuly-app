@@ -11,14 +11,18 @@ describe("AI Smart Menu Digitizer & Scanner Suite", () => {
   let restaurantId: string;
 
   beforeAll(async () => {
-    // Pick an existing user and restaurant or create test records
-    let user = await prisma.user.findFirst({ select: { id: true, email: true } });
+    // Strictly use a dedicated isolated test account so live restaurant menus are never modified
+    const testEmail = "vitest-ai-scanner@menuly.test";
+    let user = await prisma.user.findUnique({
+      where: { email: testEmail },
+      select: { id: true, email: true },
+    });
     if (!user) {
       user = await prisma.user.create({
         data: {
-          email: "ai-scanner-test@menuly.app",
+          email: testEmail,
           passwordHash: "test_hash",
-          fullName: "AI Scanner Test Owner",
+          fullName: "Vitest AI Scanner Owner",
           role: "RESTAURANT_OWNER",
         },
         select: { id: true, email: true },
@@ -26,16 +30,17 @@ describe("AI Smart Menu Digitizer & Scanner Suite", () => {
     }
     userId = user.id;
 
-    let r = await prisma.restaurant.findFirst({
-      where: { ownerId: userId },
+    let r = await prisma.restaurant.findUnique({
+      where: { slug: "vitest-ai-scanner-cafe" },
       select: { id: true, slug: true },
     });
     if (!r) {
       r = await prisma.restaurant.create({
         data: {
           ownerId: userId,
-          name: "AI Test Cafe",
-          slug: "ai-test-cafe-" + Date.now(),
+          name: "Vitest AI Test Cafe",
+          slug: "vitest-ai-scanner-cafe",
+          isActive: false,
         },
         select: { id: true, slug: true },
       });
@@ -44,7 +49,10 @@ describe("AI Smart Menu Digitizer & Scanner Suite", () => {
   });
 
   afterAll(async () => {
-    // Clean up test data if needed
+    if (restaurantId) {
+      await prisma.menuItem.deleteMany({ where: { restaurantId } }).catch(() => {});
+      await prisma.category.deleteMany({ where: { restaurantId } }).catch(() => {});
+    }
   });
 
   it("rejects empty or corrupt image payloads", async () => {

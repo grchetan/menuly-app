@@ -1,7 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Mail, MessageCircle, Send, CheckCircle2, LifeBuoy, Clock, ArrowRight } from "lucide-react";
+import {
+  Mail,
+  MessageCircle,
+  Send,
+  CheckCircle2,
+  LifeBuoy,
+  ArrowRight,
+  AlertCircle,
+  ShieldCheck,
+  QrCode,
+  Sparkles,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +53,43 @@ function Support() {
   const [phone, setPhone] = useState(data?.restaurant?.phone || "");
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncNet = () => setIsOnline(navigator.onLine);
+    syncNet();
+    window.addEventListener("online", syncNet);
+    window.addEventListener("offline", syncNet);
+    return () => {
+      window.removeEventListener("online", syncNet);
+      window.removeEventListener("offline", syncNet);
+    };
+  }, []);
+
+  const dishCount = data?.items?.length || 0;
+  const diagnosticItems = [
+    {
+      label: "Live Menu Link",
+      ok: Boolean(restaurantSlug),
+      detail: restaurantSlug ? `/menu/${restaurantSlug}` : "Not assigned yet",
+    },
+    {
+      label: "Published Dishes",
+      ok: dishCount > 0,
+      detail: dishCount > 0 ? `${dishCount} dishes synced` : "0 dishes — add or scan a menu",
+    },
+    {
+      label: "Order Contact Number",
+      ok: Boolean(data?.restaurant?.whatsapp || data?.restaurant?.phone),
+      detail: data?.restaurant?.whatsapp || data?.restaurant?.phone || "Missing in Profile",
+    },
+    {
+      label: "Network Sync",
+      ok: isOnline,
+      detail: isOnline ? "Online & connected to Menuly Cloud" : "Offline mode detected",
+    },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +102,7 @@ function Support() {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
       const userStr = typeof window !== "undefined" ? localStorage.getItem("menuly_user") : null;
-      let ownerEmail = "partner@menuly.app";
+      let ownerEmail = "partner@menulyindia.online";
       try {
         if (userStr) {
           const u = JSON.parse(userStr);
@@ -186,8 +234,87 @@ function Support() {
           )}
         </div>
 
-        {/* Instant Contact & Admin Portal Shortcut */}
+        {/* Instant Self-Help Diagnostics & Contact Channels */}
         <div className="space-y-6">
+          {/* Live Account Self-Help Diagnostic */}
+          <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
+            <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-3.5">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-5 text-primary" />
+                <h3 className="font-display text-base font-bold">Instant Account Diagnostic</h3>
+              </div>
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+                Live Check
+              </span>
+            </div>
+            <div className="mt-4 space-y-2.5">
+              {diagnosticItems.map((d) => (
+                <div
+                  key={d.label}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {d.ok ? (
+                      <CheckCircle2 className="size-4 text-veg shrink-0" />
+                    ) : (
+                      <AlertCircle className="size-4 text-amber-500 shrink-0" />
+                    )}
+                    <span className="font-semibold text-foreground">{d.label}</span>
+                  </div>
+                  <span className="truncate text-[11px] text-muted-foreground max-w-[52%] text-right">
+                    {d.detail}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" asChild className="text-xs gap-1.5">
+                <Link to="/my-menu">
+                  <Sparkles className="size-3.5 text-orange-500" /> Open Menu Studio
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild className="text-xs gap-1.5">
+                <Link to="/qr">
+                  <QrCode className="size-3.5 text-primary" /> Test Table QRs
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Answers / Self-Help FAQ */}
+          <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft space-y-3">
+            <h3 className="font-display text-base font-bold">Quick Self-Help Guides</h3>
+            <div className="space-y-2 text-xs">
+              <details className="group rounded-xl border border-border/60 bg-background/50 p-3">
+                <summary className="cursor-pointer font-bold text-foreground list-none flex items-center justify-between">
+                  <span>1. How do I backup &amp; restore my menu?</span>
+                  <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-2 text-muted-foreground leading-relaxed">
+                  In <strong>My Menu Studio</strong>, click <strong>Backup Menu</strong> to download a JSON snapshot. Click <strong>Restore JSON</strong> anytime to merge dishes back or replace your menu cleanly.
+                </p>
+              </details>
+              <details className="group rounded-xl border border-border/60 bg-background/50 p-3">
+                <summary className="cursor-pointer font-bold text-foreground list-none flex items-center justify-between">
+                  <span>2. How to use AI Menu Photo Scanner?</span>
+                  <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-2 text-muted-foreground leading-relaxed">
+                  Take a clear well-lit photo of your printed rate card under 6MB, tap <strong>AI Menu Scanner</strong>, verify extracted categories/prices, and select Append or Replace.
+                </p>
+              </details>
+              <details className="group rounded-xl border border-border/60 bg-background/50 p-3">
+                <summary className="cursor-pointer font-bold text-foreground list-none flex items-center justify-between">
+                  <span>3. Table QR scan opens an old or missing link?</span>
+                  <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-2 text-muted-foreground leading-relaxed">
+                  If you edited your custom link slug in Profile/Dashboard, re-download or print your updated table QR cards from <strong>QR Studio</strong> so table posters match your new link.
+                </p>
+              </details>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
             <h3 className="font-display text-base font-bold">Instant Emergency Channels</h3>
             <p className="mt-1 text-xs text-muted-foreground leading-relaxed">

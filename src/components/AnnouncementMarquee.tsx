@@ -15,13 +15,9 @@ export function AnnouncementMarquee({
 }: AnnouncementMarqueeProps) {
   const trimmed = text.trim();
 
-  // If disabled or empty, do not render
-  if (!enabled || !trimmed) {
-    return null;
-  }
-
   // Parse items split by common delimiters if present, or treat as a single repeating statement
   const items = useMemo(() => {
+    if (!enabled || !trimmed) return [];
     let tokens = [trimmed];
     if (trimmed.includes("💥")) {
       tokens = trimmed.split("💥").map((t) => t.trim()).filter(Boolean);
@@ -31,13 +27,18 @@ export function AnnouncementMarquee({
       tokens = trimmed.split("|").map((t) => t.trim()).filter(Boolean);
     }
 
-    // Ensure we have at least 4 items so short messages fill wide displays
+    // Ensure we have at least 6 items so short messages fill wide displays
     let repeated = [...tokens];
     while (repeated.length < 6) {
       repeated = [...repeated, ...tokens];
     }
     return repeated;
-  }, [trimmed]);
+  }, [enabled, trimmed]);
+
+  // If disabled or empty, do not render
+  if (!enabled || !trimmed || items.length === 0) {
+    return null;
+  }
 
   return (
     <div

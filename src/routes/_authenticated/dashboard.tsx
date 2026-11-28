@@ -399,7 +399,7 @@ function Dashboard() {
     <AppShell
       title={`Namaste, ${r.name || "Restaurant"}`}
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isSuperAdmin && (
             <Button size="sm" asChild className="text-xs font-bold gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-soft">
               <Link to="/admin">
@@ -529,6 +529,96 @@ function Dashboard() {
             </p>
           </div>
         </div>
+
+        {/* ============================================================= */}
+        {/* INTERACTIVE GO-LIVE READINESS & OWNER QUICK HELP              */}
+        {/* ============================================================= */}
+        {(() => {
+          const checks = [
+            {
+              label: "Add dishes & categories",
+              done: total > 0,
+              hint: total > 0 ? `${total} dishes published` : "Scan a paper menu with AI or use 1-Click Starter Packs",
+              to: "/my-menu" as const,
+              cta: total > 0 ? "Edit Menu" : "Setup Menu",
+            },
+            {
+              label: "WhatsApp / Call order contact",
+              done: Boolean((r.whatsapp && r.whatsapp.trim()) || (r.phone && r.phone.trim())),
+              hint: r.whatsapp || r.phone ? "Diners can message & call" : "Add restaurant WhatsApp or phone below",
+              to: "/profile" as const,
+              cta: "Update Contact",
+            },
+            {
+              label: "Restaurant address & timings",
+              done: Boolean(r.address && r.address.trim()),
+              hint: r.address ? "Visible on Explore Directory & Google" : "Helps local diners discover you",
+              to: "/profile" as const,
+              cta: "Add Details",
+            },
+            {
+              label: "Print & test Table QR codes",
+              done: Boolean(r.slug && total > 0),
+              hint: `/menu/${r.slug} is ready to scan`,
+              to: "/qr" as const,
+              cta: "Open QR Studio",
+            },
+          ];
+          const doneCount = checks.filter((c) => c.done).length;
+          return (
+            <div className="rounded-3xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-border/60">
+                <div>
+                  <h2 className="font-serif font-bold text-base sm:text-lg text-foreground flex items-center gap-2">
+                    <Sparkles className="size-4 text-primary" /> Restaurant Go-Live Checklist
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {doneCount === checks.length
+                      ? "All essentials look great! Your digital menu is ready for diners."
+                      : `${doneCount}/${checks.length} setup checks complete for smooth live service.`}
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" asChild className="self-start sm:self-auto text-xs font-semibold gap-1">
+                  <Link to="/support">
+                    Need Help? Diagnostic Hub <ArrowRight className="size-3.5" />
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {checks.map((item) => (
+                  <div
+                    key={item.label}
+                    className={cn(
+                      "flex flex-col justify-between rounded-2xl border p-3.5 transition-colors",
+                      item.done
+                        ? "border-veg/30 bg-veg/5"
+                        : "border-amber-500/30 bg-amber-500/5"
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      {item.done ? (
+                        <CheckCircle2 className="size-4 text-veg shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground">{item.label}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{item.hint}</p>
+                      </div>
+                    </div>
+                    <Link
+                      to={item.to}
+                      className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+                    >
+                      {item.cta} <ArrowRight className="size-3" />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ============================================================= */}
         {/* DEDICATED ORDER ANALYTICS & INSIGHTS SECTION                  */}

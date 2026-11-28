@@ -94,17 +94,28 @@ import {
   sanitizeEmail,
   sanitizePhone,
 } from "./security/sanitize";
+import { getSafeRedirectPath } from "../lib/safe-redirect";
+import { buildSessionCookieHeader, buildClearSessionCookieHeader } from "./security/headers";
+
+function maskPhone(phone?: string | null): string | null {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, "");
+  if (digits.length <= 4) return "****";
+  return `${"*".repeat(Math.max(4, digits.length - 4))}${digits.slice(-4)}`;
+}
 
 function isOriginAllowed(origin: string | null): boolean {
   if (!origin) return true;
   try {
     const parsed = new URL(origin);
-    const host = parsed.hostname;
+    const host = parsed.hostname.toLowerCase();
     if (host === "localhost" || host === "127.0.0.1") return true;
     if (host === "menuly.app" || host.endsWith(".menuly.app")) return true;
     if (host === "menuly.in" || host.endsWith(".menuly.in")) return true;
     if (host === "menulyindia.online" || host.endsWith(".menulyindia.online")) return true;
-    if (host.endsWith(".vercel.app")) return true;
+    if (host === "menuly-app-blush.vercel.app" || (host.startsWith("menuly-") && host.endsWith(".vercel.app"))) {
+      return true;
+    }
     return false;
   } catch {
     return false;
@@ -114,14 +125,16 @@ function isOriginAllowed(origin: string | null): boolean {
 function getCorsHeaders(req: Request, pathname: string): Record<string, string> {
   const origin = req.headers.get("origin");
 
-  // Public read-only endpoints allow any origin (QR customer menu, presets, community, version, health, shop)
+  // Public read-only endpoints allow GET/OPTIONS cleanly (QR customer menu, presets, community, catalog, version, health)
   if (
-    pathname.startsWith("/api/public/") ||
-    pathname.startsWith("/api/community/") ||
-    pathname.startsWith("/api/shop/") ||
-    pathname === "/api/starter-presets" ||
-    pathname === "/api/version" ||
-    pathname === "/api/health"
+    (req.method === "GET" || req.method === "OPTIONS") &&
+    (pathname.startsWith("/api/public/") ||
+      pathname.startsWith("/api/community/") ||
+      pathname === "/api/shop/products" ||
+      pathname === "/api/shop/reviews" ||
+      pathname === "/api/starter-presets" ||
+      pathname === "/api/version" ||
+      pathname === "/api/health")
   ) {
     return {
       "Access-Control-Allow-Origin": "*",
@@ -305,6 +318,14 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 0c. GOOGLE AUTHENTICATION: POST /api/auth/google (One-Click Login / Signup)
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/google" && request.method === "POST") {
+      const rate = checkRateLimit(`google_auth:${clientIp}`, AuthRateLimits.LOGIN);
+      if (!rate.allowed) {
+        return json(
+          { success: false, error: `Too many authentication attempts. Try again in ${rate.resetInSeconds}s.` },
+          429
+        );
+      }
+
       const rawBody = await request.json().catch(() => ({}));
       const body = sanitizeObject(rawBody);
 
@@ -323,7 +344,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       // 2. Authorization Code (Standard OAuth2 Redirect)
       else if (body.code && typeof body.code === "string") {
         const origin = url.origin;
-        const redirectUri = body.redirectUri || `${origin}/api/auth/google/callback`;
+        const redirectUri = `${origin}/api/auth/google/callback`;
         googleUser = await exchangeGoogleAuthCode({
           code: body.code,
           redirectUri,
@@ -335,10 +356,19 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           );
         }
       }
-      // 3. Demo / Development Testing Mode (when unconfigured or in non-production)
-      else if (body.demoEmail && (process.env["NODE_ENV"] !== "production" || !getGoogleAuthConfig().configured)) {
+      // 3. Demo / Development Testing Mode (STRICTLY disallowed in production)
+      else if (
+        body.demoEmail &&
+        process.env["NODE_ENV"] !== "production" &&
+        !getGoogleAuthConfig().configured
+      ) {
+        const demoEmailClean = String(body.demoEmail).toLowerCase().trim();
+        const adminEmail = (process.env["SUPER_ADMIN_EMAIL"] || "").toLowerCase().trim();
+        if (adminEmail && demoEmailClean === adminEmail) {
+          return json({ success: false, error: "Demo bypass cannot impersonate administrator accounts." }, 403);
+        }
         googleUser = {
-          email: String(body.demoEmail).toLowerCase().trim(),
+          email: demoEmailClean,
           fullName: String(body.demoName || "Google Verified User").trim(),
           emailVerified: true,
         };
@@ -346,7 +376,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         return json(
           {
             success: false,
-            error: "Missing Google authentication credential. Please use the Google sign-in button.",
+            error: "Missing valid Google authentication credential. Please use the Google sign-in button.",
           },
           400
         );
@@ -354,70 +384,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
       const res = await handleGoogleAuth({ googleUser, clientIp });
       const cookieHeaders: Record<string, string> = res.data?.token
-        ? {
-            "Set-Cookie": `menuly_token=${encodeURIComponent(
-              res.data.token
-            )}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`,
-          }
+        ? { "Set-Cookie": buildSessionCookieHeader(res.data.token, request) }
         : {};
 
       return json(res, res.status, cookieHeaders);
-    }
-
-    // --------------------------------------------------------------------------
-    // DYNAMIC XML SITEMAP (Google & Search Engine Crawlers)
-    // --------------------------------------------------------------------------
-    if (pathname === "/sitemap.xml" && request.method === "GET") {
-      try {
-        const restaurants = await prisma.restaurant.findMany({
-          select: { slug: true, updatedAt: true },
-          take: 500,
-        });
-
-        const baseUrl = "https://www.menulyindia.online";
-        const today = new Date().toISOString().split("T")[0];
-
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-
-        const corePages = [
-          { path: "", priority: "1.0", freq: "daily" },
-          { path: "/shop", priority: "0.9", freq: "daily" },
-          { path: "/how-to-use", priority: "0.8", freq: "weekly" },
-          { path: "/restaurants", priority: "0.8", freq: "daily" },
-          { path: "/menu/menuly-official", priority: "0.8", freq: "weekly" },
-          { path: "/about", priority: "0.7", freq: "monthly" },
-          { path: "/contact", priority: "0.7", freq: "monthly" },
-          { path: "/community", priority: "0.7", freq: "weekly" },
-          { path: "/terms", priority: "0.4", freq: "monthly" },
-          { path: "/privacy", priority: "0.4", freq: "monthly" },
-          { path: "/shipping", priority: "0.4", freq: "monthly" },
-          { path: "/refund", priority: "0.4", freq: "monthly" },
-          { path: "/cancellation-refund", priority: "0.4", freq: "monthly" },
-          { path: "/cookies", priority: "0.3", freq: "monthly" },
-        ];
-
-        for (const p of corePages) {
-          xml += `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${p.freq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>\n`;
-        }
-
-        for (const r of restaurants) {
-          if (!r.slug) continue;
-          const lastMod = r.updatedAt ? r.updatedAt.toISOString().split("T")[0] : today;
-          xml += `  <url>\n    <loc>${baseUrl}/menu/${encodeURIComponent(r.slug)}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
-        }
-
-        xml += `</urlset>`;
-
-        return new Response(xml, {
-          status: 200,
-          headers: {
-            "Content-Type": "application/xml; charset=utf-8",
-            "Cache-Control": "public, max-age=3600, s-maxage=3600",
-          },
-        });
-      } catch (err) {
-        console.error("[Sitemap Generation Error]", err);
-      }
     }
 
     // --------------------------------------------------------------------------
@@ -431,7 +401,7 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           { status: 400 }
         );
       }
-      const customRedirect = url.searchParams.get("redirect") || "";
+      const customRedirect = getSafeRedirectPath(url.searchParams.get("redirect"), "");
       const origin = url.origin;
       const redirectUri = encodeURIComponent(`${origin}/api/auth/google/callback`);
       const stateParam = customRedirect ? `&state=${encodeURIComponent(customRedirect)}` : "";
@@ -451,13 +421,13 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     if (pathname === "/api/auth/google/callback" && request.method === "GET") {
       const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
-      const state = url.searchParams.get("state") || "";
+      const safeState = getSafeRedirectPath(url.searchParams.get("state"), "");
       if (error || !code) {
         return new Response(null, {
           status: 302,
           headers: {
             Location: `/auth?error=${encodeURIComponent(error || "Google sign-in was cancelled.")}${
-              state ? `&redirect=${encodeURIComponent(state)}` : ""
+              safeState ? `&redirect=${encodeURIComponent(safeState)}` : ""
             }`,
           },
         });
@@ -486,16 +456,14 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
         });
       }
 
-      const targetPath = state || (res.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+      const targetPath = safeState || (res.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
       return new Response(null, {
         status: 302,
         headers: {
           Location: `/auth?google_token=${encodeURIComponent(
             res.data.token
           )}&redirect=${encodeURIComponent(targetPath)}`,
-          "Set-Cookie": `menuly_token=${encodeURIComponent(
-            res.data.token
-          )}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`,
+          "Set-Cookie": buildSessionCookieHeader(res.data.token, request),
         },
       });
     }
@@ -655,7 +623,11 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
     // 7. LOGOUT: POST /api/auth/logout
     // --------------------------------------------------------------------------
     if (pathname === "/api/auth/logout" && request.method === "POST") {
-      return json({ success: true, message: "Logged out successfully." });
+      return json(
+        { success: true, message: "Logged out successfully." },
+        200,
+        { "Set-Cookie": buildClearSessionCookieHeader(request) }
+      );
     }
 
     // --------------------------------------------------------------------------
@@ -823,7 +795,24 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       if (!order) {
         return json({ error: "Order not found." }, 404);
       }
-      return json({ success: true, order });
+
+      const token = extractBearerToken(request);
+      const auth = token ? verifyAccessToken(token) : null;
+      let isPrivilegedViewer = auth?.role === "SUPER_ADMIN";
+      if (!isPrivilegedViewer && auth?.userId && order.restaurantId) {
+        const owned = await prisma.restaurant
+          .findFirst({ where: { id: order.restaurantId, ownerId: auth.userId }, select: { id: true } })
+          .catch(() => null);
+        if (owned) isPrivilegedViewer = true;
+      }
+
+      const safeOrder = isPrivilegedViewer
+        ? order
+        : {
+            ...order,
+            customerPhone: maskPhone(order.customerPhone),
+          };
+      return json({ success: true, order: safeOrder });
     }
 
     // --------------------------------------------------------------------------
@@ -1220,8 +1209,11 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           return json({ error: `Too many AI scan requests. Please wait ${rate.resetInSeconds}s.` }, 429);
         }
         const rawBody = await request.json().catch(() => ({}));
-        if (!rawBody.imageBase64) {
+        if (!rawBody.imageBase64 || typeof rawBody.imageBase64 !== "string") {
           return json({ error: "Image file or base64 data required" }, 400);
+        }
+        if (rawBody.imageBase64.length > 8 * 1024 * 1024) {
+          return json({ error: "Image payload too large. Please upload a photo smaller than 6MB." }, 413);
         }
         const res = await extractMenuFromImage(rawBody.imageBase64, rawBody.mimeType);
         return json(res, res.status);
@@ -1241,6 +1233,56 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           restaurantId,
           mode,
           categories: rawBody.categories || [],
+        });
+        return json(res, res.status);
+      }
+
+      // 19b. POST /api/restaurant/restore-backup (1-Click Restore from Exported Menuly JSON Backup)
+      if (pathname === "/api/restaurant/restore-backup" && request.method === "POST") {
+        const rate = checkRateLimit(`restore_backup:${auth.userId}`, { windowMs: 60 * 1000, max: 10 });
+        if (!rate.allowed) {
+          return json({ error: `Too many restore attempts. Please wait ${rate.resetInSeconds}s.` }, 429);
+        }
+        const userRest = await getOrCreateUserRestaurant(auth.userId, auth.email);
+        const restaurantId = (userRest as any)?.restaurant?.id || (userRest as any)?.id;
+        if (!restaurantId) {
+          return json({ error: "No restaurant found for this account" }, 404);
+        }
+
+        const rawBody = await request.json().catch(() => ({}));
+        const mode = rawBody.mode === "replace" ? "replace" : "append";
+        const rawCategories = Array.isArray(rawBody.categories)
+          ? rawBody.categories
+          : Array.isArray(rawBody.menu)
+          ? rawBody.menu
+          : Array.isArray(rawBody.backup?.menu)
+          ? rawBody.backup.menu
+          : [];
+
+        if (!Array.isArray(rawCategories) || rawCategories.length === 0) {
+          return json(
+            { error: "Invalid backup file. Expected Menuly JSON backup containing categories and items." },
+            400
+          );
+        }
+
+        const sanitizedCategories = rawCategories.slice(0, 60).map((cat: any) => ({
+          name: sanitizeText(cat?.name || cat?.categoryName || "General Menu", 80),
+          items: (Array.isArray(cat?.items) ? cat.items : []).slice(0, 200).map((it: any) => ({
+            name: sanitizeText(it?.name || "Dish", 120),
+            description: it?.description ? sanitizeText(it.description, 400) : null,
+            price: sanitizePrice(it?.price),
+            isVeg: it?.isVeg !== false && it?.is_veg !== false,
+            available: it?.available !== false && it?.is_available !== false,
+            imageUrl: sanitizeUrl(it?.imageUrl || it?.image_url),
+          })),
+        }));
+
+        const res = await applyScannedMenuToRestaurant({
+          userId: auth.userId,
+          restaurantId,
+          mode,
+          categories: sanitizedCategories,
         });
         return json(res, res.status);
       }
@@ -1461,6 +1503,10 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
     // GET /api/shop/orders/track
     if (pathname === "/api/shop/orders/track" && request.method === "GET") {
+      const rate = checkRateLimit(`shop_track:${clientIp}`, { windowMs: 60 * 1000, max: 30 });
+      if (!rate.allowed) {
+        return json({ error: `Too many tracking requests. Please wait ${rate.resetInSeconds}s.` }, 429);
+      }
       const orderNumber = url.searchParams.get("orderNumber") || url.searchParams.get("id") || "";
       if (!orderNumber) {
         return json({ error: "Order number or ID is required" }, 400);
@@ -1469,7 +1515,29 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       if (!order) {
         return json({ error: "Order not found. Check your order number and try again." }, 404);
       }
-      return json({ success: true, order });
+
+      const token = extractBearerToken(request);
+      const auth = token ? verifyAccessToken(token) : null;
+      const isAuthorizedViewer =
+        Boolean(auth?.userId && (auth.userId === order.userId || auth.role === "SUPER_ADMIN"));
+
+      const safeOrder = isAuthorizedViewer
+        ? order
+        : {
+            ...order,
+            customerPhone: maskPhone(order.customerPhone),
+            customerEmail: undefined,
+            shippingAddress: order.shippingAddress
+              ? {
+                  fullName: order.shippingAddress.fullName,
+                  city: order.shippingAddress.city,
+                  state: order.shippingAddress.state,
+                  pincode: order.shippingAddress.pincode,
+                }
+              : undefined,
+          };
+
+      return json({ success: true, order: safeOrder });
     }
 
     // POST /api/shop/orders (Requires Login/Registration)
@@ -1493,6 +1561,11 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
           },
           401
         );
+      }
+
+      const rate = checkRateLimit(`shop_order:${payload.userId}:${clientIp}`, { windowMs: 60 * 1000, max: 15 });
+      if (!rate.allowed) {
+        return json({ error: `Too many order requests. Please wait ${rate.resetInSeconds}s.` }, 429);
       }
 
       const body = await request.json().catch(() => ({}));
@@ -1618,6 +1691,15 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
     // GET /api/shop/payments/status?sessionId=...
     if (pathname === "/api/shop/payments/status" && request.method === "GET") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Authentication required", code: "AUTH_REQUIRED" }, 401);
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json({ error: "Invalid session", code: "AUTH_REQUIRED" }, 401);
+      }
+
       const sessionId = url.searchParams.get("sessionId");
       if (!sessionId) {
         return json({ error: "Session ID is required" }, 400);
@@ -1626,15 +1708,41 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
       if (!session) {
         return json({ error: "Payment session not found or expired" }, 404);
       }
+      if (session.userId !== payload.userId && payload.role !== "SUPER_ADMIN") {
+        return json({ error: "You do not have permission to view this payment session.", code: "FORBIDDEN" }, 403);
+      }
       return json({ success: true, status: session.status, session });
     }
 
     // POST /api/shop/payments/submit-utr (Instant manual UTR submission fallback)
     if (pathname === "/api/shop/payments/submit-utr" && request.method === "POST") {
+      const token = extractBearerToken(request);
+      if (!token) {
+        return json({ error: "Authentication required", code: "AUTH_REQUIRED" }, 401);
+      }
+      const payload = verifyAccessToken(token);
+      if (!payload || !payload.userId) {
+        return json({ error: "Invalid session", code: "AUTH_REQUIRED" }, 401);
+      }
+
+      const rate = checkRateLimit(`submit_utr:${payload.userId}:${clientIp}`, { windowMs: 60 * 1000, max: 10 });
+      if (!rate.allowed) {
+        return json({ error: `Too many UTR attempts. Please wait ${rate.resetInSeconds}s.` }, 429);
+      }
+
       const body = await request.json().catch(() => ({}));
       if (!body.sessionId || !body.utr) {
         return json({ error: "Session ID and 12-digit UTR are required" }, 400);
       }
+
+      const existingSession = await getShopPaymentSessionById(String(body.sessionId));
+      if (!existingSession) {
+        return json({ error: "Payment session not found or expired" }, 404);
+      }
+      if (existingSession.userId !== payload.userId && payload.role !== "SUPER_ADMIN") {
+        return json({ error: "Forbidden payment session access", code: "FORBIDDEN" }, 403);
+      }
+
       const res = await verifyPaymentSessionUtr(String(body.sessionId), String(body.utr));
       if (!res.success) {
         return json({ error: res.error || "Failed to verify UTR" }, 400);
@@ -1648,6 +1756,16 @@ export async function handleApiRoute(request: Request): Promise<Response | null>
 
     // POST /api/shop/payments/bank-webhook (Kotak Bank Credit Email / Observer Webhook)
     if (pathname === "/api/shop/payments/bank-webhook" && request.method === "POST") {
+      const expectedSecret = (process.env["BANK_WEBHOOK_SECRET"] || "").trim();
+      const providedSecret =
+        request.headers.get("x-webhook-secret")?.trim() ||
+        extractBearerToken(request) ||
+        "";
+
+      if (!expectedSecret || providedSecret !== expectedSecret) {
+        return json({ error: "Unauthorized webhook signature." }, 401);
+      }
+
       const body = await request.json().catch(() => ({}));
       const res = await processBankCreditWebhook({
         amount: body.amount !== undefined ? Number(body.amount) : undefined,

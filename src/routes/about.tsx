@@ -684,6 +684,32 @@ function About() {
           </div>
         </div>
       </section>
+
+      {/* Schema.org AboutPage & BreadcrumbList JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "AboutPage",
+                name: "About Menuly India",
+                url: "https://www.menulyindia.online/about",
+                description:
+                  "How Menuly empowers Indian restaurants, cafes, and dhabas with zero-commission digital QR menus and table ordering.",
+              },
+              {
+                "@type": "BreadcrumbList",
+                itemListElement: [
+                  { "@type": "ListItem", position: 1, name: "Home", item: "https://www.menulyindia.online/" },
+                  { "@type": "ListItem", position: 2, name: "About Us", item: "https://www.menulyindia.online/about" },
+                ],
+              },
+            ],
+          }),
+        }}
+      />
     </SitePage>
   );
 }

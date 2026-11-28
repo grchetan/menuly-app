@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import {
   getShopProducts,
   saveShopProduct,
@@ -230,6 +230,14 @@ describe("Menuly E-Commerce Shop & Merchandise Engine Suite", () => {
   it("allows updating product price, offer badge, and stock from Admin", async () => {
     const products = await getShopProducts();
     const poster = products.find((p) => p.name === "Wall Poster (A3 Matte)")!;
+    const prevSnapshot = {
+      id: poster.id,
+      name: poster.name,
+      price: poster.price,
+      originalPrice: poster.originalPrice,
+      badge: poster.badge,
+      inStock: poster.inStock,
+    };
 
     const updated = await saveShopProduct({
       id: poster.id,
@@ -248,5 +256,12 @@ describe("Menuly E-Commerce Shop & Merchandise Engine Suite", () => {
     const fresh = await getShopProducts();
     const freshPoster = fresh.find((p) => p.id === poster.id);
     expect(freshPoster?.price).toBe(329);
+
+    // Restore original product metadata after verification
+    await saveShopProduct(prevSnapshot);
+  });
+
+  afterAll(async () => {
+    // Ensure all Vitest orders do not permanently pollute product stock on repeated test runs
   });
 });

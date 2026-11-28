@@ -58,8 +58,8 @@ function RefundPolicyPage() {
       <LegalSection id="overview" number="1" title="Overview & Scope">
         <p>
           This Cancellation & Refund Policy applies to all commercial transactions completed on {APP_NAME} (
-          <a href="https://menuly.app" className="text-primary hover:underline font-medium">
-            menuly.app
+          <a href="https://www.menulyindia.online" className="text-primary hover:underline font-medium">
+            www.menulyindia.online
           </a>
           ), including recurring digital SaaS software plans (Pro, Business, Enterprise) and physical merchandise purchases (Acrylic Table Stands, Matte Wall Posters, Wooden Table Tents, Vinyl Sticker Packs) fulfilled via our Print Shop.
         </p>

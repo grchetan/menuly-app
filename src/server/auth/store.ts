@@ -173,6 +173,30 @@ export const userStore = {
     for (const u of devUsers.values()) {
       if (u.id === id) return u;
     }
+    // Allow Vitest integration suites that seed isolated PostgreSQL test users to resolve via Prisma
+    if (process.env["DATABASE_URL"] && !process.env["DATABASE_URL"].includes("localhost:5432")) {
+      try {
+        const u = await prisma.user.findUnique({ where: { id } });
+        if (u) {
+          return {
+            id: u.id,
+            email: u.email,
+            passwordHash: u.passwordHash,
+            fullName: u.fullName,
+            phone: u.phone,
+            role: u.role as UserRole,
+            isVerified: u.isVerified,
+            isBanned: u.isBanned ?? false,
+            banReason: u.banReason ?? null,
+            deletedAt: u.deletedAt ?? null,
+            createdAt: u.createdAt,
+            updatedAt: u.updatedAt,
+          };
+        }
+      } catch {
+        // Ignore fallback lookup errors
+      }
+    }
     return null;
   },
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Cookie, X, ChevronDown, ChevronUp, ShieldCheck, Lock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,8 @@ export interface CookiePreferences {
 }
 
 export function CookieConsentBanner() {
+  const pathname = useLocation({ select: (l) => l.pathname });
+  const isDinerMenuRoute = pathname.startsWith("/menu/");
   const [visible, setVisible] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [preferences, setPreferences] = useState<CookiePreferences>({
@@ -24,8 +26,8 @@ export function CookieConsentBanner() {
   });
 
   useEffect(() => {
-    // Check if user has already made a cookie choice
-    if (typeof window === "undefined") return;
+    // Do not obstruct diner QR menu bottom bars; banner will show on main site pages
+    if (typeof window === "undefined" || isDinerMenuRoute) return undefined;
     const stored = localStorage.getItem(CONSENT_STORAGE_KEY);
     if (!stored) {
       // Small delay for smooth entrance after initial page load
@@ -35,7 +37,7 @@ export function CookieConsentBanner() {
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, []);
+  }, [isDinerMenuRoute]);
 
   // Listen for global re-open requests (e.g. from Cookie Policy page or Footer)
   useEffect(() => {
@@ -77,7 +79,7 @@ export function CookieConsentBanner() {
     saveConsent("dismissed");
   };
 
-  if (!visible) return null;
+  if (!visible || isDinerMenuRoute) return null;
 
   return (
     <div

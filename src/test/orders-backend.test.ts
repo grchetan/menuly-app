@@ -13,13 +13,17 @@ describe("Table-Wise Dine-In Order Engine & POS Suite", () => {
   const createdOrderIds: string[] = [];
 
   beforeAll(async () => {
-    // Pick an existing restaurant or create a minimal one for testing
-    let r = await prisma.restaurant.findFirst({ select: { id: true, slug: true } });
+    // Strictly isolate to a dedicated Vitest restaurant slug so live restaurant stats remain clean
+    let r = await prisma.restaurant.findUnique({
+      where: { slug: "vitest-orders-bistro" },
+      select: { id: true, slug: true },
+    });
     if (!r) {
       r = await prisma.restaurant.create({
         data: {
-          name: "Vitest Test Bistro",
-          slug: "vitest-test-bistro-" + Date.now(),
+          name: "Vitest Orders Bistro",
+          slug: "vitest-orders-bistro",
+          isActive: false,
         },
         select: { id: true, slug: true },
       });

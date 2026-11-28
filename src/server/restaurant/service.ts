@@ -1042,7 +1042,13 @@ export async function updateRestaurant(userId: string, data: Partial<RestaurantP
       ...(data.description !== undefined ? { description: data.description ? sanitizeText(data.description, 500) : null } : {}),
       ...(data.isPureVeg !== undefined ? { isPureVeg: Boolean(data.isPureVeg) } : {}),
       ...(data.galleryPhotos !== undefined && Array.isArray(data.galleryPhotos)
-        ? { galleryPhotos: data.galleryPhotos.filter((u): u is string => typeof u === "string").slice(0, 15) }
+        ? {
+            galleryPhotos: data.galleryPhotos
+              .filter((u): u is string => typeof u === "string")
+              .map((u) => sanitizeUrl(u))
+              .filter((u): u is string => Boolean(u))
+              .slice(0, 15),
+          }
         : {}),
       ...(data.logoUrl !== undefined ? { logoUrl: sanitizeUrl(data.logoUrl) } : {}),
       ...(data.coverUrl !== undefined ? { coverUrl: sanitizeUrl(data.coverUrl) } : {}),

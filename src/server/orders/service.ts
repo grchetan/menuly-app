@@ -112,24 +112,55 @@ export async function createOrder(params: CreateOrderParams): Promise<{
     return { success: false, status: 404, error: "Restaurant not found." };
   }
 
+  // Fetch authoritative DB menu items when restaurant has persisted dishes to prevent client-side price tampering
+  const dbMenuMap = new Map<string, { id: string; name: string; price: number; available: boolean; isVeg: boolean }>();
+  try {
+    const dbItems = await prisma.menuItem.findMany({
+      where: { restaurantId: restaurant.id },
+      select: { id: true, name: true, price: true, available: true, isVeg: true },
+    });
+    for (const row of dbItems) {
+      dbMenuMap.set(row.id, {
+        id: row.id,
+        name: row.name,
+        price: Number(row.price),
+        available: row.available,
+        isVeg: row.isVeg,
+      });
+    }
+  } catch (err) {
+    console.warn("[Orders] Menu item lookup failed, falling back to sanitized payload:", err);
+  }
+
   // Calculate item totals safely
   let subtotal = 0;
   let totalItems = 0;
-  const sanitizedItems = items.map((it) => {
+  const sanitizedItems = [];
+  for (const it of items) {
     const qty = Math.max(1, Math.min(50, Math.floor(Number(it.quantity) || 1)));
-    const price = Math.max(0, Number(it.price) || 0);
-    const itemTotal = price * qty;
+    const itemId = String(it.id || "");
+    const dbItem = itemId ? dbMenuMap.get(itemId) : undefined;
+    if (dbItem && !dbItem.available) {
+      return {
+        success: false,
+        status: 400,
+        error: `"${dbItem.name}" is currently marked out of stock.`,
+      };
+    }
+
+    const authoritativePrice = dbItem ? Math.max(0, dbItem.price) : Math.max(0, Math.min(100_000, Number(it.price) || 0));
+    const itemTotal = authoritativePrice * qty;
     subtotal += itemTotal;
     totalItems += qty;
-    return {
-      id: String(it.id || Math.random()),
-      name: sanitizeText(it.name || "Dish", 100),
-      price,
+    sanitizedItems.push({
+      id: itemId || String(Math.random()),
+      name: sanitizeText(dbItem ? dbItem.name : (it.name || "Dish"), 100),
+      price: authoritativePrice,
       quantity: qty,
       total: itemTotal,
-      isVeg: it.isVeg !== false,
-    };
-  });
+      isVeg: dbItem ? dbItem.isVeg : it.isVeg !== false,
+    });
+  }
 
   const grandTotal = subtotal; // Taxes included by default
   const orderNumber = generateOrderNumber();

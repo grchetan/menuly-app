@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { sanitizeText, sanitizePrice } from "../security/sanitize";
+import { sanitizeText, sanitizePrice, sanitizeUrl } from "../security/sanitize";
 import { invalidatePublicMenuCache, invalidateUserRestaurantCache } from "../restaurant/service";
 import { getSmartDishImageUrl } from "../../lib/dish-images";
 
@@ -8,6 +8,7 @@ export interface ScannedMenuItem {
   description?: string | null;
   price: number;
   isVeg: boolean;
+  available?: boolean;
   imageUrl?: string | null;
 }
 
@@ -258,18 +259,17 @@ export async function applyScannedMenuToRestaurant(params: {
       // Insert dishes under targetCatId
       const itemsToCreate = (cat.items || []).map((it, idx) => {
         totalDishesCreated++;
-        const resolvedImage = (typeof it.imageUrl === "string" && it.imageUrl.trim())
-          ? it.imageUrl.trim()
-          : getSmartDishImageUrl(it.name, cat.name, it.isVeg);
+        const safeProvidedImage = sanitizeUrl(it.imageUrl);
+        const resolvedImage = safeProvidedImage || getSmartDishImageUrl(it.name, cat.name, it.isVeg);
         return {
           restaurantId,
           categoryId: targetCatId!,
           name: sanitizeText(it.name, 120) || "Dish",
           description: it.description ? sanitizeText(it.description, 400) : null,
-          price: Math.max(0, Number(it.price) || 0),
+          price: sanitizePrice(it.price),
           imageUrl: resolvedImage,
           isVeg: it.isVeg !== false,
-          available: true,
+          available: it.available !== false,
           position: idx,
         };
       });

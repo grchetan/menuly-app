@@ -130,6 +130,7 @@ export const Route = createFileRoute("/admin")({
         name: "description",
         content: "Platform business analytics, customer monitoring, and support resolution console.",
       },
+      { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Executive Command Center — Menuly" },
     ],
   }),

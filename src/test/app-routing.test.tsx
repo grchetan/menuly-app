@@ -13,6 +13,14 @@ describe("App routing", () => {
     const matches = router.matchRoutes("/");
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
 
+    expect(router.matchRoutes("/shop").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/restaurants").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/restaurants/demo").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/menu/demo").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/how-to-use").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/about").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/contact").at(-1)?.routeId).not.toBe(rootRouteId);
+    expect(router.matchRoutes("/auth").at(-1)?.routeId).not.toBe(rootRouteId);
     expect(router.matchRoutes("/privacy").at(-1)?.routeId).not.toBe(rootRouteId);
     expect(router.matchRoutes("/terms").at(-1)?.routeId).not.toBe(rootRouteId);
     expect(router.matchRoutes("/refund").at(-1)?.routeId).not.toBe(rootRouteId);

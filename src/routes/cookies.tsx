@@ -16,7 +16,9 @@ export const Route = createFileRoute("/cookies")({
         property: "og:description",
         content: `Read the official Cookie and Local Storage Policy for ${APP_NAME}. Zero cross-site advertising cookies.`,
       },
+      { property: "og:url", content: "https://www.menulyindia.online/cookies" },
     ],
+    links: [{ rel: "canonical", href: "https://www.menulyindia.online/cookies" }],
   }),
   component: CookiePolicyPage,
 });

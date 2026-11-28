@@ -20,7 +20,7 @@ import {
   Calendar,
   Share2,
 } from "lucide-react";
-import { SitePage } from "@/components/SiteLayout";
+import { SitePage, usePlatformSettings } from "@/components/SiteLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -105,6 +105,11 @@ function isOpenNow(hoursString?: string | null): boolean {
 
 function RestaurantCommunityPage() {
   const navigate = useNavigate();
+  const { data: platformSettingsRes } = usePlatformSettings();
+  const hasAnnouncementTicker = Boolean(
+    (platformSettingsRes?.settings?.announcementTickerEnabled ?? true) &&
+      platformSettingsRes?.settings?.announcementTicker?.trim()
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"popular" | "views" | "visits" | "newest" | "name">("popular");
@@ -231,7 +236,11 @@ function RestaurantCommunityPage() {
         {/* ------------------------------------------------------------- */}
         {/* SEARCH, CITY FILTERS & CONTROLS BAR (RESPONSIVE NO-EMOJI)    */}
         {/* ------------------------------------------------------------- */}
-        <section className="sticky top-16 sm:top-[70px] z-20 px-4 sm:px-6 py-3 bg-background/85 backdrop-blur-xl border-y border-border/60 transition-all shadow-xs">
+        <section
+          className={`sticky z-20 px-4 sm:px-6 py-3 bg-background/85 backdrop-blur-xl border-y border-border/60 transition-all shadow-xs ${
+            hasAnnouncementTicker ? "top-[96px] sm:top-[106px]" : "top-[64px] sm:top-[68px]"
+          }`}
+        >
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
             {/* Search Input (Full width on mobile, max-w-md on desktop) */}
             <div className="relative flex-1 sm:max-w-md">
@@ -580,6 +589,32 @@ function RestaurantCommunityPage() {
             </div>
           </div>
         </section>
+
+        {/* Schema.org CollectionPage & BreadcrumbList JSON-LD */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "CollectionPage",
+                  name: `Verified Restaurants & Live QR Digital Menus — ${APP_NAME}`,
+                  url: "https://www.menulyindia.online/restaurants",
+                  description:
+                    "Explore live digital menus, food prices, locations, and QR storefronts from verified restaurants, cafes, and dhabas across India.",
+                },
+                {
+                  "@type": "BreadcrumbList",
+                  itemListElement: [
+                    { "@type": "ListItem", position: 1, name: "Home", item: "https://www.menulyindia.online/" },
+                    { "@type": "ListItem", position: 2, name: "Restaurants", item: "https://www.menulyindia.online/restaurants" },
+                  ],
+                },
+              ],
+            }),
+          }}
+        />
       </div>
     </SitePage>
   );

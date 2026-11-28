@@ -1398,7 +1398,10 @@ function ShopPublic() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/shop/payments/status?sessionId=${activePaymentSession.id}`);
+        const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+        const res = await fetch(`/api/shop/payments/status?sessionId=${activePaymentSession.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.status === "PAID") {
@@ -1470,9 +1473,13 @@ function ShopPublic() {
     }
     setVerifyingUtr(true);
     try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
       const res = await fetch("/api/shop/payments/submit-utr", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           sessionId: activePaymentSession.id,
           utr: cleanUtr,
@@ -1508,7 +1515,10 @@ function ShopPublic() {
     setCheckingPaymentStatus(true);
     setCheckStatusFeedback(null);
     try {
-      const res = await fetch(`/api/shop/payments/status?sessionId=${activePaymentSession.id}`);
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const res = await fetch(`/api/shop/payments/status?sessionId=${activePaymentSession.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.status === "PAID") {
@@ -1576,7 +1586,10 @@ function ShopPublic() {
       return;
     }
     try {
-      const res = await fetch(`/api/shop/payments/status?sessionId=${ord.paymentSessionId}`);
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const res = await fetch(`/api/shop/payments/status?sessionId=${ord.paymentSessionId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.status === "PAID") {
@@ -1709,7 +1722,9 @@ function ShopPublic() {
     try {
       let session: ShopPaymentSession | null = null;
       if (ord.paymentSessionId) {
-        const sRes = await fetch(`/api/shop/payments/status?sessionId=${ord.paymentSessionId}`);
+        const sRes = await fetch(`/api/shop/payments/status?sessionId=${ord.paymentSessionId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const sData = await sRes.json();
         if (sRes.ok && sData.success && sData.session) {
           session = sData.session;
@@ -1812,7 +1827,10 @@ function ShopPublic() {
     }
     setTrackLoading(true);
     try {
-      const res = await fetch(`/api/shop/orders/track?orderNumber=${encodeURIComponent(num)}`);
+      const token = typeof window !== "undefined" ? localStorage.getItem("menuly_token") : null;
+      const res = await fetch(`/api/shop/orders/track?orderNumber=${encodeURIComponent(num)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await res.json();
       if (!res.ok || !data.success || !data.order) {
         throw new Error(data.error || "Order not found. Please check your order number.");

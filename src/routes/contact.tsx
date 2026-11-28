@@ -843,6 +843,32 @@ function ContactPage() {
 
         </main>
       </section>
+
+      {/* Schema.org ContactPage & BreadcrumbList JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "ContactPage",
+                name: "Contact Menuly India Support",
+                url: "https://www.menulyindia.online/contact",
+                description:
+                  "Reach Menuly India restaurant support desk via WhatsApp, email, or feedback portal.",
+              },
+              {
+                "@type": "BreadcrumbList",
+                itemListElement: [
+                  { "@type": "ListItem", position: 1, name: "Home", item: "https://www.menulyindia.online/" },
+                  { "@type": "ListItem", position: 2, name: "Contact Us", item: "https://www.menulyindia.online/contact" },
+                ],
+              },
+            ],
+          }),
+        }}
+      />
     </SitePage>
   );
 }

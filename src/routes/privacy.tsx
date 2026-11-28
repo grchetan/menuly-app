@@ -61,8 +61,8 @@ function PrivacyPolicyPage() {
         <p>
           Welcome to {APP_NAME} ("<strong>Company</strong>", "<strong>we</strong>", "<strong>our</strong>", or "<strong>us</strong>").
           This Privacy Policy explains how {APP_NAME} collects, utilizes, discloses, stores, and protects information when you access or use our website (
-          <a href="https://menuly.app" className="text-primary hover:underline font-medium">
-            menuly.app
+          <a href="https://www.menulyindia.online" className="text-primary hover:underline font-medium">
+            www.menulyindia.online
           </a>
           ), our cloud-based restaurant administrative console, our digital menu viewers, and our QR table stand ordering solutions (collectively, the "<strong>Services</strong>").
         </p>

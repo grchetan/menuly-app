@@ -5,6 +5,8 @@ import { renderErrorPage } from "./lib/error-page";
 import { handleApiRoute } from "./server/router";
 import { isMaintenanceModeActive, getPlatformSettings } from "./server/platform/service";
 import { renderMaintenanceHtml } from "./server/platform/html";
+import { generateDynamicSitemapXml } from "./server/seo/sitemap";
+import { applySecurityHeaders } from "./server/security/headers";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -50,14 +52,29 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      // 1. Intercept and handle /api/* REST endpoints (Custom Auth, OTP, Admin, Platform Settings)
-      const apiResponse = await handleApiRoute(request);
-      if (apiResponse) return apiResponse;
-
-      // 2. Intercept page requests when Platform Maintenance Mode is active
       const url = new URL(request.url);
       const pathname = url.pathname;
 
+      // 0. Dynamic XML Sitemap for search engines (never gated by maintenance)
+      if (pathname === "/sitemap.xml" && (request.method === "GET" || request.method === "HEAD")) {
+        const xml = await generateDynamicSitemapXml("https://www.menulyindia.online");
+        return applySecurityHeaders(
+          new Response(request.method === "HEAD" ? null : xml, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/xml; charset=utf-8",
+              "Cache-Control": "public, max-age=3600, s-maxage=3600",
+            },
+          }),
+          request
+        );
+      }
+
+      // 1. Intercept and handle /api/* REST endpoints (Custom Auth, OTP, Admin, Platform Settings)
+      const apiResponse = await handleApiRoute(request);
+      if (apiResponse) return applySecurityHeaders(apiResponse, request);
+
+      // 2. Intercept page requests when Platform Maintenance Mode is active
       // CRITICAL EXEMPTIONS:
       // - Restaurant QR Menus (/menu/*) MUST NEVER GO DOWN! Diners seated at tables can always view menus.
       // - Master Admin Suite (/admin*) must remain open so admins can manage and turn off maintenance.
@@ -75,33 +92,36 @@ export default {
         const inMaintenance = await isMaintenanceModeActive();
         if (inMaintenance) {
           const settings = await getPlatformSettings();
-          return new Response(renderMaintenanceHtml(settings), {
-            status: 503,
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-              "Retry-After": "120",
-              "Cache-Control": "no-cache, no-store, must-revalidate",
-              "X-Content-Type-Options": "nosniff",
-              "X-Frame-Options": "SAMEORIGIN",
-            },
-          });
+          return applySecurityHeaders(
+            new Response(renderMaintenanceHtml(settings), {
+              status: 503,
+              headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Retry-After": "120",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+              },
+            }),
+            request
+          );
         }
       }
 
       // 3. Delegate SSR and page requests to TanStack Start
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const finalResponse = await normalizeCatastrophicSsrResponse(response);
+      return applySecurityHeaders(finalResponse, request);
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "X-Content-Type-Options": "nosniff",
-          "X-Frame-Options": "SAMEORIGIN",
-        },
-      });
+      return applySecurityHeaders(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+          },
+        }),
+        request
+      );
     }
   },
 };

@@ -36,6 +36,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { getSafeRedirectPath } from "@/lib/safe-redirect";
 import authImage from "@/assets/auth-image.png";
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -80,6 +81,7 @@ export const Route = createFileRoute("/auth")({
     meta: [
       { title: "Restaurant Sign In & Registration — Menuly" },
       { name: "description", content: "Access your restaurant's digital menu dashboard and live analytics." },
+      { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Restaurant Sign In & Registration — Menuly" },
     ],
   }),
@@ -89,17 +91,17 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
+  const safeSearchRedirect = getSafeRedirectPath(search.redirect, "");
 
-  // Robust destination navigator that handles paths with query params (e.g., /shop?checkout=1)
+  // Robust destination navigator that prevents open redirects & preserves internal query params (e.g. /shop?checkout=1)
   const navigateToDestination = useCallback(
     (target: string) => {
+      const safeTarget = getSafeRedirectPath(target, "/dashboard");
       if (typeof window !== "undefined") {
-        if (target.startsWith("/")) {
-          window.location.href = target;
-          return;
-        }
+        window.location.href = safeTarget;
+        return;
       }
-      navigate({ to: target as any, replace: true });
+      navigate({ to: safeTarget as any, replace: true });
     },
     [navigate]
   );
@@ -148,7 +150,7 @@ function AuthPage() {
             saveAuthSession(gToken, data.user);
             toast.success("Welcome! Signed in with Google.");
             const destination =
-              search.redirect || (data.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+              safeSearchRedirect || (data.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
             navigateToDestination(destination);
           } else {
             setCheckingSession(false);
@@ -161,10 +163,10 @@ function AuthPage() {
     const token = localStorage.getItem("menuly_token");
     if (token) {
       const userStr = localStorage.getItem("menuly_user");
-      let destination = search.redirect || "/dashboard";
+      let destination = safeSearchRedirect || "/dashboard";
       try {
         const u = userStr ? JSON.parse(userStr) : null;
-        if (!search.redirect && (u?.role === "SUPER_ADMIN" || u?.role === "super_admin")) {
+        if (!safeSearchRedirect && (u?.role === "SUPER_ADMIN" || u?.role === "super_admin")) {
           destination = "/admin";
         }
       } catch {
@@ -182,7 +184,7 @@ function AuthPage() {
 
     setCheckingSession(false);
     return undefined;
-  }, [navigateToDestination, search]);
+  }, [navigateToDestination, safeSearchRedirect, search.google_token]);
 
   const handleGoogleCredentialResponse = useCallback(
     async (response: { credential?: string }) => {
@@ -203,7 +205,7 @@ function AuthPage() {
         toast.success(data.message || "Signed in with Google!");
 
         const destination =
-          search.redirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+          safeSearchRedirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
         navigateToDestination(destination);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -212,7 +214,7 @@ function AuthPage() {
         setIsGoogleLoading(false);
       }
     },
-    [navigateToDestination, search.redirect]
+    [navigateToDestination, safeSearchRedirect]
   );
 
   // Initialize Google Identity Services (GIS)
@@ -255,8 +257,8 @@ function AuthPage() {
   }, [handleGoogleCredentialResponse]);
 
   const handleGoogleClick = () => {
-    const googleRedirectUrl = search.redirect
-      ? `/api/auth/google/redirect?redirect=${encodeURIComponent(search.redirect)}`
+    const googleRedirectUrl = safeSearchRedirect
+      ? `/api/auth/google/redirect?redirect=${encodeURIComponent(safeSearchRedirect)}`
       : "/api/auth/google/redirect";
 
     if (googleClientId) {
@@ -504,7 +506,7 @@ function AuthPage() {
       saveAuthSession(data.data.token, data.data.user);
       toast.success("Welcome back! Redirecting...");
 
-      const targetDestination = search.redirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+      const targetDestination = safeSearchRedirect || (data.data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
       navigateToDestination(targetDestination);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -607,7 +609,7 @@ function AuthPage() {
         saveAuthSession(data.data.token, data.data.user);
       }
       toast.success("WhatsApp linked successfully! Welcome to Menuly.");
-      const targetDestination = search.redirect || "/dashboard";
+      const targetDestination = safeSearchRedirect || "/dashboard";
       navigateToDestination(targetDestination);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1492,7 +1494,7 @@ function AuthPage() {
                       type="button"
                       onClick={() => {
                         toast.info("WhatsApp setup skipped. You can link it anytime from Settings.");
-                        const targetDestination = search.redirect || "/dashboard";
+                        const targetDestination = safeSearchRedirect || "/dashboard";
                         navigateToDestination(targetDestination);
                       }}
                       className="w-full py-2 text-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
